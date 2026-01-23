@@ -431,6 +431,38 @@ Configurable menu panels for progress stats.
 }
 ```
 
+## ui/title.json
+
+Defines the title screen layout and content. This is a lightweight, templatable
+configuration intended to support ASCII logos, attribution, and menu items.
+
+```json
+{
+  "version": 1,
+  "title": "OpenCrystal",
+  "logo": {
+    "lines": [
+      "  ___                     ____          _       _ ",
+      " / _ \\ _ __   ___ _ __   / ___|_ __ ___| |_ __ _| |",
+      "| | | | '_ \\ / _ \\ '_ \\ | |   | '__/ __| __/ _` | |",
+      "| |_| | |_) |  __/ | | || |___| | | (__| || (_| | |",
+      " \\___/| .__/ \\___|_| |_| \\____|_|  \\___|\\__\\__,_|_|",
+      "      |_|                                            "
+    ]
+  },
+  "menu": [
+    {"id": "new_game", "label": "New Game"},
+    {"id": "load_game", "label": "Load"},
+    {"id": "settings", "label": "Settings"},
+    {"id": "exit", "label": "Exit"}
+  ],
+  "footer": {
+    "left": "A crystal-bound journey",
+    "right": "By OpenCrystal Team"
+  }
+}
+```
+
 ## ui/battle.json
 
 Defines battle UI layout and panel behavior. Panels can be anchored or flexed to adapt
