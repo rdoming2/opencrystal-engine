@@ -1,16 +1,47 @@
 # OpenCrystal TODO
 
-## Foundations
-- [ ] Create runtime state machine (title, overworld, battle, menus, events).
-- [ ] Implement event executor for core steps (dialog, narration, set_flag, require_flags, give_item).
-- [ ] Add content registry (loaders + in-memory indices for maps/entities/events).
+## Runtime
+- [ ] Create runtime state machine.
+  - [ ] Title state.
+  - [ ] Overworld state.
+  - [ ] Battle state.
+  - [ ] Menu state.
+  - [ ] Event state.
+- [ ] Implement event executor.
+  - [ ] Dialog and narration.
+  - [ ] Flag setting/requirements.
+  - [ ] Item/equipment grants.
+  - [ ] Warp and battle starts.
+  - [ ] NPC show/hide/move/sprite.
+- [ ] Add content registry.
+  - [ ] Load all content into indexed registries.
+  - [ ] Build cross-reference maps (ids to definitions).
 - [ ] Implement save/load for demo content.
+  - [ ] Serialize world/party/inventory/flags.
+  - [ ] Load persistent NPC positions.
+- [ ] Implement runtime map transitions.
+  - [ ] Step on transition triggers map load.
+  - [ ] Preserve player position on target map.
+- [ ] Implement NPC interaction runtime.
+  - [ ] Dialog vs event selection.
+  - [ ] Shop opening via dialog actions.
 
 ## UI + Rendering
-- [ ] Title screen renderer (ui/title.json).
-- [ ] Overworld renderer (tile map + NPCs + transitions).
-- [ ] Battle renderer (ui/battle.json + enemy glyph/art).
-- [ ] Menu + progress UI (ui/progress.json).
+- [ ] Title screen renderer.
+  - [ ] Layout from `ui/title.json`.
+  - [ ] ASCII logo rendering and menu highlight.
+- [ ] Overworld renderer.
+  - [ ] Tile map rendering.
+  - [ ] NPC rendering + gating.
+  - [ ] Transition markers (optional).
+- [ ] Battle renderer.
+  - [ ] Battlefield + enemy art/glyph modes.
+  - [ ] Command row (enemy list, commands, party list).
+  - [ ] Selection highlights.
+- [ ] Menu + progress UI.
+  - [ ] Status menu panels from `ui/progress.json`.
+  - [ ] Journal/quest display.
+  - [ ] Party management UI.
 
 ## Battle System
 - [ ] Turn-based flow (command selection, targeting, resolve action).
@@ -23,14 +54,17 @@
 - [ ] Define skills/abilities schema (non-spell actions).
 
 ## World + Events
-- [ ] Map transitions (enter/exit dungeons, overworld zoom).
-- [ ] NPC interactions with flag gating.
-- [ ] Airship unlock flow (demo completion).
-- [ ] Define NPC schema (behavior, dialog, schedules).
+- [x] Map transitions (enter/exit dungeons, overworld zoom).
+- [x] NPC interactions with flag gating.
+- [x] Airship unlock flow (demo completion).
+- [x] Define NPC schema (behavior, dialog, schedules).
+- [ ] Implement quest resolver (flag-driven steps and journal updates).
+- [ ] Implement NPC roaming (persisted positions).
+- [ ] Implement event-driven NPC controls (show/hide/move/set_sprite).
 
 ## Content + Validation
-- [ ] Add missing demo content (town map, shop UI, basic quests).
-- [ ] Extend validation for event step payloads.
+- [x] Add missing demo content (town map, shop UI, basic quests).
+- [x] Extend validation for event step payloads.
 - [ ] Add content authoring guide.
 - [ ] Define encounter rate rules schema.
 - [ ] Finalize save schema requirements and versioning rules.
