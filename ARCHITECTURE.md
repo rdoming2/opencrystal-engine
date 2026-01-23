@@ -62,7 +62,7 @@ Default bindings (configurable via input.json):
 
 - Movement: Arrow keys, WASD, HJKL
 - Confirm: Enter/Return, E
-- Cancel: C, Backspace
+- Cancel: C
 - Menu: I, Esc
 - Battle pause: Space (shows PAUSE overlay)
 
@@ -73,10 +73,12 @@ All runtime data is loaded from JSON. Files are organized into top-level categor
 - `rules.json`: global rules and toggles.
 - `worlds.json`: world list, world-to-world travel rules, zoom config.
 - `maps/*.json`: map tiles, entities, triggers, encounter zones.
-- `entities/*.json`: jobs, spells, items, equipment, enemies, vehicles.
+- `entities/*.json`: jobs, spells, items, equipment, enemies, vehicles, shops, encounters.
 - `events/*.json`: scripted events and cutscenes.
 - `ui/*.json`: menu panels, progress tracking config.
 - `input.json`: key bindings.
+- `stats.json`: base and derived stat definitions.
+- `save.json`: runtime save format.
 
 ## Key systems
 
@@ -109,8 +111,8 @@ All runtime data is loaded from JSON. Files are organized into top-level categor
 ### Magic system
 
 - Magic schools are data-driven (white/black in demo; expandable to blue/time/etc).
-- Spells reference a school, tier, MP cost, target type, and effect.
-- Enemies can have a resistance or weakness to a particular school.
+- Spells reference a school, tier, cost type (MP or tier charges), target rules, and effect.
+- Enemies can include traits (e.g., undead) that drive effect resolution.
 
 ### Battle system
 
@@ -136,6 +138,7 @@ All runtime data is loaded from JSON. Files are organized into top-level categor
 
 - JSON saves with versioning fields for future obfuscation.
 - Use a reserved field for `encoding` (e.g., "plain") to allow future formats.
+- Save data includes map state (flags + entity state) and global entities (vehicles).
 
 ## Module layout (suggested)
 
@@ -161,16 +164,22 @@ All runtime data is loaded from JSON. Files are organized into top-level categor
 
 ```json
 {
+  "version": 1,
   "game": {
     "title": "OpenCrystal",
     "start_mode": "ff1",
+    "party_size": 4,
+    "party_reserve_size": 4,
+    "battle_mode": "turn",
+    "magic_system": "mp",
     "job_change_enabled": false,
     "job_change_flag": "world.job_change_unlocked",
-    "battle_mode": "turn" 
+    "currency": {"id": "gil", "name": "G", "symbol": "G"}
   },
   "features": {
     "journal": true,
-    "fast_travel": true
+    "fast_travel": true,
+    "overworld_map": true
   },
   "render": {
     "min_art_width": 110,
@@ -183,19 +192,17 @@ All runtime data is loaded from JSON. Files are organized into top-level categor
 
 ```json
 {
+  "version": 1,
   "worlds": [
     {
       "id": "gaia",
       "name": "Gaia",
-      "maps": ["overworld_gaia"],
-      "overview_zoom": true,
+      "starting_map": "overworld_gaia",
       "zoom_levels": ["overview", "explore"],
-      "travel": {
-        "vehicles": ["ship", "airship"],
-        "links": [
-          {"to_world": "luna", "requires_flag": "world.luna_unlocked"}
-        ]
-      }
+      "overview": {"enabled": true, "map_id": "gaia_overview"},
+      "vehicles": ["ship", "airship"],
+      "fast_travel": {"enabled": true, "requires_flag": "world.fast_travel_unlocked"},
+      "links": [{"to_world": "luna", "requires_flag": "world.luna_unlocked"}]
     }
   ]
 }
@@ -205,20 +212,23 @@ All runtime data is loaded from JSON. Files are organized into top-level categor
 
 ```json
 {
-  "move_up": ["Up", "W", "K"],
-  "move_down": ["Down", "S", "J"],
-  "move_left": ["Left", "A", "H"],
-  "move_right": ["Right", "D", "L"],
-  "confirm": ["Enter", "E"],
-  "cancel": ["C", "Backspace"],
-  "menu": ["I", "Escape"],
-  "pause": ["Space"]
+  "version": 1,
+  "bindings": {
+    "move_up": ["Up", "W", "K"],
+    "move_down": ["Down", "S", "J"],
+    "move_left": ["Left", "A", "H"],
+    "move_right": ["Right", "D", "L"],
+    "confirm": ["Enter", "E"],
+    "cancel": ["C"],
+    "menu": ["I", "Escape"],
+    "pause": ["Space"]
+  }
 }
 ```
 
 ## Demo content
 
 - Crystal-focused story (2 of 4 crystals recovered in demo).
-- Overworld + 1 town + 2 dungeon.
+- Overworld + 1 town + 1 dungeon.
 - 6-8 enemies, 3-4 jobs, 6-8 spells, 10 items.
 - Job unlock event and vehicle unlock event.

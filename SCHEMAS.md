@@ -149,6 +149,28 @@ Map data for overworlds, towns, and dungeons.
       "sprite": "elder",
       "script": "elder_dialog"
     }
+  ],
+  "shops": [
+    {"id": "corner_store", "pos": [8, 6]}
+  ]
+}
+```
+
+## entities/encounters.json
+
+Encounter tables referenced by maps.
+
+```json
+{
+  "version": 1,
+  "tables": [
+    {
+      "id": "gaia_grasslands",
+      "entries": [
+        {"enemy": "imp", "weight": 60, "count": [1, 3]},
+        {"enemy": "wolf", "weight": 40, "count": [1, 2]}
+      ]
+    }
   ]
 }
 ```
@@ -156,6 +178,7 @@ Map data for overworlds, towns, and dungeons.
 ## entities/jobs.json
 
 Growth formulas can reference current base stats (e.g., `vit`, `int`) as inputs.
+Growth expressions follow the same syntax as `stats.json` formulas.
 
 ```json
 {
@@ -279,6 +302,10 @@ Spell costs are flexible. Use `{"type": "mp"}` for MP-based casting or
 
 ## entities/equipment.json
 
+Equipment categories should align with job equipment lists (e.g., job weapons list
+contains categories like "sword", "staff", while `slot` describes where it equips).
+Use `allowed_jobs` for explicit whitelists when needed.
+
 ```json
 {
   "version": 1,
@@ -286,7 +313,7 @@ Spell costs are flexible. Use `{"type": "mp"}` for MP-based casting or
     {
       "id": "bronze_sword",
       "name": "Bronze Sword",
-      "type": "weapon",
+      "category": "sword",
       "slot": "weapon",
       "allowed_jobs": ["fighter"],
       "stats": {"str": 2}
@@ -305,6 +332,7 @@ Spell costs are flexible. Use `{"type": "mp"}` for MP-based casting or
       "id": "imp",
       "name": "Imp",
       "stats": {"hp": 12, "mp": 0, "str": 3, "int": 1},
+      "traits": ["beast"],
       "sprite": {
         "glyph": "i",
         "palette": "enemy"
@@ -471,7 +499,7 @@ Save data captures the full runtime state. This format is stored as JSON in phas
         "job": "white_mage",
         "level": 3,
         "exp": 120,
-        "stats": {"hp": 28, "mp": 12, "str": 2, "int": 8},
+        "stats": {"hp": 28, "mp": 12, "str": 2, "int": 8, "vit": 4, "agi": 5, "lck": 3},
         "equipment": {"weapon": "bronze_staff", "armor": "linen_robe"},
         "spells": ["cure"],
         "status": []
