@@ -1,0 +1,10 @@
+/target/
+/crates/**/target/
+.DS_Store
+.env
+.idea/
+.vscode/
+*.swp
+*.swo
+*.log
+**/*.rs.bk
