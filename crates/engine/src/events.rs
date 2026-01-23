@@ -19,6 +19,8 @@ pub struct EventStep {
     pub speaker: Option<String>,
     pub text: Option<String>,
     pub flag: Option<String>,
+    pub flags: Option<Vec<String>>,
+    pub requires: Option<Vec<String>>,
     pub item: Option<String>,
     pub qty: Option<i32>,
 }

@@ -406,6 +406,7 @@ Event scripts are ordered lists of actions.
   "steps": [
     {"type": "dialog", "speaker": "Elder", "text": "The crystals are fading..."},
     {"type": "narration", "text": "A chill wind sweeps the valley."},
+    {"type": "require_flags", "flags": ["dungeon.ember_cleared", "dungeon.tide_cleared"]},
     {"type": "set_flag", "flag": "world.intro_complete"},
     {"type": "give_item", "item": "potion", "qty": 1}
   ]
