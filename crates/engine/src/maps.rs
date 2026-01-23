@@ -16,6 +16,7 @@ pub struct MapFile {
     pub events: Vec<MapEvent>,
     pub npcs: Vec<MapNpc>,
     pub shops: Vec<MapShop>,
+    #[serde(default)]
     pub transitions: Vec<MapTransition>,
 }
 

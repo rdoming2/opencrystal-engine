@@ -14,6 +14,16 @@ use crate::world::WorldsFile;
 
 const BATTLE_POS_MAX_X: i32 = 9;
 const BATTLE_POS_MAX_Y: i32 = 5;
+const EVENT_TYPES: [&str; 8] = [
+    "dialog",
+    "narration",
+    "set_flag",
+    "require_flags",
+    "give_item",
+    "give_equipment",
+    "warp",
+    "start_battle",
+];
 
 pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
     let content_dir = content_dir.as_ref();
@@ -154,6 +164,18 @@ pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
                         map.id, transition.id, transition.target_pos
                     ));
                 }
+            }
+        }
+    }
+
+    let event_types: HashSet<&str> = EVENT_TYPES.iter().copied().collect();
+    for event in &events {
+        for step in &event.steps {
+            if !event_types.contains(step.r#type.as_str()) {
+                errors.push(format!(
+                    "events/{}: unknown step type '{}'",
+                    event.id, step.r#type
+                ));
             }
         }
     }
