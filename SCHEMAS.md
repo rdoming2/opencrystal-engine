@@ -415,6 +415,26 @@ to terminal sizes.
 ```json
 {
   "version": 1,
+  "breakpoints": [
+    {
+      "id": "compact",
+      "min_width": 0,
+      "min_height": 0,
+      "behavior": {
+        "enemy_art": "glyph",
+        "hide_panel_titles": true
+      }
+    },
+    {
+      "id": "standard",
+      "min_width": 110,
+      "min_height": 32,
+      "behavior": {
+        "enemy_art": "auto",
+        "hide_panel_titles": false
+      }
+    }
+  ],
   "layout": {
     "battlefield": {"anchor": "top", "height_ratio": 0.6},
     "command_row": {
@@ -430,7 +450,7 @@ to terminal sizes.
   "panels": {
     "enemies": {
       "title": "Enemies",
-      "highlight": {"style": "invert"}
+      "highlight": {"style": "invert", "link_to_battlefield": true}
     },
     "commands": {
       "title": "Commands",
@@ -438,8 +458,34 @@ to terminal sizes.
     },
     "party": {
       "title": "Party",
-      "show": ["hp", "mp", "atb", "status"]
+      "show": ["hp", "mp", "atb", "status"],
+      "highlight": {"style": "underline", "link_to_battlefield": true}
     }
+  },
+  "menus": {
+    "attack": {"target": "enemy"},
+    "magic": {
+      "list": "spells",
+      "group_by": "school",
+      "columns": [
+        {"id": "name", "label": "Spell"},
+        {"id": "cost", "label": "MP"}
+      ],
+      "target_from_spell": true
+    },
+    "items": {
+      "list": "inventory",
+      "columns": [
+        {"id": "name", "label": "Item"},
+        {"id": "qty", "label": "Qty"}
+      ],
+      "target_from_item": true
+    }
+  },
+  "selection": {
+    "target_cursor": "blink",
+    "battlefield_highlight": "outline",
+    "list_highlight": "invert"
   }
 }
 ```
