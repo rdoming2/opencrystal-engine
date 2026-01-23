@@ -1,5 +1,8 @@
 /target/
 /crates/**/target/
+content/*
+!content/demo/
+!content/demo/**
 .DS_Store
 .env
 .idea/

@@ -19,7 +19,7 @@ fn main() {
 
 fn run_play(args: Vec<String>) {
     let render_mode = parse_render_mode(&args).unwrap_or(RenderMode::Auto);
-    let content_dir = parse_content_dir(&args).unwrap_or_else(|| PathBuf::from("content"));
+    let content_dir = parse_content_dir(&args).unwrap_or_else(|| PathBuf::from("content/demo"));
     let rules_path = content_dir.join("rules.json");
     let worlds_path = content_dir.join("worlds.json");
     let input_path = content_dir.join("input.json");
