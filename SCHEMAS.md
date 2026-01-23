@@ -160,6 +160,9 @@ Map data for overworlds, towns, and dungeons.
 
 Encounter tables referenced by maps.
 
+Entries contain an inline formation. Single-enemy encounters are just a formation with
+one member.
+
 ```json
 {
   "version": 1,
@@ -167,8 +170,29 @@ Encounter tables referenced by maps.
     {
       "id": "gaia_grasslands",
       "entries": [
-        {"enemy": "imp", "weight": 60, "count": [1, 3]},
-        {"enemy": "wolf", "weight": 40, "count": [1, 2]}
+        {
+          "weight": 60,
+          "formation": [
+            {"enemy": "imp", "pos": [0, 1]},
+            {"enemy": "imp", "pos": [1, 2]},
+            {"enemy": "imp", "pos": [2, 3]}
+          ]
+        },
+        {
+          "weight": 40,
+          "formation": [
+            {"enemy": "wolf", "pos": [1, 2]},
+            {"enemy": "wolf", "pos": [2, 3]}
+          ]
+        },
+        {
+          "weight": 20,
+          "formation": [
+            {"enemy": "imp", "pos": [0, 1]},
+            {"enemy": "imp", "pos": [1, 2]},
+            {"enemy": "wisp", "pos": [3, 0]}
+          ]
+        }
       ]
     }
   ]

@@ -40,8 +40,29 @@ Each snippet corresponds to an existing schema.
     {
       "id": "gaia_grasslands",
       "entries": [
-        {"enemy": "imp", "weight": 60, "count": [1, 3]},
-        {"enemy": "wisp", "weight": 40, "count": [1, 2]}
+        {
+          "weight": 60,
+          "formation": [
+            {"enemy": "imp", "pos": [0, 1]},
+            {"enemy": "imp", "pos": [1, 2]},
+            {"enemy": "imp", "pos": [2, 3]}
+          ]
+        },
+        {
+          "weight": 40,
+          "formation": [
+            {"enemy": "wisp", "pos": [1, 2]},
+            {"enemy": "wisp", "pos": [2, 3]}
+          ]
+        },
+        {
+          "weight": 20,
+          "formation": [
+            {"enemy": "imp", "pos": [0, 1]},
+            {"enemy": "imp", "pos": [1, 2]},
+            {"enemy": "wisp", "pos": [3, 0]}
+          ]
+        }
       ]
     }
   ]
@@ -79,6 +100,35 @@ Each snippet corresponds to an existing schema.
       "effect": {"type": "damage", "element": "fire", "power": 22}
     }
   ]
+}
+```
+
+## rules.json
+
+```json
+{
+  "version": 1,
+  "game": {
+    "title": "OpenCrystal",
+    "start_mode": "ff1",
+    "party_size": 4,
+    "party_reserve_size": 4,
+    "battle_mode": "turn",
+    "magic_system": "mp",
+    "job_change_enabled": false,
+    "job_change_flag": "world.job_change_unlocked",
+    "currency": {"id": "gil", "name": "G", "symbol": "G"}
+  },
+  "features": {
+    "journal": true,
+    "fast_travel": true,
+    "overworld_map": true
+  },
+  "render": {
+    "min_art_width": 110,
+    "min_art_height": 32,
+    "palette": "terminal"
+  }
 }
 ```
 
