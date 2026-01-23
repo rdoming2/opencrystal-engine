@@ -161,7 +161,8 @@ Map data for overworlds, towns, and dungeons.
 Encounter tables referenced by maps.
 
 Entries contain an inline formation. Single-enemy encounters are just a formation with
-one member. Each formation member must include a `pos` value.
+one member. Each formation member must include a `pos` value. Positions are expressed
+in a battle grid from `[0,0]` to `[9,5]` (10x6).
 
 ```json
 {

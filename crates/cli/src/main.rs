@@ -1,7 +1,20 @@
 use std::env;
 use std::path::PathBuf;
 
-use engine::{rules::RulesFile, rules::Ruleset, world::WorldState, world::WorldsFile, Engine};
+use engine::{
+    encounters::EncountersFile,
+    entities::{
+        EnemiesFile, EquipmentFile, ItemsFile, JobsFile, ShopsFile, SpellsFile, VehiclesFile,
+    },
+    events::EventFile,
+    maps::MapFile,
+    rules::RulesFile,
+    rules::Ruleset,
+    stats::StatsFile,
+    world::WorldState,
+    world::WorldsFile,
+    Engine,
+};
 use tui::input::InputFile;
 use tui::renderer::RenderMode;
 use tui::ui::{BattleUiFile, ProgressUiFile, TitleUiFile};
@@ -26,6 +39,10 @@ fn run_play(args: Vec<String>) {
     let input_path = content_dir.join("input.json");
     let title_ui_path = content_dir.join("ui").join("title.json");
     let battle_ui_path = content_dir.join("ui").join("battle.json");
+    let stats_path = content_dir.join("stats.json");
+    let entities_dir = content_dir.join("entities");
+    let maps_dir = content_dir.join("maps");
+    let events_dir = content_dir.join("events");
     let progress_ui_path = content_dir.join("ui").join("progress.json");
 
     let rules = match RulesFile::load(&rules_path) {
@@ -50,6 +67,22 @@ fn run_play(args: Vec<String>) {
         }
     };
 
+    load_optional(
+        &stats_path,
+        |path| StatsFile::load(path),
+        "stats",
+        &mut Vec::new(),
+    );
+    load_entities(&entities_dir);
+    load_directory(&maps_dir, |path| MapFile::load(path), "map");
+    load_directory(&events_dir, |path| EventFile::load(path), "event");
+    load_optional(
+        &entities_dir.join("encounters.json"),
+        |path| EncountersFile::load(path),
+        "encounters",
+        &mut Vec::new(),
+    );
+
     if let Err(err) = InputFile::load(&input_path) {
         eprintln!("Failed to load input bindings: {}", err);
     }
@@ -72,6 +105,91 @@ fn run_play(args: Vec<String>) {
         RenderMode::Auto => println!("Starting OpenCrystal (render: auto)..."),
         RenderMode::Wide => println!("Starting OpenCrystal (render: wide)..."),
         RenderMode::Modern => println!("Starting OpenCrystal (render: modern)..."),
+    }
+}
+
+fn load_entities(entities_dir: &PathBuf) {
+    let mut errors = Vec::new();
+    load_optional(
+        &entities_dir.join("jobs.json"),
+        |path| JobsFile::load(path),
+        "jobs",
+        &mut errors,
+    );
+    load_optional(
+        &entities_dir.join("spells.json"),
+        |path| SpellsFile::load(path),
+        "spells",
+        &mut errors,
+    );
+    load_optional(
+        &entities_dir.join("items.json"),
+        |path| ItemsFile::load(path),
+        "items",
+        &mut errors,
+    );
+    load_optional(
+        &entities_dir.join("equipment.json"),
+        |path| EquipmentFile::load(path),
+        "equipment",
+        &mut errors,
+    );
+    load_optional(
+        &entities_dir.join("enemies.json"),
+        |path| EnemiesFile::load(path),
+        "enemies",
+        &mut errors,
+    );
+    load_optional(
+        &entities_dir.join("vehicles.json"),
+        |path| VehiclesFile::load(path),
+        "vehicles",
+        &mut errors,
+    );
+    load_optional(
+        &entities_dir.join("shops.json"),
+        |path| ShopsFile::load(path),
+        "shops",
+        &mut errors,
+    );
+
+    for error in errors {
+        eprintln!("Failed to load {}", error);
+    }
+}
+
+fn load_optional<T, F>(path: &PathBuf, loader: F, label: &str, errors: &mut Vec<String>)
+where
+    F: FnOnce(&std::path::Path) -> Result<T, String>,
+{
+    if !path.exists() {
+        return;
+    }
+    if let Err(err) = loader(path.as_path()) {
+        errors.push(format!("{}: {}", label, err));
+    }
+}
+
+fn load_directory<T, F>(dir: &PathBuf, loader: F, label: &str)
+where
+    F: Fn(&std::path::Path) -> Result<T, String>,
+{
+    let entries = match std::fs::read_dir(dir) {
+        Ok(entries) => entries,
+        Err(err) => {
+            eprintln!("Failed to read {} directory: {}", label, err);
+            return;
+        }
+    };
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.extension().and_then(|ext| ext.to_str()) != Some("json") {
+            continue;
+        }
+        if let Err(err) = loader(path.as_path()) {
+            eprintln!("Failed to load {}: {}", label, err);
+        }
     }
 }
 

@@ -12,6 +12,9 @@ use crate::rules::RulesFile;
 use crate::stats::StatsFile;
 use crate::world::WorldsFile;
 
+const BATTLE_POS_MAX_X: i32 = 9;
+const BATTLE_POS_MAX_Y: i32 = 5;
+
 pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
     let content_dir = content_dir.as_ref();
     let mut errors = Vec::new();
@@ -177,6 +180,18 @@ pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
                         errors.push(format!(
                             "encounters.json: table '{}' references unknown enemy '{}'",
                             table.id, member.enemy
+                        ));
+                    }
+                    if member.pos[0] < 0 || member.pos[1] < 0 {
+                        errors.push(format!(
+                            "encounters.json: table '{}' enemy '{}' has negative position",
+                            table.id, member.enemy
+                        ));
+                    }
+                    if member.pos[0] > BATTLE_POS_MAX_X || member.pos[1] > BATTLE_POS_MAX_Y {
+                        errors.push(format!(
+                            "encounters.json: table '{}' enemy '{}' position {:?} exceeds battle grid",
+                            table.id, member.enemy, member.pos
                         ));
                     }
                 }
