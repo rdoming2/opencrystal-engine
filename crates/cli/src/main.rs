@@ -1,6 +1,8 @@
 use std::env;
+use std::path::PathBuf;
 
-use engine::{rules::Ruleset, world::WorldState, Engine};
+use engine::{rules::RulesFile, rules::Ruleset, world::WorldState, world::WorldsFile, Engine};
+use tui::input::InputFile;
 use tui::renderer::RenderMode;
 
 fn main() {
@@ -17,8 +19,37 @@ fn main() {
 
 fn run_play(args: Vec<String>) {
     let render_mode = parse_render_mode(&args).unwrap_or(RenderMode::Auto);
-    let rules = Ruleset::demo();
-    let world = WorldState::new("gaia", "overworld_gaia", (20, 14));
+    let content_dir = parse_content_dir(&args).unwrap_or_else(|| PathBuf::from("content"));
+    let rules_path = content_dir.join("rules.json");
+    let worlds_path = content_dir.join("worlds.json");
+    let input_path = content_dir.join("input.json");
+
+    let rules = match RulesFile::load(&rules_path) {
+        Ok(file) => Ruleset::from_file(file),
+        Err(err) => {
+            eprintln!("Failed to load rules: {}", err);
+            Ruleset::demo()
+        }
+    };
+
+    let world = match WorldsFile::load(&worlds_path) {
+        Ok(file) => {
+            if let Some(world) = file.worlds.first() {
+                WorldState::new(&world.id, &world.starting_map, (0, 0))
+            } else {
+                WorldState::new("gaia", "overworld_gaia", (20, 14))
+            }
+        }
+        Err(err) => {
+            eprintln!("Failed to load worlds: {}", err);
+            WorldState::new("gaia", "overworld_gaia", (20, 14))
+        }
+    };
+
+    if let Err(err) = InputFile::load(&input_path) {
+        eprintln!("Failed to load input bindings: {}", err);
+    }
+
     let _engine = Engine::new(rules, world);
 
     match render_mode {
@@ -53,8 +84,21 @@ fn parse_render_mode(args: &[String]) -> Option<RenderMode> {
     None
 }
 
+fn parse_content_dir(args: &[String]) -> Option<PathBuf> {
+    let mut iter = args.iter();
+    while let Some(arg) = iter.next() {
+        if let Some(value) = arg.strip_prefix("--content=") {
+            return Some(PathBuf::from(value));
+        }
+        if arg == "--content" {
+            return iter.next().map(PathBuf::from);
+        }
+    }
+    None
+}
+
 fn print_usage() {
     println!(
-        "OpenCrystal\n\nUsage:\n  cryst play [--render=auto|wide|modern]\n  cryst validate\n  cryst new-project\n  cryst build"
+        "OpenCrystal\n\nUsage:\n  cryst play [--render=auto|wide|modern] [--content path]\n  cryst validate\n  cryst new-project\n  cryst build"
     );
 }

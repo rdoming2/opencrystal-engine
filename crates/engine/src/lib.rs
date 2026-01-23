@@ -1,6 +1,7 @@
 pub mod battle;
 pub mod entities;
 pub mod events;
+pub mod io;
 pub mod rules;
 pub mod save;
 pub mod world;
