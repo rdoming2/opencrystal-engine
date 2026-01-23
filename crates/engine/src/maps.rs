@@ -43,10 +43,9 @@ pub struct MapEvent {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct MapNpc {
     pub id: String,
-    pub name: String,
     pub pos: [i32; 2],
-    pub sprite: String,
-    pub script: String,
+    #[serde(default)]
+    pub script: Option<String>,
     pub requires_flags: Option<Vec<String>>,
 }
 

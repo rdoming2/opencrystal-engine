@@ -14,7 +14,7 @@ OpenCrystal is a Rust-based JRPG engine for the terminal. It targets wide compat
 - `crates/engine/`: runtime systems, loaders, validation.
 - `crates/tui/`: UI configs and rendering scaffolding.
 - `crates/cli/`: `cryst` command.
-- `content/`: content packs (`content/demo` is tracked).
+- `content/`: content packs (`content/demo` is tracked, includes `dialog/`).
 - `SCHEMAS.md`: JSON schema drafts.
 - `ARCHITECTURE.md`: architecture overview.
 

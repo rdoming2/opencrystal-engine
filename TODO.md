@@ -17,13 +17,20 @@
 - [ ] ATB timers (wait + active modes).
 - [ ] Status effects and damage formulas (derived stats).
 - [ ] Victory/defeat flow and rewards.
+- [ ] Define battle rules schema (damage, hit, crit, ATB speed).
+- [ ] Define status effects schema (buffs/debuffs, durations).
+- [ ] Define elemental affinities and trait interactions.
+- [ ] Define skills/abilities schema (non-spell actions).
 
 ## World + Events
 - [ ] Map transitions (enter/exit dungeons, overworld zoom).
 - [ ] NPC interactions with flag gating.
 - [ ] Airship unlock flow (demo completion).
+- [ ] Define NPC schema (behavior, dialog, schedules).
 
 ## Content + Validation
 - [ ] Add missing demo content (town map, shop UI, basic quests).
 - [ ] Extend validation for event step payloads.
 - [ ] Add content authoring guide.
+- [ ] Define encounter rate rules schema.
+- [ ] Finalize save schema requirements and versioning rules.

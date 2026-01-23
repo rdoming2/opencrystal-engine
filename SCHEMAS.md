@@ -109,6 +109,9 @@ Defines multiple worlds and inter-world travel.
 
 Map data for overworlds, towns, and dungeons.
 
+NPCs reference `entities/npcs.json` by ID. `script` is optional; if omitted, the NPC
+uses its dialog tree.
+
 ```json
 {
   "version": 1,
@@ -144,9 +147,7 @@ Map data for overworlds, towns, and dungeons.
   "npcs": [
     {
       "id": "elder",
-      "name": "Elder",
       "pos": [10, 12],
-      "sprite": "elder",
       "script": "elder_dialog",
       "requires_flags": ["world.intro_complete"]
     }
@@ -208,6 +209,62 @@ in a battle grid from `[0,0]` to `[9,5]` (10x6).
   ]
 }
 ```
+
+## entities/npcs.json
+
+Defines NPC metadata and behavior. Map placement is handled in `maps/*.json`.
+
+```json
+{
+  "version": 1,
+  "npcs": [
+    {
+      "id": "wanderer",
+      "name": "Sky Tinker",
+      "sprite": "wanderer",
+      "dialog": "sky_tinker",
+      "behavior": {"type": "roam", "radius": 4, "persist": true}
+    }
+  ]
+}
+```
+
+Behavior types (initial): `static`, `roam`, `patrol`. For `patrol`, use `behavior.path`.
+Set `behavior.persist` to keep NPC positions in `save.json`.
+
+## dialog/*.json
+
+Dialog trees for NPC conversations. Events can still script dialog for cutscenes.
+
+Dialog text is automatically wrapped into multiple dialog boxes based on terminal width.
+
+```json
+{
+  "version": 1,
+  "id": "sky_tinker",
+  "nodes": [
+    {
+      "id": "start",
+      "speaker": "Sky Tinker",
+      "text": "The winds shift. The crystals answer.",
+      "actions": [
+        {"type": "start_event", "event": "sky_tinker_intro"}
+      ],
+      "choices": [
+        {"label": "Farewell", "next": "end"}
+      ]
+    },
+    {"id": "end", "text": "Safe travels."}
+  ]
+}
+```
+
+Dialog action types:
+
+- `start_event` (field: `event`)
+- `open_shop` (field: `shop`)
+- `set_flag` (field: `flag`)
+- `give_item` (fields: `item`, `qty`)
 
 ## entities/jobs.json
 
@@ -432,6 +489,12 @@ Supported event step types:
 - `give_equipment`
 - `warp`
 - `start_battle`
+- `open_shop`
+- `npc_show`
+- `npc_hide`
+- `npc_move`
+- `npc_set_sprite`
+- `start_dialog`
 
 Example steps:
 
@@ -458,6 +521,13 @@ Example steps:
     {"enemy": "imp", "pos": [0, 1]},
     {"enemy": "wisp", "pos": [2, 1]}
   ]
+}
+```
+
+```json
+{
+  "type": "start_dialog",
+  "dialog": "sky_tinker"
 }
 ```
 
@@ -708,7 +778,8 @@ Save data captures the full runtime state. This format is stored as JSON in phas
       "job_change_unlocked": false
     },
     "quests": {
-      "crystal_fire": "in_progress"
+      "crystal_fire": "in_progress",
+      "tide_shards": "started"
     }
   },
   "stats": {
@@ -724,9 +795,76 @@ Save data captures the full runtime state. This format is stored as JSON in phas
         "id": "quest_fire",
         "title": "The Fire Crystal",
         "status": "in_progress",
-        "text": "Seek the crystal in the Ember Caverns."
+        "steps": [
+          {
+            "id": "reach_ember",
+            "text": "Reach the Ember Caverns.",
+            "visible": true,
+            "complete": true
+          },
+          {
+            "id": "restore_fire",
+            "text": "Restore the Fire Crystal.",
+            "visible": true,
+            "complete": false
+          }
+        ]
+      },
+      {
+        "id": "quest_tide_shards",
+        "title": "Shards of the Tide",
+        "status": "not_started",
+        "steps": [
+          {
+            "id": "find_shards",
+            "text": "Find the Tide shards in the harbor caves.",
+            "visible": false,
+            "complete": false
+          },
+          {
+            "id": "return_shards",
+            "text": "Return the shards to the Harbor Historian.",
+            "visible": false,
+            "complete": false
+          }
+        ]
       }
     ]
   }
 }
 ```
+
+Quest tracking conventions:
+
+- `status` is one of `not_started`, `in_progress`, `complete`.
+- `steps` is an ordered list of quest milestones.
+- `visible` controls whether a step shows in the journal UI.
+- `complete` tracks step completion.
+- Events/dialog actions should update quest `status`, set `visible`, and mark `complete`.
+
+Example quest updates (dialog actions):
+
+```json
+{
+  "type": "set_flag",
+  "flag": "quest.tide_shards.started"
+}
+```
+
+```json
+{
+  "type": "set_flag",
+  "flag": "quest.tide_shards.find_shards"
+}
+```
+
+Example quest updates (event steps):
+
+```json
+{
+  "type": "set_flag",
+  "flag": "quest.tide_shards.return_shards"
+}
+```
+
+Flags are mapped to quest steps by game rules or a quest resolver.

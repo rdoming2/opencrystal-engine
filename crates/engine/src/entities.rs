@@ -182,6 +182,29 @@ pub struct ShopsFile {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct NpcsFile {
+    pub version: u32,
+    pub npcs: Vec<NpcDefinition>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct NpcDefinition {
+    pub id: String,
+    pub name: String,
+    pub sprite: String,
+    pub dialog: String,
+    pub behavior: NpcBehavior,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct NpcBehavior {
+    pub r#type: String,
+    pub radius: Option<i32>,
+    pub path: Option<Vec<[i32; 2]>>,
+    pub persist: Option<bool>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ShopDefinition {
     pub id: String,
     pub name: String,
@@ -232,6 +255,12 @@ impl VehiclesFile {
 }
 
 impl ShopsFile {
+    pub fn load(path: impl AsRef<Path>) -> Result<Self, String> {
+        crate::io::load_json(path)
+    }
+}
+
+impl NpcsFile {
     pub fn load(path: impl AsRef<Path>) -> Result<Self, String> {
         crate::io::load_json(path)
     }

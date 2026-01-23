@@ -23,6 +23,26 @@ pub struct EventStep {
     pub requires: Option<Vec<String>>,
     pub item: Option<String>,
     pub qty: Option<i32>,
+    pub shop: Option<String>,
+    pub target: Option<EventTarget>,
+    pub encounter: Option<String>,
+    pub formation: Option<Vec<FormationMember>>,
+    pub npc: Option<String>,
+    pub pos: Option<[i32; 2]>,
+    pub sprite: Option<String>,
+    pub dialog: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct EventTarget {
+    pub map: String,
+    pub pos: [i32; 2],
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct FormationMember {
+    pub enemy: String,
+    pub pos: [i32; 2],
 }
 
 impl EventFile {

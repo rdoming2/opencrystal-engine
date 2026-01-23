@@ -1,4 +1,5 @@
 pub mod battle;
+pub mod dialog;
 pub mod encounters;
 pub mod entities;
 pub mod events;

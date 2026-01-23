@@ -2,9 +2,10 @@ use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use crate::dialog::DialogFile;
 use crate::encounters::EncountersFile;
 use crate::entities::{
-    EnemiesFile, EquipmentFile, ItemsFile, JobsFile, ShopsFile, SpellsFile, VehiclesFile,
+    EnemiesFile, EquipmentFile, ItemsFile, JobsFile, NpcsFile, ShopsFile, SpellsFile, VehiclesFile,
 };
 use crate::events::EventFile;
 use crate::maps::MapFile;
@@ -14,7 +15,7 @@ use crate::world::WorldsFile;
 
 const BATTLE_POS_MAX_X: i32 = 9;
 const BATTLE_POS_MAX_Y: i32 = 5;
-const EVENT_TYPES: [&str; 8] = [
+const EVENT_TYPES: [&str; 14] = [
     "dialog",
     "narration",
     "set_flag",
@@ -23,6 +24,12 @@ const EVENT_TYPES: [&str; 8] = [
     "give_equipment",
     "warp",
     "start_battle",
+    "start_dialog",
+    "open_shop",
+    "npc_show",
+    "npc_hide",
+    "npc_move",
+    "npc_set_sprite",
 ];
 
 pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
@@ -33,6 +40,7 @@ pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
     let worlds_path = content_dir.join("worlds.json");
     let stats_path = content_dir.join("stats.json");
     let encounters_path = content_dir.join("entities").join("encounters.json");
+    let npcs_path = content_dir.join("entities").join("npcs.json");
     let jobs_path = content_dir.join("entities").join("jobs.json");
     let spells_path = content_dir.join("entities").join("spells.json");
     let items_path = content_dir.join("entities").join("items.json");
@@ -60,6 +68,7 @@ pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
     let enemies = load_single(&enemies_path, |path| EnemiesFile::load(path), &mut errors);
     let vehicles = load_single(&vehicles_path, |path| VehiclesFile::load(path), &mut errors);
     let shops = load_single(&shops_path, |path| ShopsFile::load(path), &mut errors);
+    let npcs = load_single(&npcs_path, |path| NpcsFile::load(path), &mut errors);
 
     if let Some(rules) = &rules {
         if rules.game.party_size > 4 {
@@ -84,6 +93,7 @@ pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
 
     let maps = load_map_files(content_dir.join("maps"), &mut errors);
     let events = load_event_files(content_dir.join("events"), &mut errors);
+    let dialogs = load_dialog_files(content_dir.join("dialog"), &mut errors);
 
     let map_ids: HashSet<String> = maps.iter().map(|map| map.id.clone()).collect();
     let map_dims: HashMap<&str, (u32, u32)> = maps
@@ -137,6 +147,22 @@ pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
                 errors.push(format!(
                     "maps/{}: event script '{}' not found",
                     map.id, event.script
+                ));
+            }
+        }
+        for npc in &map.npcs {
+            if let Some(script) = &npc.script {
+                if !event_ids.contains(script) {
+                    errors.push(format!(
+                        "maps/{}: npc '{}' script '{}' not found",
+                        map.id, npc.id, script
+                    ));
+                }
+            }
+            if npc.pos[0] < 0 || npc.pos[1] < 0 {
+                errors.push(format!(
+                    "maps/{}: npc '{}' has negative position",
+                    map.id, npc.id
                 ));
             }
         }
@@ -269,6 +295,110 @@ pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
         }
     }
 
+    if let (Some(npcs), false) = (&npcs, dialogs.is_empty()) {
+        let dialog_ids: HashSet<&str> = dialogs.iter().map(|dialog| dialog.id.as_str()).collect();
+        for npc in &npcs.npcs {
+            if !dialog_ids.contains(npc.dialog.as_str()) {
+                errors.push(format!(
+                    "npcs.json: npc '{}' references unknown dialog '{}'",
+                    npc.id, npc.dialog
+                ));
+            }
+        }
+    }
+
+    if let (Some(npcs), true) = (&npcs, dialogs.is_empty()) {
+        errors.push("dialog/: no dialog files found".to_string());
+        for npc in &npcs.npcs {
+            errors.push(format!(
+                "npcs.json: npc '{}' references dialog '{}'",
+                npc.id, npc.dialog
+            ));
+        }
+    }
+
+    if let Some(npcs) = &npcs {
+        let npc_ids: HashSet<&str> = npcs.npcs.iter().map(|npc| npc.id.as_str()).collect();
+        for map in &maps {
+            for npc in &map.npcs {
+                if !npc_ids.contains(npc.id.as_str()) {
+                    errors.push(format!("maps/{}: npc '{}' not found", map.id, npc.id));
+                }
+            }
+        }
+    }
+
+    if !dialogs.is_empty() {
+        let event_ids: HashSet<&str> = events.iter().map(|event| event.id.as_str()).collect();
+        let shop_ids: HashSet<&str> = shops
+            .as_ref()
+            .map(|file| file.shops.iter().map(|shop| shop.id.as_str()).collect())
+            .unwrap_or_else(HashSet::new);
+
+        for dialog in &dialogs {
+            for node in &dialog.nodes {
+                if let Some(actions) = &node.actions {
+                    for action in actions {
+                        match action.r#type.as_str() {
+                            "start_event" => {
+                                if let Some(event_id) = &action.event {
+                                    if !event_ids.contains(event_id.as_str()) {
+                                        errors.push(format!(
+                                            "dialog/{}: action references unknown event '{}'",
+                                            dialog.id, event_id
+                                        ));
+                                    }
+                                } else {
+                                    errors.push(format!(
+                                        "dialog/{}: start_event missing event id",
+                                        dialog.id
+                                    ));
+                                }
+                            }
+                            "open_shop" => {
+                                if let Some(shop_id) = &action.shop {
+                                    if !shop_ids.contains(shop_id.as_str()) {
+                                        errors.push(format!(
+                                            "dialog/{}: action references unknown shop '{}'",
+                                            dialog.id, shop_id
+                                        ));
+                                    }
+                                } else {
+                                    errors.push(format!(
+                                        "dialog/{}: open_shop missing shop id",
+                                        dialog.id
+                                    ));
+                                }
+                            }
+                            "set_flag" => {
+                                if action.flag.is_none() {
+                                    errors.push(format!(
+                                        "dialog/{}: set_flag missing flag",
+                                        dialog.id
+                                    ));
+                                }
+                            }
+                            "give_item" => {
+                                if action.item.is_none() {
+                                    errors.push(format!(
+                                        "dialog/{}: give_item missing item id",
+                                        dialog.id
+                                    ));
+                                }
+                            }
+                            _ => {
+                                errors.push(format!(
+                                    "dialog/{}: unknown action type '{}'",
+                                    dialog.id, action.r#type
+                                ));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     errors
 }
 
@@ -344,6 +474,32 @@ fn load_event_files(dir: PathBuf, errors: &mut Vec<String>) -> Vec<EventFile> {
     }
 
     events
+}
+
+fn load_dialog_files(dir: PathBuf, errors: &mut Vec<String>) -> Vec<DialogFile> {
+    let mut dialogs = Vec::new();
+    let entries = match fs::read_dir(&dir) {
+        Ok(entries) => entries,
+        Err(err) => {
+            if err.kind() != std::io::ErrorKind::NotFound {
+                errors.push(format!("{}: {}", dir.display(), err));
+            }
+            return dialogs;
+        }
+    };
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.extension().and_then(|ext| ext.to_str()) != Some("json") {
+            continue;
+        }
+        match DialogFile::load(&path) {
+            Ok(dialog) => dialogs.push(dialog),
+            Err(err) => errors.push(err),
+        }
+    }
+
+    dialogs
 }
 
 fn validate_map(map: &MapFile) -> Result<(), String> {

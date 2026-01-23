@@ -73,8 +73,9 @@ All runtime data is loaded from JSON. Files are organized into top-level categor
 - `rules.json`: global rules and toggles.
 - `worlds.json`: world list, world-to-world travel rules, zoom config.
 - `maps/*.json`: map tiles, entities, triggers, encounter zones.
-- `entities/*.json`: jobs, spells, items, equipment, enemies, vehicles, shops, encounters.
+- `entities/*.json`: jobs, spells, items, equipment, enemies, vehicles, shops, encounters, npcs.
 - `events/*.json`: scripted events and cutscenes.
+- `dialog/*.json`: NPC dialog trees.
 - `ui/*.json`: menu panels, progress tracking config.
 - `ui/battle.json`: battle layout and panel configuration.
 - `ui/title.json`: title screen layout and menu.
@@ -93,6 +94,14 @@ All runtime data is loaded from JSON. Files are organized into top-level categor
   - Item-based travel (warp/escape).
   - Overworld fast travel (unlockable).
   - Vehicle travel with unlock flags.
+
+### Event triggers
+
+- Map triggers (`on_enter`, tile or zone triggers).
+- NPC interactions (map NPC `script` event).
+- Dialog actions (`start_event`, `open_shop`).
+- Item effects (warp, start battle).
+- Battle results (victory/defeat hooks).
 
 ### Vehicles
 
@@ -135,6 +144,7 @@ All runtime data is loaded from JSON. Files are organized into top-level categor
 
 - Optional journaling/quest tracking via rules.json.
 - Journal entries driven by events.
+- Quest resolver maps flags to quest step visibility/completion based on a defined convention.
 
 ### Save system
 

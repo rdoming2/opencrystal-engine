@@ -2,9 +2,11 @@ use std::env;
 use std::path::PathBuf;
 
 use engine::{
+    dialog::DialogFile,
     encounters::EncountersFile,
     entities::{
-        EnemiesFile, EquipmentFile, ItemsFile, JobsFile, ShopsFile, SpellsFile, VehiclesFile,
+        EnemiesFile, EquipmentFile, ItemsFile, JobsFile, NpcsFile, ShopsFile, SpellsFile,
+        VehiclesFile,
     },
     events::EventFile,
     maps::MapFile,
@@ -43,6 +45,7 @@ fn run_play(args: Vec<String>) {
     let entities_dir = content_dir.join("entities");
     let maps_dir = content_dir.join("maps");
     let events_dir = content_dir.join("events");
+    let dialog_dir = content_dir.join("dialog");
     let progress_ui_path = content_dir.join("ui").join("progress.json");
 
     let rules = match RulesFile::load(&rules_path) {
@@ -76,6 +79,7 @@ fn run_play(args: Vec<String>) {
     load_entities(&entities_dir);
     load_directory(&maps_dir, |path| MapFile::load(path), "map");
     load_directory(&events_dir, |path| EventFile::load(path), "event");
+    load_directory(&dialog_dir, |path| DialogFile::load(path), "dialog");
     load_optional(
         &entities_dir.join("encounters.json"),
         |path| EncountersFile::load(path),
@@ -150,6 +154,12 @@ fn load_entities(entities_dir: &PathBuf) {
         &entities_dir.join("shops.json"),
         |path| ShopsFile::load(path),
         "shops",
+        &mut errors,
+    );
+    load_optional(
+        &entities_dir.join("npcs.json"),
+        |path| NpcsFile::load(path),
+        "npcs",
         &mut errors,
     );
 
