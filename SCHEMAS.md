@@ -147,11 +147,20 @@ Map data for overworlds, towns, and dungeons.
       "name": "Elder",
       "pos": [10, 12],
       "sprite": "elder",
-      "script": "elder_dialog"
+      "script": "elder_dialog",
+      "requires_flags": ["world.intro_complete"]
     }
   ],
   "shops": [
     {"id": "corner_store", "pos": [8, 6]}
+  ],
+  "transitions": [
+    {
+      "id": "to_ember",
+      "pos": [5, 8],
+      "target_map": "dungeon_ember",
+      "target_pos": [1, 1]
+    }
   ]
 }
 ```

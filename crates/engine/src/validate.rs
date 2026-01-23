@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -76,6 +76,10 @@ pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
     let events = load_event_files(content_dir.join("events"), &mut errors);
 
     let map_ids: HashSet<String> = maps.iter().map(|map| map.id.clone()).collect();
+    let map_dims: HashMap<&str, (u32, u32)> = maps
+        .iter()
+        .map(|map| (map.id.as_str(), (map.width, map.height)))
+        .collect();
     if let Some(worlds) = &worlds {
         for world in &worlds.worlds {
             if !map_ids.contains(&world.starting_map) {
@@ -124,6 +128,32 @@ pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
                     "maps/{}: event script '{}' not found",
                     map.id, event.script
                 ));
+            }
+        }
+        for transition in &map.transitions {
+            if !map_ids.contains(&transition.target_map) {
+                errors.push(format!(
+                    "maps/{}: transition '{}' target '{}' not found",
+                    map.id, transition.id, transition.target_map
+                ));
+            }
+            if transition.pos[0] < 0 || transition.pos[1] < 0 {
+                errors.push(format!(
+                    "maps/{}: transition '{}' has negative position",
+                    map.id, transition.id
+                ));
+            }
+            if let Some((width, height)) = map_dims.get(transition.target_map.as_str()) {
+                if transition.target_pos[0] < 0
+                    || transition.target_pos[1] < 0
+                    || transition.target_pos[0] >= *width as i32
+                    || transition.target_pos[1] >= *height as i32
+                {
+                    errors.push(format!(
+                        "maps/{}: transition '{}' target_pos {:?} out of bounds",
+                        map.id, transition.id, transition.target_pos
+                    ));
+                }
             }
         }
     }

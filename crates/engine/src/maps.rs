@@ -16,6 +16,7 @@ pub struct MapFile {
     pub events: Vec<MapEvent>,
     pub npcs: Vec<MapNpc>,
     pub shops: Vec<MapShop>,
+    pub transitions: Vec<MapTransition>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -45,12 +46,21 @@ pub struct MapNpc {
     pub pos: [i32; 2],
     pub sprite: String,
     pub script: String,
+    pub requires_flags: Option<Vec<String>>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct MapShop {
     pub id: String,
     pub pos: [i32; 2],
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct MapTransition {
+    pub id: String,
+    pub pos: [i32; 2],
+    pub target_map: String,
+    pub target_pos: [i32; 2],
 }
 
 impl MapFile {
