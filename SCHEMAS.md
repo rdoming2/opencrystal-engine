@@ -440,6 +440,28 @@ Save data captures the full runtime state. This format is stored as JSON in phas
     "pos": [20, 14],
     "vehicle": null
   },
+  "map_state": {
+    "overworld_gaia": {
+      "flags": {
+        "chest_1_opened": true,
+        "bridge_repaired": false
+      },
+      "entities": {
+        "wandering_merchant": {"pos": [12, 9], "state": "wandering"},
+        "roaming_behemoth": {"pos": [44, 22], "state": "asleep"}
+      }
+    }
+  },
+  "global_entities": {
+    "airship_01": {
+      "type": "vehicle",
+      "entity_id": "airship",
+      "world": "gaia",
+      "map": "overworld_gaia",
+      "pos": [30, 18],
+      "state": "idle"
+    }
+  },
   "party": {
     "active": ["hero_1", "hero_2", "hero_3", "hero_4"],
     "reserve": ["hero_5"],
