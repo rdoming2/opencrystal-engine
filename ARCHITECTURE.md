@@ -76,6 +76,7 @@ All runtime data is loaded from JSON. Files are organized into top-level categor
 - `entities/*.json`: jobs, spells, items, equipment, enemies, vehicles, shops, encounters.
 - `events/*.json`: scripted events and cutscenes.
 - `ui/*.json`: menu panels, progress tracking config.
+- `ui/battle.json`: battle layout and panel configuration.
 - `input.json`: key bindings.
 - `stats.json`: base and derived stat definitions.
 - `save.json`: runtime save format.

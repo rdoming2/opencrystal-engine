@@ -304,7 +304,7 @@ Spell costs are flexible. Use `{"type": "mp"}` for MP-based casting or
 
 Equipment categories should align with job equipment lists (e.g., job weapons list
 contains categories like "sword", "staff", while `slot` describes where it equips).
-Use `allowed_jobs` for explicit whitelists when needed.
+Use `allowed_jobs` only for item-specific overrides (e.g., a katana requiring Samurai).
 
 ```json
 {
@@ -315,7 +315,7 @@ Use `allowed_jobs` for explicit whitelists when needed.
       "name": "Bronze Sword",
       "category": "sword",
       "slot": "weapon",
-      "allowed_jobs": ["fighter"],
+      "allowed_jobs": null,
       "stats": {"str": 2}
     }
   ]
@@ -350,6 +350,8 @@ Use `allowed_jobs` for explicit whitelists when needed.
   ]
 }
 ```
+
+Traits are used by effects (e.g., `undead` can invert healing).
 
 ## entities/vehicles.json
 
@@ -402,6 +404,43 @@ Configurable menu panels for progress stats.
       ]
     }
   ]
+}
+```
+
+## ui/battle.json
+
+Defines battle UI layout and panel behavior. Panels can be anchored or flexed to adapt
+to terminal sizes.
+
+```json
+{
+  "version": 1,
+  "layout": {
+    "battlefield": {"anchor": "top", "height_ratio": 0.6},
+    "command_row": {
+      "anchor": "bottom",
+      "height_ratio": 0.4,
+      "columns": [
+        {"id": "enemies", "width_ratio": 0.3},
+        {"id": "commands", "width_ratio": 0.4},
+        {"id": "party", "width_ratio": 0.3}
+      ]
+    }
+  },
+  "panels": {
+    "enemies": {
+      "title": "Enemies",
+      "highlight": {"style": "invert"}
+    },
+    "commands": {
+      "title": "Commands",
+      "items": ["Attack", "Magic", "Items", "Run"]
+    },
+    "party": {
+      "title": "Party",
+      "show": ["hp", "mp", "atb", "status"]
+    }
+  }
 }
 ```
 
