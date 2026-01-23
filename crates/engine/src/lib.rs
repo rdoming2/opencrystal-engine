@@ -4,6 +4,7 @@ pub mod entities;
 pub mod events;
 pub mod io;
 pub mod maps;
+pub mod validate;
 pub mod rules;
 pub mod save;
 pub mod stats;

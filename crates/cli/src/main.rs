@@ -76,7 +76,36 @@ fn run_play(args: Vec<String>) {
 }
 
 fn run_validate() {
-    println!("Validating content...");
+    let args: Vec<String> = env::args().skip(2).collect();
+    let content_dir = parse_content_dir(&args).unwrap_or_else(|| PathBuf::from("content/demo"));
+    let mut errors = engine::validate::validate_content(&content_dir);
+
+    let input_path = content_dir.join("input.json");
+    let title_ui_path = content_dir.join("ui").join("title.json");
+    let battle_ui_path = content_dir.join("ui").join("battle.json");
+    let progress_ui_path = content_dir.join("ui").join("progress.json");
+
+    if let Err(err) = InputFile::load(&input_path) {
+        errors.push(format!("input.json: {}", err));
+    }
+    if let Err(err) = TitleUiFile::load(&title_ui_path) {
+        errors.push(format!("ui/title.json: {}", err));
+    }
+    if let Err(err) = BattleUiFile::load(&battle_ui_path) {
+        errors.push(format!("ui/battle.json: {}", err));
+    }
+    if let Err(err) = ProgressUiFile::load(&progress_ui_path) {
+        errors.push(format!("ui/progress.json: {}", err));
+    }
+
+    if errors.is_empty() {
+        println!("Content validation passed.");
+    } else {
+        eprintln!("Content validation failed ({} errors):", errors.len());
+        for error in errors {
+            eprintln!("- {}", error);
+        }
+    }
 }
 
 fn run_new_project() {
