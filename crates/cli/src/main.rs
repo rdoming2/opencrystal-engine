@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use engine::{rules::RulesFile, rules::Ruleset, world::WorldState, world::WorldsFile, Engine};
 use tui::input::InputFile;
 use tui::renderer::RenderMode;
+use tui::ui::{BattleUiFile, ProgressUiFile, TitleUiFile};
 
 fn main() {
     let mut args = env::args().skip(1);
@@ -23,6 +24,9 @@ fn run_play(args: Vec<String>) {
     let rules_path = content_dir.join("rules.json");
     let worlds_path = content_dir.join("worlds.json");
     let input_path = content_dir.join("input.json");
+    let title_ui_path = content_dir.join("ui").join("title.json");
+    let battle_ui_path = content_dir.join("ui").join("battle.json");
+    let progress_ui_path = content_dir.join("ui").join("progress.json");
 
     let rules = match RulesFile::load(&rules_path) {
         Ok(file) => Ruleset::from_file(file),
@@ -48,6 +52,18 @@ fn run_play(args: Vec<String>) {
 
     if let Err(err) = InputFile::load(&input_path) {
         eprintln!("Failed to load input bindings: {}", err);
+    }
+
+    if let Err(err) = TitleUiFile::load(&title_ui_path) {
+        eprintln!("Failed to load title UI: {}", err);
+    }
+
+    if let Err(err) = BattleUiFile::load(&battle_ui_path) {
+        eprintln!("Failed to load battle UI: {}", err);
+    }
+
+    if let Err(err) = ProgressUiFile::load(&progress_ui_path) {
+        eprintln!("Failed to load progress UI: {}", err);
     }
 
     let _engine = Engine::new(rules, world);

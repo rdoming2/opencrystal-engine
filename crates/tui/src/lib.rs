@@ -1,6 +1,7 @@
 pub mod input;
 pub mod layout;
 pub mod renderer;
+pub mod ui;
 
 #[derive(Clone, Debug)]
 pub struct TuiApp {

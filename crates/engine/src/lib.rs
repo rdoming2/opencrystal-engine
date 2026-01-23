@@ -1,9 +1,12 @@
 pub mod battle;
+pub mod encounters;
 pub mod entities;
 pub mod events;
 pub mod io;
+pub mod maps;
 pub mod rules;
 pub mod save;
+pub mod stats;
 pub mod world;
 
 pub struct Engine {

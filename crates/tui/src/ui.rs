@@ -1,0 +1,193 @@
+use serde::{Deserialize, Serialize};
+use std::path::Path;
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct TitleUiFile {
+    pub version: u32,
+    pub title: String,
+    pub logo: TitleLogo,
+    pub menu: Vec<MenuItem>,
+    pub footer: FooterConfig,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct ProgressUiFile {
+    pub version: u32,
+    pub panels: Vec<ProgressPanel>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct ProgressPanel {
+    pub id: String,
+    pub title: String,
+    pub items: Vec<ProgressItem>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct ProgressItem {
+    pub label: String,
+    pub value: String,
+    pub max: Option<i32>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct TitleLogo {
+    pub lines: Vec<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct MenuItem {
+    pub id: String,
+    pub label: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct FooterConfig {
+    pub left: String,
+    pub right: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct BattleUiFile {
+    pub version: u32,
+    pub breakpoints: Vec<Breakpoint>,
+    pub layout: BattleLayout,
+    pub panels: BattlePanels,
+    pub menus: BattleMenus,
+    pub selection: SelectionRules,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct Breakpoint {
+    pub id: String,
+    pub min_width: u16,
+    pub min_height: u16,
+    pub behavior: BreakpointBehavior,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct BreakpointBehavior {
+    pub enemy_art: String,
+    pub hide_panel_titles: bool,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct BattleLayout {
+    pub battlefield: PanelAnchor,
+    pub command_row: CommandRow,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct PanelAnchor {
+    pub anchor: String,
+    pub height_ratio: f32,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct CommandRow {
+    pub anchor: String,
+    pub height_ratio: f32,
+    pub columns: Vec<ColumnSpec>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct ColumnSpec {
+    pub id: String,
+    pub width_ratio: f32,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct BattlePanels {
+    pub enemies: EnemyPanel,
+    pub commands: CommandPanel,
+    pub party: PartyPanel,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct EnemyPanel {
+    pub title: String,
+    pub highlight: HighlightRules,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct CommandPanel {
+    pub title: String,
+    pub items: Vec<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct PartyPanel {
+    pub title: String,
+    pub show: Vec<String>,
+    pub highlight: HighlightRules,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct HighlightRules {
+    pub style: String,
+    pub link_to_battlefield: bool,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct BattleMenus {
+    pub attack: AttackMenu,
+    pub magic: MagicMenu,
+    pub items: ItemsMenu,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct AttackMenu {
+    pub target: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct MagicMenu {
+    pub list: String,
+    pub group_by: String,
+    pub columns: Vec<MenuColumn>,
+    pub target_from_spell: bool,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct ItemsMenu {
+    pub list: String,
+    pub columns: Vec<MenuColumn>,
+    pub target_from_item: bool,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct MenuColumn {
+    pub id: String,
+    pub label: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct SelectionRules {
+    pub target_cursor: String,
+    pub battlefield_highlight: String,
+    pub list_highlight: String,
+}
+
+impl TitleUiFile {
+    pub fn load(path: impl AsRef<Path>) -> Result<Self, String> {
+        load_json(path)
+    }
+}
+
+impl BattleUiFile {
+    pub fn load(path: impl AsRef<Path>) -> Result<Self, String> {
+        load_json(path)
+    }
+}
+
+impl ProgressUiFile {
+    pub fn load(path: impl AsRef<Path>) -> Result<Self, String> {
+        load_json(path)
+    }
+}
+
+fn load_json<T: serde::de::DeserializeOwned>(path: impl AsRef<Path>) -> Result<T, String> {
+    let path = path.as_ref();
+    let file = std::fs::File::open(path).map_err(|err| format!("{}: {}", path.display(), err))?;
+    serde_json::from_reader(file).map_err(|err| format!("{}: {}", path.display(), err))
+}
