@@ -422,6 +422,45 @@ Event scripts are ordered lists of actions.
 }
 ```
 
+Supported event step types:
+
+- `dialog`
+- `narration`
+- `set_flag`
+- `require_flags`
+- `give_item`
+- `give_equipment`
+- `warp`
+- `start_battle`
+
+Example steps:
+
+```json
+{
+  "type": "give_equipment",
+  "item": "bronze_sword",
+  "qty": 1
+}
+```
+
+```json
+{
+  "type": "warp",
+  "target": {"map": "overworld_gaia", "pos": [6, 4]}
+}
+```
+
+```json
+{
+  "type": "start_battle",
+  "encounter": "gaia_grasslands",
+  "formation": [
+    {"enemy": "imp", "pos": [0, 1]},
+    {"enemy": "wisp", "pos": [2, 1]}
+  ]
+}
+```
+
 ## ui/progress.json
 
 Configurable menu panels for progress stats.
