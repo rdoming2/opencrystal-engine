@@ -126,11 +126,6 @@ fn run_play(args: Vec<String>) {
 
     match action {
         TitleAction::NewGame => {
-            if let Some(event_id) = runtime.active_event.as_deref() {
-                println!("Queued start event: {}", event_id);
-            } else {
-                println!("Starting in overworld.");
-            }
             if let Some(session) = session.as_mut() {
                 if let Err(err) = run_event_loop(&mut runtime, &dialog_ui, &input_bindings, session)
                 {
@@ -176,11 +171,7 @@ fn run_event_loop(
     while runtime.state == GameState::Event {
         match runtime.next_event_step() {
             Some(step) => handle_event_step(runtime, dialog_ui, bindings, session, &step)?,
-            None => {
-                if runtime.is_event_complete() {
-                    println!("Event queue completed.");
-                }
-            }
+            None => {}
         }
     }
     Ok(())
@@ -190,11 +181,7 @@ fn run_event_loop_console(runtime: &mut GameRuntime, dialog_ui: &DialogUiFile) {
     while runtime.state == GameState::Event {
         match runtime.next_event_step() {
             Some(step) => handle_event_step_console(runtime, dialog_ui, &step),
-            None => {
-                if runtime.is_event_complete() {
-                    println!("Event queue completed.");
-                }
-            }
+            None => {}
         }
     }
 }
