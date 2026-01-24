@@ -103,6 +103,10 @@ All runtime data is loaded from JSON. Files are organized into top-level categor
 - Item effects (warp, start battle).
 - Battle results (victory/defeat hooks).
 
+### New game flow
+
+- Title "New Game" can enqueue `rules.json` `game.start_event` for opening cutscenes.
+
 ### Vehicles
 
 - Vehicles are entities with movement constraints.

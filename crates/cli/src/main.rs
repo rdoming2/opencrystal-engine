@@ -1,7 +1,13 @@
 use std::env;
 use std::path::PathBuf;
 
-use engine::{content::Content, rules::Ruleset, runtime::GameRuntime, world::WorldState, Engine};
+use engine::{
+    content::Content,
+    rules::Ruleset,
+    runtime::{GameRuntime, GameState},
+    world::WorldState,
+    Engine,
+};
 use tui::input::InputFile;
 use tui::renderer::RenderMode;
 use tui::ui::{BattleUiFile, ProgressUiFile, TitleUiFile};
@@ -60,13 +66,88 @@ fn run_play(args: Vec<String>) {
         eprintln!("Failed to load progress UI: {}", err);
     }
 
-    let _engine = Engine::new(rules, world);
-    let _runtime = GameRuntime::new(content);
+    let _engine = Engine::new(rules.clone(), world);
+    let mut runtime = GameRuntime::new(content);
+    runtime.start_new_game(&rules);
 
     match render_mode {
         RenderMode::Auto => println!("Starting OpenCrystal (render: auto)..."),
         RenderMode::Wide => println!("Starting OpenCrystal (render: wide)..."),
         RenderMode::Modern => println!("Starting OpenCrystal (render: modern)..."),
+    }
+
+    if let Some(event_id) = runtime.active_event.as_deref() {
+        println!("Queued start event: {}", event_id);
+    } else {
+        println!("Starting in overworld.");
+    }
+
+    while let Some(step) = runtime.next_event_step() {
+        print_event_step(&step);
+    }
+
+    if runtime.is_event_complete() && runtime.state == GameState::Overworld {
+        println!("Event queue completed.");
+    }
+}
+
+fn print_event_step(step: &engine::events::EventStep) {
+    match step.r#type.as_str() {
+        "dialog" => {
+            let speaker = step.speaker.as_deref().unwrap_or("Narrator");
+            let text = step.text.as_deref().unwrap_or("");
+            println!("{}: {}", speaker, text);
+        }
+        "narration" => {
+            let text = step.text.as_deref().unwrap_or("");
+            println!("Narration: {}", text);
+        }
+        "set_flag" => {
+            if let Some(flag) = &step.flag {
+                println!("Set flag: {}", flag);
+            }
+        }
+        "require_flags" => {
+            if let Some(flags) = &step.flags {
+                println!("Require flags: {}", flags.join(", "));
+            }
+        }
+        "start_dialog" => {
+            if let Some(dialog) = &step.dialog {
+                println!("Start dialog: {}", dialog);
+            }
+        }
+        "start_battle" => {
+            println!("Start battle.");
+        }
+        "give_item" => {
+            if let Some(item) = &step.item {
+                let qty = step.qty.unwrap_or(1);
+                println!("Give item: {} x{}", item, qty);
+            }
+        }
+        "give_equipment" => {
+            if let Some(item) = &step.item {
+                let qty = step.qty.unwrap_or(1);
+                println!("Give equipment: {} x{}", item, qty);
+            }
+        }
+        "warp" => {
+            if let Some(target) = &step.target {
+                println!("Warp to {} at {:?}", target.map, target.pos);
+            }
+        }
+        "open_shop" => {
+            if let Some(shop) = &step.shop {
+                println!("Open shop: {}", shop);
+            }
+        }
+        "npc_show" | "npc_hide" | "npc_move" | "npc_set_sprite" => {
+            println!("NPC action: {}", step.r#type);
+        }
+        other => {
+            println!("Event step: {}", other);
+        }
     }
 }
 

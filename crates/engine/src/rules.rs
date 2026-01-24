@@ -17,6 +17,7 @@ pub struct GameRules {
     pub party_reserve_size: usize,
     pub battle_mode: BattleMode,
     pub magic_system: MagicSystem,
+    pub start_event: Option<String>,
     pub job_change_enabled: bool,
     pub job_change_flag: String,
     pub currency: Currency,
@@ -56,6 +57,7 @@ pub struct Ruleset {
     pub party_reserve_size: usize,
     pub battle_mode: BattleMode,
     pub magic_system: MagicSystem,
+    pub start_event: Option<String>,
 }
 
 impl Ruleset {
@@ -67,6 +69,7 @@ impl Ruleset {
             party_reserve_size: 4,
             battle_mode: BattleMode::Turn,
             magic_system: MagicSystem::Mp,
+            start_event: Some("intro_cutscene".to_string()),
         }
     }
 
@@ -78,6 +81,7 @@ impl Ruleset {
             party_reserve_size: file.game.party_reserve_size,
             battle_mode: file.game.battle_mode,
             magic_system: file.game.magic_system,
+            start_event: file.game.start_event,
         }
     }
 }

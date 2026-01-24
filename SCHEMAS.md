@@ -46,6 +46,7 @@ Global rules and feature flags.
     "party_reserve_size": 4,
     "battle_mode": "turn",
     "magic_system": "mp",
+    "start_event": "intro_cutscene",
     "job_change_enabled": false,
     "job_change_flag": "world.job_change_unlocked",
     "currency": {"id": "gil", "name": "G", "symbol": "G"}
