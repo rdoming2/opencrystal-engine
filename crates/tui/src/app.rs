@@ -2,7 +2,8 @@ use std::io::{self, ErrorKind, Stdout};
 
 use crossterm::event::{self, Event, KeyCode};
 use crossterm::terminal::{
-    disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
+    disable_raw_mode, enable_raw_mode, Clear as TermClear, ClearType, EnterAlternateScreen,
+    LeaveAlternateScreen,
 };
 use crossterm::ExecutableCommand;
 use ratatui::backend::CrosstermBackend;
@@ -62,6 +63,9 @@ impl TuiSession {
     pub fn finish(mut self) -> io::Result<()> {
         disable_raw_mode()?;
         self.terminal.backend_mut().execute(LeaveAlternateScreen)?;
+        self.terminal
+            .backend_mut()
+            .execute(TermClear(ClearType::All))?;
         self.terminal.show_cursor()?;
         Ok(())
     }
