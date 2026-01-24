@@ -1,6 +1,6 @@
-use std::io::{self, Stdout};
+use std::io::{self, ErrorKind, Stdout};
 
-use crossterm::event::{self, Event};
+use crossterm::event::{self, Event, KeyCode};
 use crossterm::terminal::{
     disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
 };
@@ -9,8 +9,8 @@ use ratatui::backend::CrosstermBackend;
 use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
-use ratatui::Terminal;
+use ratatui::widgets::{Block, Borders, Clear, Paragraph, Wrap};
+use ratatui::{Frame, Terminal};
 
 use crate::input::{Action, InputBindings};
 use crate::ui::TitleUiFile;
@@ -31,6 +31,16 @@ pub struct MapView {
     pub height: u16,
     pub tiles: Vec<String>,
     pub npcs: Vec<NpcView>,
+}
+
+pub struct ShopView {
+    pub name: String,
+    pub items: Vec<ShopItem>,
+}
+
+pub struct ShopItem {
+    pub name: String,
+    pub price: i32,
 }
 
 pub struct NpcView {
@@ -66,62 +76,7 @@ pub fn run_title(
 
     loop {
         session.terminal.draw(|frame| {
-            let size = frame.size();
-            let layout = Layout::default()
-                .direction(Direction::Vertical)
-                .constraints([
-                    Constraint::Length(title_ui.logo.lines.len() as u16 + 2),
-                    Constraint::Length(1),
-                    Constraint::Min(8),
-                    Constraint::Length(2),
-                ])
-                .split(size);
-
-            let logo_lines: Vec<Line> = title_ui
-                .logo
-                .lines
-                .iter()
-                .map(|line| Line::from(line.as_str()))
-                .collect();
-            let logo = Paragraph::new(logo_lines)
-                .alignment(Alignment::Center)
-                .block(Block::default().borders(Borders::NONE));
-            frame.render_widget(logo, layout[0]);
-
-            let title = Paragraph::new(title_ui.title.as_str())
-                .alignment(Alignment::Center)
-                .block(Block::default().borders(Borders::NONE));
-            frame.render_widget(title, layout[1]);
-
-            let menu_items: Vec<Line> = title_ui
-                .menu
-                .iter()
-                .enumerate()
-                .map(|(index, item)| {
-                    let mut style = Style::default().fg(Color::White);
-                    if index == selected {
-                        style = style.fg(Color::Yellow).add_modifier(Modifier::BOLD);
-                    }
-                    Line::from(Span::styled(item.label.as_str(), style))
-                })
-                .collect();
-
-            let menu = Paragraph::new(menu_items)
-                .alignment(Alignment::Center)
-                .block(Block::default().borders(Borders::NONE));
-            frame.render_widget(menu, layout[2]);
-
-            let footer = Paragraph::new(Line::from(vec![
-                Span::raw(title_ui.footer.left.as_str()),
-                Span::raw("  "),
-                Span::styled(
-                    title_ui.footer.right.as_str(),
-                    Style::default().fg(Color::Gray),
-                ),
-            ]))
-            .alignment(Alignment::Center)
-            .block(Block::default().borders(Borders::NONE));
-            frame.render_widget(footer, layout[3]);
+            draw_title_frame(frame, title_ui, selected);
         })?;
 
         if let Event::Key(key) = event::read()? {
@@ -139,6 +94,13 @@ pub fn run_title(
                     }
                     Action::Confirm => return Ok(map_action(&title_ui.menu[selected].id)),
                     Action::Cancel | Action::Menu => return Ok(TitleAction::Exit),
+                    Action::Quit => {
+                        if confirm_quit(session, |frame| {
+                            draw_title_frame(frame, title_ui, selected)
+                        })? {
+                            return Ok(TitleAction::Exit);
+                        }
+                    }
                     _ => {}
                 }
             }
@@ -158,7 +120,9 @@ pub fn show_dialog(
 
     while let Some(page) = pages.pop() {
         draw_dialog(&mut session.terminal, dialog_ui, speaker, &page, None)?;
-        wait_for_continue(bindings)?;
+        wait_for_continue(session, bindings, |frame| {
+            draw_dialog_overlay(frame, dialog_ui, speaker, &page, None);
+        })?;
     }
 
     Ok(())
@@ -178,18 +142,65 @@ pub fn show_dialog_with_choices(
     while pages.len() > 1 {
         if let Some(page) = pages.pop() {
             draw_dialog(&mut session.terminal, dialog_ui, speaker, &page, None)?;
-            wait_for_continue(bindings)?;
+            wait_for_continue(session, bindings, |frame| {
+                draw_dialog_overlay(frame, dialog_ui, speaker, &page, None);
+            })?;
         }
     }
 
     let page = pages.pop().unwrap_or_default();
-    choose_dialog_option(
-        &mut session.terminal,
-        dialog_ui,
-        bindings,
-        speaker,
-        &page,
-        choices,
+    choose_dialog_option(session, dialog_ui, bindings, speaker, &page, choices)
+}
+
+pub fn show_dialog_on_map(
+    session: &mut TuiSession,
+    map: &MapView,
+    player_pos: (i32, i32),
+    dialog_ui: &crate::ui::DialogUiFile,
+    bindings: &InputBindings,
+    speaker: &str,
+    text: &str,
+) -> io::Result<()> {
+    let lines = wrap_text(text, 80);
+    let mut pages = paginate_lines(lines, dialog_ui, speaker);
+
+    while let Some(page) = pages.pop() {
+        draw_overworld_with_dialog(session, map, player_pos, dialog_ui, speaker, &page, None)?;
+        wait_for_continue(session, bindings, |frame| {
+            draw_overworld_frame(frame, map, player_pos);
+            draw_dialog_overlay(frame, dialog_ui, speaker, &page, None);
+        })?;
+    }
+
+    Ok(())
+}
+
+pub fn show_dialog_with_choices_on_map(
+    session: &mut TuiSession,
+    map: &MapView,
+    player_pos: (i32, i32),
+    dialog_ui: &crate::ui::DialogUiFile,
+    bindings: &InputBindings,
+    speaker: &str,
+    text: &str,
+    choices: &[String],
+) -> io::Result<Option<usize>> {
+    let lines = wrap_text(text, 80);
+    let mut pages = paginate_lines(lines, dialog_ui, speaker);
+
+    while pages.len() > 1 {
+        if let Some(page) = pages.pop() {
+            draw_overworld_with_dialog(session, map, player_pos, dialog_ui, speaker, &page, None)?;
+            wait_for_continue(session, bindings, |frame| {
+                draw_overworld_frame(frame, map, player_pos);
+                draw_dialog_overlay(frame, dialog_ui, speaker, &page, None);
+            })?;
+        }
+    }
+
+    let page = pages.pop().unwrap_or_default();
+    choose_dialog_option_on_map(
+        session, map, player_pos, dialog_ui, bindings, speaker, &page, choices,
     )
 }
 
@@ -201,37 +212,401 @@ pub fn draw_overworld(
     session
         .terminal
         .draw(|frame| {
-            let area = frame.size();
-            let view_width = area.width.saturating_sub(2);
-            let view_height = area.height.saturating_sub(2);
-            let (start_x, start_y) = viewport_origin(map, player_pos, view_width, view_height);
-            let mut lines = Vec::new();
+            draw_overworld_frame(frame, map, player_pos);
+        })
+        .map(|_| ())
+}
 
-            for y in 0..view_height {
-                let mut row = String::new();
-                for x in 0..view_width {
-                    let map_x = start_x + x as i32;
-                    let map_y = start_y + y as i32;
-                    if (map_x, map_y) == player_pos {
-                        row.push('@');
-                        continue;
-                    }
-                    if let Some(npc) = map.npcs.iter().find(|npc| npc.pos == (map_x, map_y)) {
-                        row.push(npc.glyph);
-                        continue;
-                    }
-                    row.push(tile_at(map, map_x, map_y));
-                }
-                lines.push(Line::from(row));
+pub fn show_shop(
+    session: &mut TuiSession,
+    shop: &ShopView,
+    bindings: &InputBindings,
+) -> io::Result<Option<usize>> {
+    let mut selected = 0usize;
+    loop {
+        session.terminal.draw(|frame| {
+            let area = centered_rect(frame.size(), 50, 12);
+            frame.render_widget(Clear, area);
+            let mut lines = Vec::new();
+            lines.push(Line::from(Span::styled(
+                shop.name.as_str(),
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            )));
+
+            for (index, item) in shop.items.iter().enumerate() {
+                let prefix = if index == selected { "> " } else { "  " };
+                let text = format!("{}{} - {} G", prefix, item.name, item.price);
+                lines.push(Line::from(Span::raw(text)));
             }
+
+            lines.push(Line::from(Span::raw(" ")));
+            lines.push(Line::from(Span::raw("Confirm to select, Cancel to exit.")));
 
             let paragraph = Paragraph::new(lines)
                 .block(Block::default().borders(Borders::ALL))
                 .alignment(Alignment::Left)
                 .wrap(Wrap { trim: false });
             frame.render_widget(paragraph, area);
+        })?;
+
+        if let Event::Key(key) = event::read()? {
+            if let Some(action) = bindings.action_for(key.code) {
+                match action {
+                    Action::MoveUp => {
+                        if selected > 0 {
+                            selected -= 1;
+                        }
+                    }
+                    Action::MoveDown => {
+                        if selected + 1 < shop.items.len() {
+                            selected += 1;
+                        }
+                    }
+                    Action::Confirm => return Ok(Some(selected)),
+                    Action::Cancel | Action::Menu => return Ok(None),
+                    Action::Quit => {
+                        if confirm_quit(session, |frame| {
+                            let area = centered_rect(frame.size(), 50, 12);
+                            frame.render_widget(Clear, area);
+                            let paragraph = Paragraph::new(Line::from("Shop"))
+                                .block(Block::default().borders(Borders::ALL))
+                                .alignment(Alignment::Center);
+                            frame.render_widget(paragraph, area);
+                        })? {
+                            return Err(io::Error::new(ErrorKind::Interrupted, "quit"));
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+}
+
+fn draw_title_frame(frame: &mut Frame, title_ui: &TitleUiFile, selected: usize) {
+    let size = frame.size();
+    let layout = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(title_ui.logo.lines.len() as u16 + 2),
+            Constraint::Length(1),
+            Constraint::Min(8),
+            Constraint::Length(2),
+        ])
+        .split(size);
+
+    let logo_lines: Vec<Line> = title_ui
+        .logo
+        .lines
+        .iter()
+        .map(|line| Line::from(line.as_str()))
+        .collect();
+    let logo = Paragraph::new(logo_lines)
+        .alignment(Alignment::Center)
+        .block(Block::default().borders(Borders::NONE));
+    frame.render_widget(logo, layout[0]);
+
+    let title = Paragraph::new(title_ui.title.as_str())
+        .alignment(Alignment::Center)
+        .block(Block::default().borders(Borders::NONE));
+    frame.render_widget(title, layout[1]);
+
+    let menu_items: Vec<Line> = title_ui
+        .menu
+        .iter()
+        .enumerate()
+        .map(|(index, item)| {
+            let mut style = Style::default().fg(Color::White);
+            if index == selected {
+                style = style.fg(Color::Yellow).add_modifier(Modifier::BOLD);
+            }
+            Line::from(Span::styled(item.label.as_str(), style))
+        })
+        .collect();
+
+    let menu = Paragraph::new(menu_items)
+        .alignment(Alignment::Center)
+        .block(Block::default().borders(Borders::NONE));
+    frame.render_widget(menu, layout[2]);
+
+    let footer = Paragraph::new(Line::from(vec![
+        Span::raw(title_ui.footer.left.as_str()),
+        Span::raw("  "),
+        Span::styled(
+            title_ui.footer.right.as_str(),
+            Style::default().fg(Color::Gray),
+        ),
+    ]))
+    .alignment(Alignment::Center)
+    .block(Block::default().borders(Borders::NONE));
+    frame.render_widget(footer, layout[3]);
+}
+
+pub fn draw_overworld_frame(frame: &mut Frame, map: &MapView, player_pos: (i32, i32)) {
+    let area = frame.size();
+    let view_width = area.width.saturating_sub(2);
+    let view_height = area.height.saturating_sub(2);
+    let (start_x, start_y) = viewport_origin(map, player_pos, view_width, view_height);
+    let mut lines = Vec::new();
+
+    for y in 0..view_height {
+        let mut row = String::new();
+        for x in 0..view_width {
+            let map_x = start_x + x as i32;
+            let map_y = start_y + y as i32;
+            if (map_x, map_y) == player_pos {
+                row.push('@');
+                continue;
+            }
+            if let Some(npc) = map.npcs.iter().find(|npc| npc.pos == (map_x, map_y)) {
+                row.push(npc.glyph);
+                continue;
+            }
+            row.push(tile_at(map, map_x, map_y));
+        }
+        lines.push(Line::from(row));
+    }
+
+    let paragraph = Paragraph::new(lines)
+        .block(Block::default().borders(Borders::ALL))
+        .alignment(Alignment::Left)
+        .wrap(Wrap { trim: false });
+    frame.render_widget(paragraph, area);
+}
+
+fn draw_overworld_with_dialog(
+    session: &mut TuiSession,
+    map: &MapView,
+    player_pos: (i32, i32),
+    dialog_ui: &crate::ui::DialogUiFile,
+    speaker: &str,
+    lines: &[String],
+    choices: Option<(usize, &[String])>,
+) -> io::Result<()> {
+    session
+        .terminal
+        .draw(|frame| {
+            draw_overworld_frame(frame, map, player_pos);
+            draw_dialog_overlay(frame, dialog_ui, speaker, lines, choices);
         })
         .map(|_| ())
+}
+
+fn draw_dialog(
+    terminal: &mut Terminal<CrosstermBackend<Stdout>>,
+    dialog_ui: &crate::ui::DialogUiFile,
+    speaker: &str,
+    lines: &[String],
+    choices: Option<(usize, &[String])>,
+) -> io::Result<()> {
+    terminal
+        .draw(|frame| {
+            draw_dialog_overlay(frame, dialog_ui, speaker, lines, choices);
+        })
+        .map(|_| ())
+}
+
+fn draw_dialog_overlay(
+    frame: &mut Frame,
+    dialog_ui: &crate::ui::DialogUiFile,
+    speaker: &str,
+    lines: &[String],
+    choices: Option<(usize, &[String])>,
+) {
+    let area = dialog_area(frame.size(), dialog_ui);
+    let inner_width = area.width.saturating_sub(2) as usize;
+    let mut content = Vec::new();
+
+    if dialog_ui.show_speaker && !speaker.is_empty() {
+        content.push(Line::from(Span::styled(
+            speaker,
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        )));
+    }
+
+    for line in lines {
+        content.push(Line::from(Span::raw(truncate_line(line, inner_width))));
+    }
+
+    if let Some((selected, choices)) = choices {
+        for (index, choice) in choices.iter().enumerate() {
+            let prefix = if index == selected { "> " } else { "  " };
+            let text = format!("{}{}", prefix, choice);
+            content.push(Line::from(Span::raw(truncate_line(&text, inner_width))));
+        }
+    }
+
+    frame.render_widget(Clear, area);
+    let paragraph = Paragraph::new(content)
+        .block(Block::default().borders(Borders::ALL))
+        .alignment(Alignment::Left)
+        .wrap(Wrap { trim: false });
+    frame.render_widget(paragraph, area);
+}
+
+fn wait_for_continue<F>(
+    session: &mut TuiSession,
+    bindings: &InputBindings,
+    draw_background: F,
+) -> io::Result<()>
+where
+    F: Fn(&mut Frame),
+{
+    loop {
+        if let Event::Key(key) = event::read()? {
+            if let Some(action) = bindings.action_for(key.code) {
+                if matches!(action, Action::Confirm | Action::Cancel | Action::Menu) {
+                    return Ok(());
+                }
+                if action == Action::Quit {
+                    if confirm_quit(session, &draw_background)? {
+                        return Err(io::Error::new(ErrorKind::Interrupted, "quit"));
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn choose_dialog_option(
+    session: &mut TuiSession,
+    dialog_ui: &crate::ui::DialogUiFile,
+    bindings: &InputBindings,
+    speaker: &str,
+    lines: &[String],
+    choices: &[String],
+) -> io::Result<Option<usize>> {
+    let mut selected = 0usize;
+    loop {
+        draw_dialog(
+            &mut session.terminal,
+            dialog_ui,
+            speaker,
+            lines,
+            Some((selected, choices)),
+        )?;
+        if let Event::Key(key) = event::read()? {
+            if let Some(action) = bindings.action_for(key.code) {
+                match action {
+                    Action::MoveUp => {
+                        if selected > 0 {
+                            selected -= 1;
+                        }
+                    }
+                    Action::MoveDown => {
+                        if selected + 1 < choices.len() {
+                            selected += 1;
+                        }
+                    }
+                    Action::Confirm => return Ok(Some(selected)),
+                    Action::Cancel | Action::Menu => return Ok(None),
+                    Action::Quit => {
+                        if confirm_quit(session, |frame| {
+                            draw_dialog_overlay(
+                                frame,
+                                dialog_ui,
+                                speaker,
+                                lines,
+                                Some((selected, choices)),
+                            );
+                        })? {
+                            return Err(io::Error::new(ErrorKind::Interrupted, "quit"));
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+}
+
+fn choose_dialog_option_on_map(
+    session: &mut TuiSession,
+    map: &MapView,
+    player_pos: (i32, i32),
+    dialog_ui: &crate::ui::DialogUiFile,
+    bindings: &InputBindings,
+    speaker: &str,
+    lines: &[String],
+    choices: &[String],
+) -> io::Result<Option<usize>> {
+    let mut selected = 0usize;
+    loop {
+        draw_overworld_with_dialog(
+            session,
+            map,
+            player_pos,
+            dialog_ui,
+            speaker,
+            lines,
+            Some((selected, choices)),
+        )?;
+        if let Event::Key(key) = event::read()? {
+            if let Some(action) = bindings.action_for(key.code) {
+                match action {
+                    Action::MoveUp => {
+                        if selected > 0 {
+                            selected -= 1;
+                        }
+                    }
+                    Action::MoveDown => {
+                        if selected + 1 < choices.len() {
+                            selected += 1;
+                        }
+                    }
+                    Action::Confirm => return Ok(Some(selected)),
+                    Action::Cancel | Action::Menu => return Ok(None),
+                    Action::Quit => {
+                        if confirm_quit(session, |frame| {
+                            draw_overworld_frame(frame, map, player_pos);
+                            draw_dialog_overlay(
+                                frame,
+                                dialog_ui,
+                                speaker,
+                                lines,
+                                Some((selected, choices)),
+                            );
+                        })? {
+                            return Err(io::Error::new(ErrorKind::Interrupted, "quit"));
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+}
+
+pub fn confirm_quit<F>(session: &mut TuiSession, draw_background: F) -> io::Result<bool>
+where
+    F: Fn(&mut Frame),
+{
+    loop {
+        session.terminal.draw(|frame| {
+            draw_background(frame);
+            let area = centered_rect(frame.size(), 40, 5);
+            let content = vec![
+                Line::from(Span::raw("Quit the game?")),
+                Line::from(Span::raw("Press Y to confirm.")),
+            ];
+            let paragraph = Paragraph::new(content)
+                .block(Block::default().borders(Borders::ALL))
+                .alignment(Alignment::Center);
+            frame.render_widget(paragraph, area);
+        })?;
+
+        if let Event::Key(key) = event::read()? {
+            match key.code {
+                KeyCode::Char('y') | KeyCode::Char('Y') => return Ok(true),
+                KeyCode::Char('n') | KeyCode::Char('N') => return Ok(false),
+                _ => return Ok(false),
+            }
+        }
+    }
 }
 
 fn map_action(id: &str) -> TitleAction {
@@ -303,100 +678,6 @@ fn dialog_area(area: Rect, dialog_ui: &crate::ui::DialogUiFile) -> Rect {
     }
 }
 
-fn draw_dialog(
-    terminal: &mut Terminal<CrosstermBackend<Stdout>>,
-    dialog_ui: &crate::ui::DialogUiFile,
-    speaker: &str,
-    lines: &[String],
-    choices: Option<(usize, &[String])>,
-) -> io::Result<()> {
-    terminal
-        .draw(|frame| {
-            let area = dialog_area(frame.size(), dialog_ui);
-            let inner_width = area.width.saturating_sub(2) as usize;
-            let mut content = Vec::new();
-
-            if dialog_ui.show_speaker && !speaker.is_empty() {
-                content.push(Line::from(Span::styled(
-                    speaker,
-                    Style::default()
-                        .fg(Color::Yellow)
-                        .add_modifier(Modifier::BOLD),
-                )));
-            }
-
-            for line in lines {
-                content.push(Line::from(Span::raw(truncate_line(line, inner_width))));
-            }
-
-            if let Some((selected, choices)) = choices {
-                for (index, choice) in choices.iter().enumerate() {
-                    let prefix = if index == selected { "> " } else { "  " };
-                    let text = format!("{}{}", prefix, choice);
-                    content.push(Line::from(Span::raw(truncate_line(&text, inner_width))));
-                }
-            }
-
-            let paragraph = Paragraph::new(content)
-                .block(Block::default().borders(Borders::ALL))
-                .alignment(Alignment::Left)
-                .wrap(Wrap { trim: false });
-            frame.render_widget(paragraph, area);
-        })
-        .map(|_| ())
-}
-
-fn wait_for_continue(bindings: &InputBindings) -> io::Result<()> {
-    loop {
-        if let Event::Key(key) = event::read()? {
-            if let Some(action) = bindings.action_for(key.code) {
-                if matches!(action, Action::Confirm | Action::Cancel | Action::Menu) {
-                    return Ok(());
-                }
-            }
-        }
-    }
-}
-
-fn choose_dialog_option(
-    terminal: &mut Terminal<CrosstermBackend<Stdout>>,
-    dialog_ui: &crate::ui::DialogUiFile,
-    bindings: &InputBindings,
-    speaker: &str,
-    lines: &[String],
-    choices: &[String],
-) -> io::Result<Option<usize>> {
-    let mut selected = 0usize;
-    loop {
-        draw_dialog(
-            terminal,
-            dialog_ui,
-            speaker,
-            lines,
-            Some((selected, choices)),
-        )?;
-        if let Event::Key(key) = event::read()? {
-            if let Some(action) = bindings.action_for(key.code) {
-                match action {
-                    Action::MoveUp => {
-                        if selected > 0 {
-                            selected -= 1;
-                        }
-                    }
-                    Action::MoveDown => {
-                        if selected + 1 < choices.len() {
-                            selected += 1;
-                        }
-                    }
-                    Action::Confirm => return Ok(Some(selected)),
-                    Action::Cancel | Action::Menu => return Ok(None),
-                    _ => {}
-                }
-            }
-        }
-    }
-}
-
 fn truncate_line(line: &str, width: usize) -> String {
     if line.len() <= width {
         return line.to_string();
@@ -438,4 +719,10 @@ fn clamp(value: i32, min: i32, max: i32) -> i32 {
     } else {
         value
     }
+}
+
+fn centered_rect(area: Rect, width: u16, height: u16) -> Rect {
+    let x = area.x + area.width.saturating_sub(width) / 2;
+    let y = area.y + area.height.saturating_sub(height) / 2;
+    Rect::new(x, y, width.min(area.width), height.min(area.height))
 }

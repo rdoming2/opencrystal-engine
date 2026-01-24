@@ -9,8 +9,9 @@ use engine::{
     Engine,
 };
 use tui::app::{
-    draw_overworld, run_title, show_dialog, show_dialog_with_choices, MapView, NpcView,
-    TitleAction, TuiSession,
+    draw_overworld, run_title, show_dialog, show_dialog_on_map, show_dialog_with_choices,
+    show_dialog_with_choices_on_map, show_shop, MapView, NpcView, ShopItem, ShopView, TitleAction,
+    TuiSession,
 };
 use tui::input::{Action, InputBindings, InputFile};
 use tui::renderer::RenderMode;
@@ -131,16 +132,25 @@ fn run_play(args: Vec<String>) {
                 println!("Starting in overworld.");
             }
             if let Some(session) = session.as_mut() {
-                run_event_loop(&mut runtime, &dialog_ui, &input_bindings, session);
+                if let Err(err) = run_event_loop(&mut runtime, &dialog_ui, &input_bindings, session)
+                {
+                    if err.kind() == std::io::ErrorKind::Interrupted {
+                        return;
+                    }
+                }
                 let spawn = find_spawn(&runtime, &world.map_id, world.position);
-                run_overworld_loop(
+                if let Err(err) = run_overworld_loop(
                     session,
                     &mut runtime,
                     &dialog_ui,
                     &input_bindings,
                     &world.map_id,
                     spawn,
-                );
+                ) {
+                    if err.kind() == std::io::ErrorKind::Interrupted {
+                        return;
+                    }
+                }
             } else {
                 run_event_loop_console(&mut runtime, &dialog_ui);
             }
@@ -162,10 +172,10 @@ fn run_event_loop(
     dialog_ui: &DialogUiFile,
     bindings: &tui::input::InputBindings,
     session: &mut TuiSession,
-) {
+) -> std::io::Result<()> {
     while runtime.state == GameState::Event {
         match runtime.next_event_step() {
-            Some(step) => handle_event_step(runtime, dialog_ui, bindings, session, &step),
+            Some(step) => handle_event_step(runtime, dialog_ui, bindings, session, &step)?,
             None => {
                 if runtime.is_event_complete() {
                     println!("Event queue completed.");
@@ -173,6 +183,7 @@ fn run_event_loop(
             }
         }
     }
+    Ok(())
 }
 
 fn run_event_loop_console(runtime: &mut GameRuntime, dialog_ui: &DialogUiFile) {
@@ -194,16 +205,16 @@ fn handle_event_step(
     bindings: &tui::input::InputBindings,
     session: &mut TuiSession,
     step: &engine::events::EventStep,
-) {
+) -> std::io::Result<()> {
     match step.r#type.as_str() {
         "dialog" => {
             let speaker = step.speaker.as_deref().unwrap_or("Narrator");
             let text = step.text.as_deref().unwrap_or("");
-            let _ = show_dialog(session, dialog_ui, bindings, speaker, text);
+            show_dialog(session, dialog_ui, bindings, speaker, text)?;
         }
         "narration" => {
             let text = step.text.as_deref().unwrap_or("");
-            let _ = show_dialog(session, dialog_ui, bindings, "", text);
+            show_dialog(session, dialog_ui, bindings, "", text)?;
         }
         "set_flag" => {
             if let Some(flag) = &step.flag {
@@ -217,7 +228,7 @@ fn handle_event_step(
         }
         "start_dialog" => {
             if let Some(dialog) = &step.dialog {
-                run_dialog(runtime, dialog_ui, bindings, session, dialog);
+                run_dialog(runtime, dialog_ui, bindings, session, dialog)?;
             }
         }
         "start_battle" => {
@@ -242,7 +253,7 @@ fn handle_event_step(
         }
         "open_shop" => {
             if let Some(shop) = &step.shop {
-                println!("Open shop: {}", shop);
+                open_shop(runtime, session, bindings, shop)?;
             }
         }
         "npc_show" | "npc_hide" | "npc_move" | "npc_set_sprite" => {
@@ -252,6 +263,7 @@ fn handle_event_step(
             println!("Event step: {}", other);
         }
     }
+    Ok(())
 }
 
 fn handle_event_step_console(
@@ -286,12 +298,12 @@ fn run_dialog(
     bindings: &tui::input::InputBindings,
     session: &mut TuiSession,
     dialog_id: &str,
-) {
+) -> std::io::Result<()> {
     let dialog = match runtime.get_dialog(dialog_id).cloned() {
         Some(dialog) => dialog,
         None => {
             println!("Dialog not found: {}", dialog_id);
-            return;
+            return Ok(());
         }
     };
 
@@ -312,16 +324,17 @@ fn run_dialog(
         });
 
         let selection = if let Some(choices) = &choice_labels {
-            show_dialog_with_choices(session, dialog_ui, bindings, speaker, &node.text, choices)
-                .unwrap_or(None)
+            show_dialog_with_choices(session, dialog_ui, bindings, speaker, &node.text, choices)?
         } else {
-            let _ = show_dialog(session, dialog_ui, bindings, speaker, &node.text);
+            show_dialog(session, dialog_ui, bindings, speaker, &node.text)?;
             None
         };
 
         if let Some(actions) = &node.actions {
             for action in actions {
-                handle_dialog_action(runtime, action);
+                if handle_dialog_action(runtime, session, bindings, action)? {
+                    return Ok(());
+                }
             }
         }
 
@@ -331,13 +344,82 @@ fn run_dialog(
                 .map(|choice| choice.next.clone())
                 .unwrap_or_else(|| "end".to_string());
             if next == "end" {
-                break;
+                return Ok(());
             }
             current = next;
         } else {
-            break;
+            return Ok(());
         }
     }
+    Ok(())
+}
+
+fn run_dialog_on_map(
+    runtime: &mut GameRuntime,
+    dialog_ui: &DialogUiFile,
+    bindings: &tui::input::InputBindings,
+    session: &mut TuiSession,
+    dialog_id: &str,
+    map: &MapView,
+    player_pos: (i32, i32),
+) -> std::io::Result<()> {
+    let dialog = match runtime.get_dialog(dialog_id).cloned() {
+        Some(dialog) => dialog,
+        None => {
+            println!("Dialog not found: {}", dialog_id);
+            return Ok(());
+        }
+    };
+
+    let mut current = "start".to_string();
+    loop {
+        let node = dialog.nodes.iter().find(|node| node.id == current);
+        let Some(node) = node else {
+            println!("Dialog node not found: {}", current);
+            break;
+        };
+
+        let speaker = node.speaker.as_deref().unwrap_or("");
+        let choice_labels = node.choices.as_ref().map(|choices| {
+            choices
+                .iter()
+                .map(|choice| choice.label.clone())
+                .collect::<Vec<_>>()
+        });
+
+        let selection = if let Some(choices) = &choice_labels {
+            show_dialog_with_choices_on_map(
+                session, map, player_pos, dialog_ui, bindings, speaker, &node.text, choices,
+            )?
+        } else {
+            show_dialog_on_map(
+                session, map, player_pos, dialog_ui, bindings, speaker, &node.text,
+            )?;
+            None
+        };
+
+        if let Some(actions) = &node.actions {
+            for action in actions {
+                if handle_dialog_action(runtime, session, bindings, action)? {
+                    return Ok(());
+                }
+            }
+        }
+
+        if let (Some(selection), Some(choices)) = (selection, node.choices.as_ref()) {
+            let next = choices
+                .get(selection)
+                .map(|choice| choice.next.clone())
+                .unwrap_or_else(|| "end".to_string());
+            if next == "end" {
+                return Ok(());
+            }
+            current = next;
+        } else {
+            return Ok(());
+        }
+    }
+    Ok(())
 }
 
 fn run_dialog_console(runtime: &mut GameRuntime, dialog_ui: &DialogUiFile, dialog_id: &str) {
@@ -360,7 +442,7 @@ fn run_dialog_console(runtime: &mut GameRuntime, dialog_ui: &DialogUiFile, dialo
         show_dialog_console(dialog_ui, node.speaker.as_deref().unwrap_or(""), &node.text);
         if let Some(actions) = &node.actions {
             for action in actions {
-                handle_dialog_action(runtime, action);
+                handle_dialog_action_console(runtime, action);
             }
         }
 
@@ -453,22 +535,22 @@ fn run_overworld_loop(
     bindings: &tui::input::InputBindings,
     map_id: &str,
     start_pos: (i32, i32),
-) {
+) -> std::io::Result<()> {
     let mut current_map_id = map_id.to_string();
     let mut player_pos = start_pos;
 
-    loop {
+    let mut running = true;
+    while running {
         let map = match build_map_view(runtime, &current_map_id) {
             Some(map) => map,
             None => {
                 println!("Map not found: {}", current_map_id);
-                break;
+                running = false;
+                continue;
             }
         };
 
-        if draw_overworld(session, &map, player_pos).is_err() {
-            break;
-        }
+        draw_overworld(session, &map, player_pos)?;
 
         let previous_pos = player_pos;
         if let Some(action) = read_action(bindings) {
@@ -479,10 +561,21 @@ fn run_overworld_loop(
                 Action::MoveRight => player_pos.0 += 1,
                 Action::Confirm => {
                     if let Some(dialog_id) = find_npc_dialog(runtime, &current_map_id, player_pos) {
-                        run_dialog(runtime, dialog_ui, bindings, session, &dialog_id);
+                        run_dialog_on_map(
+                            runtime, dialog_ui, bindings, session, &dialog_id, &map, player_pos,
+                        )?;
                     }
                 }
-                Action::Menu | Action::Cancel => break,
+                Action::Menu | Action::Cancel => {
+                    running = false;
+                }
+                Action::Quit => {
+                    if tui::app::confirm_quit(session, |frame| {
+                        tui::app::draw_overworld_frame(frame, &map, player_pos);
+                    })? {
+                        return Err(std::io::Error::new(std::io::ErrorKind::Interrupted, "quit"));
+                    }
+                }
                 _ => {}
             }
         }
@@ -498,6 +591,7 @@ fn run_overworld_loop(
             player_pos = previous_pos;
         }
     }
+    Ok(())
 }
 
 fn read_action(bindings: &tui::input::InputBindings) -> Option<Action> {
@@ -526,6 +620,51 @@ fn build_map_view(runtime: &GameRuntime, map_id: &str) -> Option<MapView> {
         tiles: map.tiles.clone(),
         npcs,
     })
+}
+
+fn build_shop_view(runtime: &GameRuntime, shop_id: &str) -> Option<ShopView> {
+    let shop = runtime
+        .content
+        .shops
+        .shops
+        .iter()
+        .find(|shop| shop.id == shop_id)?;
+
+    let items = shop
+        .inventory
+        .iter()
+        .map(|entry| ShopItem {
+            name: lookup_item_name(runtime, &entry.item),
+            price: entry.price,
+        })
+        .collect();
+
+    Some(ShopView {
+        name: shop.name.clone(),
+        items,
+    })
+}
+
+fn lookup_item_name(runtime: &GameRuntime, item_id: &str) -> String {
+    if let Some(item) = runtime
+        .content
+        .items
+        .items
+        .iter()
+        .find(|item| item.id == item_id)
+    {
+        return item.name.clone();
+    }
+    if let Some(item) = runtime
+        .content
+        .equipment
+        .equipment
+        .iter()
+        .find(|item| item.id == item_id)
+    {
+        return item.name.clone();
+    }
+    item_id.to_string()
 }
 
 fn is_passable(runtime: &GameRuntime, map_id: &str, pos: (i32, i32)) -> bool {
@@ -648,7 +787,43 @@ fn default_dialog_ui() -> DialogUiFile {
     }
 }
 
-fn handle_dialog_action(runtime: &mut GameRuntime, action: &engine::dialog::DialogAction) {
+fn handle_dialog_action(
+    runtime: &mut GameRuntime,
+    session: &mut TuiSession,
+    bindings: &tui::input::InputBindings,
+    action: &engine::dialog::DialogAction,
+) -> std::io::Result<bool> {
+    match action.r#type.as_str() {
+        "start_event" => {
+            if let Some(event_id) = &action.event {
+                runtime.queue_event(event_id);
+            }
+        }
+        "open_shop" => {
+            if let Some(shop) = &action.shop {
+                open_shop(runtime, session, bindings, shop)?;
+                return Ok(true);
+            }
+        }
+        "set_flag" => {
+            if let Some(flag) = &action.flag {
+                println!("Set flag: {}", flag);
+            }
+        }
+        "give_item" => {
+            if let Some(item) = &action.item {
+                let qty = action.qty.unwrap_or(1);
+                println!("Give item: {} x{}", item, qty);
+            }
+        }
+        _ => {
+            println!("Dialog action: {}", action.r#type);
+        }
+    }
+    Ok(false)
+}
+
+fn handle_dialog_action_console(runtime: &mut GameRuntime, action: &engine::dialog::DialogAction) {
     match action.r#type.as_str() {
         "start_event" => {
             if let Some(event_id) = &action.event {
@@ -675,6 +850,23 @@ fn handle_dialog_action(runtime: &mut GameRuntime, action: &engine::dialog::Dial
             println!("Dialog action: {}", action.r#type);
         }
     }
+}
+
+fn open_shop(
+    runtime: &GameRuntime,
+    session: &mut TuiSession,
+    bindings: &tui::input::InputBindings,
+    shop_id: &str,
+) -> std::io::Result<()> {
+    let shop = match build_shop_view(runtime, shop_id) {
+        Some(shop) => shop,
+        None => {
+            println!("Shop not found: {}", shop_id);
+            return Ok(());
+        }
+    };
+    let _ = show_shop(session, &shop, bindings)?;
+    Ok(())
 }
 
 fn run_validate() {

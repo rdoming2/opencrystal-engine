@@ -24,10 +24,11 @@ Configurable input bindings.
     "move_down": ["Down", "S", "J"],
     "move_left": ["Left", "A", "H"],
     "move_right": ["Right", "D", "L"],
-    "confirm": ["Enter", "E"],
-    "cancel": ["C"],
+    "confirm": ["Enter", "C"],
+    "cancel": ["X"],
     "menu": ["I", "Escape"],
-    "pause": ["Space"]
+    "pause": ["Space"],
+    "quit": ["Q"]
   }
 }
 ```

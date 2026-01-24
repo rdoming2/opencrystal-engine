@@ -5,7 +5,7 @@ use std::path::Path;
 use crossterm::event::KeyCode;
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Action {
     MoveUp,
     MoveDown,
@@ -15,6 +15,7 @@ pub enum Action {
     Cancel,
     Menu,
     Pause,
+    Quit,
 }
 
 #[derive(Clone, Debug)]
@@ -75,11 +76,12 @@ impl InputBindings {
         key_map.insert(KeyCode::Char('j'), Action::MoveDown);
         key_map.insert(KeyCode::Char('l'), Action::MoveRight);
         key_map.insert(KeyCode::Enter, Action::Confirm);
-        key_map.insert(KeyCode::Char('e'), Action::Confirm);
-        key_map.insert(KeyCode::Char('c'), Action::Cancel);
+        key_map.insert(KeyCode::Char('c'), Action::Confirm);
+        key_map.insert(KeyCode::Char('x'), Action::Cancel);
         key_map.insert(KeyCode::Char('i'), Action::Menu);
         key_map.insert(KeyCode::Esc, Action::Menu);
         key_map.insert(KeyCode::Char(' '), Action::Pause);
+        key_map.insert(KeyCode::Char('q'), Action::Quit);
         Self { key_map }
     }
 }
@@ -94,6 +96,7 @@ fn action_from_id(id: &str) -> Option<Action> {
         "cancel" => Some(Action::Cancel),
         "menu" => Some(Action::Menu),
         "pause" => Some(Action::Pause),
+        "quit" => Some(Action::Quit),
         _ => None,
     }
 }
