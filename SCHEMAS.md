@@ -157,6 +157,8 @@ uses its dialog tree.
   "shops": [
     {"id": "corner_store", "pos": [8, 6]}
   ],
+  "allow_save": true,
+  "save_points": [[12, 9]],
   "transitions": [
     {
       "id": "to_ember",
@@ -167,6 +169,12 @@ uses its dialog tree.
   ]
 }
 ```
+
+Saving rules:
+
+- `allow_save` controls whether the main menu save command is enabled on the map.
+- `save_points` lists coordinates where saving is always allowed, even if
+  `allow_save` is false.
 
 ## entities/encounters.json
 

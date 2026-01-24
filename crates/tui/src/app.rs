@@ -32,6 +32,7 @@ pub struct MapView {
     pub height: u16,
     pub tiles: Vec<String>,
     pub npcs: Vec<NpcView>,
+    pub save_points: Vec<(i32, i32)>,
 }
 
 pub struct ShopView {
@@ -375,6 +376,10 @@ pub fn draw_overworld_frame(frame: &mut Frame, map: &MapView, player_pos: (i32, 
             }
             if let Some(npc) = map.npcs.iter().find(|npc| npc.pos == (map_x, map_y)) {
                 row.push(npc.glyph);
+                continue;
+            }
+            if map.save_points.iter().any(|pos| *pos == (map_x, map_y)) {
+                row.push('S');
                 continue;
             }
             row.push(tile_at(map, map_x, map_y));

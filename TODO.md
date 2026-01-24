@@ -1,38 +1,45 @@
 # OpenCrystal TODO
 
 ## Runtime
-- [ ] Create runtime state machine.
-  - [ ] Title state.
-  - [ ] Overworld state.
+- [x] Create runtime state machine.
+  - [x] Title state.
+  - [x] Overworld state.
   - [ ] Battle state.
   - [ ] Menu state.
-  - [ ] Event state.
+  - [x] Event state.
 - [ ] Implement event executor.
-  - [ ] Dialog and narration.
+  - [x] Dialog and narration.
   - [ ] Flag setting/requirements.
   - [ ] Item/equipment grants.
   - [ ] Warp and battle starts.
   - [ ] NPC show/hide/move/sprite.
-- [ ] Add content registry.
-  - [ ] Load all content into indexed registries.
-  - [ ] Build cross-reference maps (ids to definitions).
+- [x] Add content registry.
+  - [x] Load all content into indexed registries.
+  - [x] Build cross-reference maps (ids to definitions).
 - [ ] Implement save/load for demo content.
   - [ ] Serialize world/party/inventory/flags.
   - [ ] Load persistent NPC positions.
-- [ ] Implement runtime map transitions.
-  - [ ] Step on transition triggers map load.
-  - [ ] Preserve player position on target map.
+- [x] Implement runtime map transitions.
+  - [x] Step on transition triggers map load.
+  - [x] Preserve player position on target map.
 - [ ] Implement NPC interaction runtime.
   - [ ] Dialog vs event selection.
-  - [ ] Shop opening via dialog actions.
+  - [x] Shop opening via dialog actions.
+  - [ ] Shop purchase flow (currency, inventory updates).
+- [ ] Implement save/load system.
+  - [ ] Define save file schema + versioning.
+  - [ ] Serialize world/party/inventory/flags.
+  - [ ] Load persistent NPC positions.
+  - [ ] Add save slot management.
+  - [ ] Enforce save rules (map allow_save + save_points).
 
 ## UI + Rendering
-- [ ] Title screen renderer.
-  - [ ] Layout from `ui/title.json`.
-  - [ ] ASCII logo rendering and menu highlight.
-- [ ] Overworld renderer.
-  - [ ] Tile map rendering.
-  - [ ] NPC rendering + gating.
+- [x] Title screen renderer.
+  - [x] Layout from `ui/title.json`.
+  - [x] ASCII logo rendering and menu highlight.
+- [x] Overworld renderer.
+  - [x] Tile map rendering.
+  - [x] NPC rendering + gating.
   - [ ] Transition markers (optional).
 - [ ] Battle renderer.
   - [ ] Battlefield + enemy art/glyph modes.
@@ -42,6 +49,11 @@
   - [ ] Status menu panels from `ui/progress.json`.
   - [ ] Journal/quest display.
   - [ ] Party management UI.
+- [ ] Main menu UI.
+  - [ ] Default party summary panel.
+  - [ ] Items/equipment/magic/stat submenus.
+  - [ ] Settings + save entry integration.
+  - [ ] Save-point glyph rendering (use `S`).
 
 ## Battle System
 - [ ] Turn-based flow (command selection, targeting, resolve action).
@@ -66,5 +78,8 @@
 - [x] Add missing demo content (town map, shop UI, basic quests).
 - [x] Extend validation for event step payloads.
 - [ ] Add content authoring guide.
+- [ ] Extend map schema for saving.
+  - [ ] `allow_save` flag for main menu saving.
+  - [ ] `save_points` coordinates (always valid save spots).
 - [ ] Define encounter rate rules schema.
 - [ ] Finalize save schema requirements and versioning rules.

@@ -16,6 +16,10 @@ pub struct MapFile {
     pub events: Vec<MapEvent>,
     pub npcs: Vec<MapNpc>,
     pub shops: Vec<MapShop>,
+    #[serde(default = "default_allow_save")]
+    pub allow_save: bool,
+    #[serde(default)]
+    pub save_points: Vec<[i32; 2]>,
     #[serde(default)]
     pub transitions: Vec<MapTransition>,
 }
@@ -67,4 +71,8 @@ impl MapFile {
     pub fn load(path: impl AsRef<Path>) -> Result<Self, String> {
         crate::io::load_json(path)
     }
+}
+
+fn default_allow_save() -> bool {
+    true
 }

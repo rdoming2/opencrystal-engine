@@ -606,12 +606,14 @@ fn build_map_view(runtime: &GameRuntime, map_id: &str) -> Option<MapView> {
             glyph: npc_glyph(runtime, &npc.id),
         })
         .collect();
+    let save_points = map.save_points.iter().map(|pos| (pos[0], pos[1])).collect();
 
     Some(MapView {
         width: map.width as u16,
         height: map.height as u16,
         tiles: map.tiles.clone(),
         npcs,
+        save_points,
     })
 }
 
