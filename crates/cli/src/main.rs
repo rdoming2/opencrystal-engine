@@ -8,7 +8,8 @@ use engine::{
     world::WorldState,
     Engine,
 };
-use tui::input::InputFile;
+use tui::app::{run_title, TitleAction};
+use tui::input::{InputBindings, InputFile};
 use tui::renderer::RenderMode;
 use tui::ui::{BattleUiFile, DialogUiFile, ProgressUiFile, TitleUiFile};
 
@@ -51,13 +52,27 @@ fn run_play(args: Vec<String>) {
         .map(|world| WorldState::new(&world.id, &world.starting_map, (0, 0)))
         .unwrap_or_else(|| WorldState::new("gaia", "overworld_gaia", (20, 14)));
 
-    if let Err(err) = InputFile::load(&input_path) {
-        eprintln!("Failed to load input bindings: {}", err);
-    }
+    let input_bindings = match InputFile::load(&input_path) {
+        Ok(file) => match InputBindings::from_file(file) {
+            Ok(bindings) => bindings,
+            Err(err) => {
+                eprintln!("Failed to parse input bindings: {}", err);
+                InputBindings::default_bindings()
+            }
+        },
+        Err(err) => {
+            eprintln!("Failed to load input bindings: {}", err);
+            InputBindings::default_bindings()
+        }
+    };
 
-    if let Err(err) = TitleUiFile::load(&title_ui_path) {
-        eprintln!("Failed to load title UI: {}", err);
-    }
+    let title_ui = match TitleUiFile::load(&title_ui_path) {
+        Ok(title_ui) => title_ui,
+        Err(err) => {
+            eprintln!("Failed to load title UI: {}", err);
+            return;
+        }
+    };
 
     if let Err(err) = BattleUiFile::load(&battle_ui_path) {
         eprintln!("Failed to load battle UI: {}", err);
@@ -85,13 +100,27 @@ fn run_play(args: Vec<String>) {
         RenderMode::Modern => println!("Starting OpenCrystal (render: modern)..."),
     }
 
-    if let Some(event_id) = runtime.active_event.as_deref() {
-        println!("Queued start event: {}", event_id);
-    } else {
-        println!("Starting in overworld.");
-    }
+    let action = match run_title(&title_ui, &input_bindings) {
+        Ok(action) => action,
+        Err(err) => {
+            eprintln!("Failed to run title UI: {}", err);
+            TitleAction::Exit
+        }
+    };
 
-    run_event_loop(&mut runtime, &dialog_ui);
+    match action {
+        TitleAction::NewGame => {
+            if let Some(event_id) = runtime.active_event.as_deref() {
+                println!("Queued start event: {}", event_id);
+            } else {
+                println!("Starting in overworld.");
+            }
+            run_event_loop(&mut runtime, &dialog_ui);
+        }
+        TitleAction::Load => println!("Load not implemented."),
+        TitleAction::Settings => println!("Settings not implemented."),
+        TitleAction::Exit => println!("Exit."),
+    }
 }
 
 fn run_event_loop(runtime: &mut GameRuntime, dialog_ui: &DialogUiFile) {
