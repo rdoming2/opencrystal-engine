@@ -217,6 +217,7 @@ Each snippet corresponds to an existing schema.
       ]
     }
   },
+  "log": {"position": "pane_top", "height": 1},
   "panels": {
     "enemies": {"title": "Enemies", "highlight": {"style": "invert", "link_to_battlefield": true}},
     "commands": {"title": "Commands", "items": ["Attack", "Magic", "Items", "Run"]},

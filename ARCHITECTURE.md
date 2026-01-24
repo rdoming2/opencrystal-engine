@@ -79,6 +79,7 @@ All runtime data is loaded from JSON. Files are organized into top-level categor
 - `ui/*.json`: menu panels, progress tracking config.
 - `ui/battle.json`: battle layout and panel configuration.
 - `ui/title.json`: title screen layout and menu.
+- `ui/dialog.json`: dialog box layout and behavior.
 - `input.json`: key bindings.
 - `stats.json`: base and derived stat definitions.
 - `save.json`: runtime save format.

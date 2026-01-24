@@ -10,7 +10,7 @@ use engine::{
 };
 use tui::input::InputFile;
 use tui::renderer::RenderMode;
-use tui::ui::{BattleUiFile, ProgressUiFile, TitleUiFile};
+use tui::ui::{BattleUiFile, DialogUiFile, ProgressUiFile, TitleUiFile};
 
 fn main() {
     let mut args = env::args().skip(1);
@@ -30,6 +30,7 @@ fn run_play(args: Vec<String>) {
     let input_path = content_dir.join("input.json");
     let title_ui_path = content_dir.join("ui").join("title.json");
     let battle_ui_path = content_dir.join("ui").join("battle.json");
+    let dialog_ui_path = content_dir.join("ui").join("dialog.json");
     let progress_ui_path = content_dir.join("ui").join("progress.json");
 
     let content = match Content::load(&content_dir) {
@@ -62,6 +63,14 @@ fn run_play(args: Vec<String>) {
         eprintln!("Failed to load battle UI: {}", err);
     }
 
+    let dialog_ui = match DialogUiFile::load(&dialog_ui_path) {
+        Ok(dialog_ui) => dialog_ui,
+        Err(err) => {
+            eprintln!("Failed to load dialog UI: {}", err);
+            default_dialog_ui()
+        }
+    };
+
     if let Err(err) = ProgressUiFile::load(&progress_ui_path) {
         eprintln!("Failed to load progress UI: {}", err);
     }
@@ -82,25 +91,36 @@ fn run_play(args: Vec<String>) {
         println!("Starting in overworld.");
     }
 
-    while let Some(step) = runtime.next_event_step() {
-        print_event_step(&step);
-    }
+    run_event_loop(&mut runtime, &dialog_ui);
+}
 
-    if runtime.is_event_complete() && runtime.state == GameState::Overworld {
-        println!("Event queue completed.");
+fn run_event_loop(runtime: &mut GameRuntime, dialog_ui: &DialogUiFile) {
+    while runtime.state == GameState::Event {
+        match runtime.next_event_step() {
+            Some(step) => handle_event_step(runtime, dialog_ui, &step),
+            None => {
+                if runtime.is_event_complete() {
+                    println!("Event queue completed.");
+                }
+            }
+        }
     }
 }
 
-fn print_event_step(step: &engine::events::EventStep) {
+fn handle_event_step(
+    runtime: &mut GameRuntime,
+    dialog_ui: &DialogUiFile,
+    step: &engine::events::EventStep,
+) {
     match step.r#type.as_str() {
         "dialog" => {
             let speaker = step.speaker.as_deref().unwrap_or("Narrator");
             let text = step.text.as_deref().unwrap_or("");
-            println!("{}: {}", speaker, text);
+            show_dialog_page(dialog_ui, speaker, text);
         }
         "narration" => {
             let text = step.text.as_deref().unwrap_or("");
-            println!("Narration: {}", text);
+            show_dialog_page(dialog_ui, "", text);
         }
         "set_flag" => {
             if let Some(flag) = &step.flag {
@@ -114,7 +134,7 @@ fn print_event_step(step: &engine::events::EventStep) {
         }
         "start_dialog" => {
             if let Some(dialog) = &step.dialog {
-                println!("Start dialog: {}", dialog);
+                run_dialog(runtime, dialog_ui, dialog);
             }
         }
         "start_battle" => {
@@ -151,6 +171,149 @@ fn print_event_step(step: &engine::events::EventStep) {
     }
 }
 
+fn run_dialog(runtime: &mut GameRuntime, dialog_ui: &DialogUiFile, dialog_id: &str) {
+    let dialog = match runtime.get_dialog(dialog_id).cloned() {
+        Some(dialog) => dialog,
+        None => {
+            println!("Dialog not found: {}", dialog_id);
+            return;
+        }
+    };
+
+    let mut current = "start".to_string();
+    loop {
+        let node = dialog.nodes.iter().find(|node| node.id == current);
+        let Some(node) = node else {
+            println!("Dialog node not found: {}", current);
+            break;
+        };
+
+        let speaker = node.speaker.as_deref().unwrap_or("");
+        show_dialog_page(dialog_ui, speaker, &node.text);
+
+        if let Some(actions) = &node.actions {
+            for action in actions {
+                match action.r#type.as_str() {
+                    "start_event" => {
+                        if let Some(event_id) = &action.event {
+                            runtime.queue_event(event_id);
+                        }
+                    }
+                    "open_shop" => {
+                        if let Some(shop) = &action.shop {
+                            println!("Open shop: {}", shop);
+                        }
+                    }
+                    "set_flag" => {
+                        if let Some(flag) = &action.flag {
+                            println!("Set flag: {}", flag);
+                        }
+                    }
+                    "give_item" => {
+                        if let Some(item) = &action.item {
+                            let qty = action.qty.unwrap_or(1);
+                            println!("Give item: {} x{}", item, qty);
+                        }
+                    }
+                    _ => {
+                        println!("Dialog action: {}", action.r#type);
+                    }
+                }
+            }
+        }
+
+        if let Some(choices) = &node.choices {
+            for (index, choice) in choices.iter().enumerate() {
+                println!("  {}. {}", index + 1, choice.label);
+            }
+            let selection = read_choice(choices.len());
+            let next = choices
+                .get(selection.saturating_sub(1))
+                .map(|choice| choice.next.clone())
+                .unwrap_or_else(|| "end".to_string());
+            if next == "end" {
+                break;
+            }
+            current = next;
+        } else {
+            break;
+        }
+    }
+}
+
+fn show_dialog_page(dialog_ui: &DialogUiFile, speaker: &str, text: &str) {
+    let width = 60usize;
+    let height = dialog_ui.height.max(2) as usize;
+    let mut lines = wrap_text(text, width);
+
+    if dialog_ui.show_speaker && !speaker.is_empty() {
+        println!("{}", speaker);
+    }
+
+    while !lines.is_empty() {
+        let page: Vec<String> = lines.drain(0..lines.len().min(height - 1)).collect();
+        for line in page {
+            println!("{}", line);
+        }
+        if !lines.is_empty() {
+            println!("{}", dialog_ui.continue_marker);
+            let _ = read_line();
+        }
+    }
+}
+
+fn wrap_text(text: &str, width: usize) -> Vec<String> {
+    let mut lines = Vec::new();
+    let mut current = String::new();
+
+    for word in text.split_whitespace() {
+        if current.is_empty() {
+            current.push_str(word);
+            continue;
+        }
+        if current.len() + word.len() + 1 > width {
+            lines.push(current);
+            current = word.to_string();
+        } else {
+            current.push(' ');
+            current.push_str(word);
+        }
+    }
+
+    if !current.is_empty() {
+        lines.push(current);
+    }
+    lines
+}
+
+fn read_choice(max: usize) -> usize {
+    loop {
+        println!("Choose 1-{} and press Enter:", max);
+        let input = read_line();
+        if let Ok(value) = input.trim().parse::<usize>() {
+            if value >= 1 && value <= max {
+                return value;
+            }
+        }
+    }
+}
+
+fn read_line() -> String {
+    let mut input = String::new();
+    let _ = std::io::stdin().read_line(&mut input);
+    input
+}
+
+fn default_dialog_ui() -> DialogUiFile {
+    DialogUiFile {
+        version: 1,
+        position: "bottom".to_string(),
+        height: 4,
+        show_speaker: true,
+        continue_marker: "▼".to_string(),
+    }
+}
+
 fn run_validate() {
     let args: Vec<String> = env::args().skip(2).collect();
     let content_dir = parse_content_dir(&args).unwrap_or_else(|| PathBuf::from("content/demo"));
@@ -159,6 +322,7 @@ fn run_validate() {
     let input_path = content_dir.join("input.json");
     let title_ui_path = content_dir.join("ui").join("title.json");
     let battle_ui_path = content_dir.join("ui").join("battle.json");
+    let dialog_ui_path = content_dir.join("ui").join("dialog.json");
     let progress_ui_path = content_dir.join("ui").join("progress.json");
 
     if let Err(err) = InputFile::load(&input_path) {
@@ -169,6 +333,9 @@ fn run_validate() {
     }
     if let Err(err) = BattleUiFile::load(&battle_ui_path) {
         errors.push(format!("ui/battle.json: {}", err));
+    }
+    if let Err(err) = DialogUiFile::load(&dialog_ui_path) {
+        errors.push(format!("ui/dialog.json: {}", err));
     }
     if let Err(err) = ProgressUiFile::load(&progress_ui_path) {
         errors.push(format!("ui/progress.json: {}", err));

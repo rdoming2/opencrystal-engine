@@ -52,9 +52,16 @@ pub struct BattleUiFile {
     pub version: u32,
     pub breakpoints: Vec<Breakpoint>,
     pub layout: BattleLayout,
+    pub log: Option<BattleLog>,
     pub panels: BattlePanels,
     pub menus: BattleMenus,
     pub selection: SelectionRules,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct BattleLog {
+    pub position: String,
+    pub height: u16,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -168,6 +175,15 @@ pub struct SelectionRules {
     pub list_highlight: String,
 }
 
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct DialogUiFile {
+    pub version: u32,
+    pub position: String,
+    pub height: u16,
+    pub show_speaker: bool,
+    pub continue_marker: String,
+}
+
 impl TitleUiFile {
     pub fn load(path: impl AsRef<Path>) -> Result<Self, String> {
         load_json(path)
@@ -175,6 +191,12 @@ impl TitleUiFile {
 }
 
 impl BattleUiFile {
+    pub fn load(path: impl AsRef<Path>) -> Result<Self, String> {
+        load_json(path)
+    }
+}
+
+impl DialogUiFile {
     pub fn load(path: impl AsRef<Path>) -> Result<Self, String> {
         load_json(path)
     }

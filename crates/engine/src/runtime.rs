@@ -36,12 +36,21 @@ impl GameRuntime {
 
     pub fn start_new_game(&mut self, rules: &Ruleset) {
         if let Some(event_id) = &rules.start_event {
-            self.event_queue.push(event_id.clone());
+            self.queue_event(event_id);
             self.state = GameState::Event;
             self.start_next_event();
         } else {
             self.state = GameState::Overworld;
         }
+    }
+
+    pub fn queue_event(&mut self, event_id: &str) {
+        self.event_queue.push(event_id.to_string());
+    }
+
+    pub fn get_dialog(&self, dialog_id: &str) -> Option<&crate::dialog::DialogFile> {
+        let index = self.content.dialog_index.get(dialog_id)?;
+        self.content.dialogs.get(*index)
     }
 
     pub fn next_event_step(&mut self) -> Option<crate::events::EventStep> {

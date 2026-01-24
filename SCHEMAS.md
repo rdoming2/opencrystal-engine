@@ -589,6 +589,11 @@ configuration intended to support ASCII logos, attribution, and menu items.
 Defines battle UI layout and panel behavior. Panels can be anchored or flexed to adapt
 to terminal sizes.
 
+Battle log positions:
+
+- `top`: top of the screen.
+- `pane_top`: single row above the command row panels.
+
 ```json
 {
   "version": 1,
@@ -623,6 +628,10 @@ to terminal sizes.
         {"id": "party", "width_ratio": 0.3}
       ]
     }
+  },
+  "log": {
+    "position": "top",
+    "height": 2
   },
   "panels": {
     "enemies": {
@@ -664,6 +673,21 @@ to terminal sizes.
     "battlefield_highlight": "outline",
     "list_highlight": "invert"
   }
+}
+```
+
+## ui/dialog.json
+
+Defines the dialog box layout and behavior. Dialog text is auto-wrapped into multiple
+pages based on available width and height.
+
+```json
+{
+  "version": 1,
+  "position": "bottom",
+  "height": 4,
+  "show_speaker": true,
+  "continue_marker": "▼"
 }
 ```
 
