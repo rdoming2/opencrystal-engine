@@ -635,14 +635,9 @@ fn draw_choice_box(
         return;
     }
 
-    let marker = dialog_ui.continue_marker.as_str();
-    let marker_len = marker.chars().count();
     let max_len = choices
         .iter()
-        .map(|choice| {
-            let suffix = if choice.show_next { 1 + marker_len } else { 0 };
-            choice.label.chars().count() + suffix
-        })
+        .map(|choice| choice.label.chars().count())
         .max()
         .unwrap_or(0);
     let width = (max_len as u16).saturating_add(2).max(12);
@@ -655,12 +650,7 @@ fn draw_choice_box(
         .iter()
         .enumerate()
         .map(|(index, choice)| {
-            let suffix = if choice.show_next {
-                format!(" {}", marker)
-            } else {
-                String::new()
-            };
-            let text = format!("{}{}", choice.label, suffix);
+            let text = choice.label.as_str();
             let style = if index == selected {
                 Style::default()
                     .fg(Color::Yellow)
