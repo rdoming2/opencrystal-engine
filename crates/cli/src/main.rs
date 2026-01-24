@@ -10,8 +10,8 @@ use engine::{
 };
 use tui::app::{
     draw_overworld, run_title, show_dialog, show_dialog_on_map, show_dialog_with_choices,
-    show_dialog_with_choices_on_map, show_shop, MapView, NpcView, ShopItem, ShopView, TitleAction,
-    TuiSession,
+    show_dialog_with_choices_on_map, show_shop, ChoiceView, MapView, NpcView, ShopItem, ShopView,
+    TitleAction, TuiSession,
 };
 use tui::input::{Action, InputBindings, InputFile};
 use tui::renderer::RenderMode;
@@ -303,14 +303,17 @@ fn run_dialog(
         };
 
         let speaker = node.speaker.as_deref().unwrap_or("");
-        let choice_labels = node.choices.as_ref().map(|choices| {
+        let choice_views = node.choices.as_ref().map(|choices| {
             choices
                 .iter()
-                .map(|choice| choice.label.clone())
+                .map(|choice| ChoiceView {
+                    label: choice.label.clone(),
+                    show_next: choice.next.as_str() != "end",
+                })
                 .collect::<Vec<_>>()
         });
 
-        let selection = if let Some(choices) = &choice_labels {
+        let selection = if let Some(choices) = &choice_views {
             show_dialog_with_choices(session, dialog_ui, bindings, speaker, &node.text, choices)?
         } else {
             show_dialog(session, dialog_ui, bindings, speaker, &node.text)?;
@@ -367,14 +370,17 @@ fn run_dialog_on_map(
         };
 
         let speaker = node.speaker.as_deref().unwrap_or("");
-        let choice_labels = node.choices.as_ref().map(|choices| {
+        let choice_views = node.choices.as_ref().map(|choices| {
             choices
                 .iter()
-                .map(|choice| choice.label.clone())
+                .map(|choice| ChoiceView {
+                    label: choice.label.clone(),
+                    show_next: choice.next.as_str() != "end",
+                })
                 .collect::<Vec<_>>()
         });
 
-        let selection = if let Some(choices) = &choice_labels {
+        let selection = if let Some(choices) = &choice_views {
             show_dialog_with_choices_on_map(
                 session, map, player_pos, dialog_ui, bindings, speaker, &node.text, choices,
             )?

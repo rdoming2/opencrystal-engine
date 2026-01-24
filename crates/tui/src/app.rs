@@ -44,6 +44,11 @@ pub struct ShopItem {
     pub price: i32,
 }
 
+pub struct ChoiceView {
+    pub label: String,
+    pub show_next: bool,
+}
+
 pub struct NpcView {
     pub id: String,
     pub pos: (i32, i32),
@@ -119,13 +124,14 @@ pub fn show_dialog(
     speaker: &str,
     text: &str,
 ) -> io::Result<()> {
-    let lines = wrap_text(text, 80);
+    let width = dialog_inner_width(session, dialog_ui);
+    let lines = wrap_text(text, width);
     let mut pages = paginate_lines(lines, dialog_ui, speaker);
 
     while let Some(page) = pages.pop() {
         draw_dialog(&mut session.terminal, dialog_ui, speaker, &page, None)?;
         wait_for_continue(session, bindings, |frame| {
-            draw_dialog_overlay(frame, dialog_ui, speaker, &page, None);
+            draw_dialog_overlay(frame, dialog_ui, speaker, &page);
         })?;
     }
 
@@ -138,16 +144,17 @@ pub fn show_dialog_with_choices(
     bindings: &InputBindings,
     speaker: &str,
     text: &str,
-    choices: &[String],
+    choices: &[ChoiceView],
 ) -> io::Result<Option<usize>> {
-    let lines = wrap_text(text, 80);
+    let width = dialog_inner_width(session, dialog_ui);
+    let lines = wrap_text(text, width);
     let mut pages = paginate_lines(lines, dialog_ui, speaker);
 
     while pages.len() > 1 {
         if let Some(page) = pages.pop() {
             draw_dialog(&mut session.terminal, dialog_ui, speaker, &page, None)?;
             wait_for_continue(session, bindings, |frame| {
-                draw_dialog_overlay(frame, dialog_ui, speaker, &page, None);
+                draw_dialog_overlay(frame, dialog_ui, speaker, &page);
             })?;
         }
     }
@@ -165,14 +172,15 @@ pub fn show_dialog_on_map(
     speaker: &str,
     text: &str,
 ) -> io::Result<()> {
-    let lines = wrap_text(text, 80);
+    let width = dialog_inner_width(session, dialog_ui);
+    let lines = wrap_text(text, width);
     let mut pages = paginate_lines(lines, dialog_ui, speaker);
 
     while let Some(page) = pages.pop() {
         draw_overworld_with_dialog(session, map, player_pos, dialog_ui, speaker, &page, None)?;
         wait_for_continue(session, bindings, |frame| {
             draw_overworld_frame(frame, map, player_pos);
-            draw_dialog_overlay(frame, dialog_ui, speaker, &page, None);
+            draw_dialog_overlay(frame, dialog_ui, speaker, &page);
         })?;
     }
 
@@ -187,9 +195,10 @@ pub fn show_dialog_with_choices_on_map(
     bindings: &InputBindings,
     speaker: &str,
     text: &str,
-    choices: &[String],
+    choices: &[ChoiceView],
 ) -> io::Result<Option<usize>> {
-    let lines = wrap_text(text, 80);
+    let width = dialog_inner_width(session, dialog_ui);
+    let lines = wrap_text(text, width);
     let mut pages = paginate_lines(lines, dialog_ui, speaker);
 
     while pages.len() > 1 {
@@ -197,7 +206,7 @@ pub fn show_dialog_with_choices_on_map(
             draw_overworld_with_dialog(session, map, player_pos, dialog_ui, speaker, &page, None)?;
             wait_for_continue(session, bindings, |frame| {
                 draw_overworld_frame(frame, map, player_pos);
-                draw_dialog_overlay(frame, dialog_ui, speaker, &page, None);
+                draw_dialog_overlay(frame, dialog_ui, speaker, &page);
             })?;
         }
     }
@@ -387,13 +396,16 @@ fn draw_overworld_with_dialog(
     dialog_ui: &crate::ui::DialogUiFile,
     speaker: &str,
     lines: &[String],
-    choices: Option<(usize, &[String])>,
+    choices: Option<(usize, &[ChoiceView])>,
 ) -> io::Result<()> {
     session
         .terminal
         .draw(|frame| {
             draw_overworld_frame(frame, map, player_pos);
-            draw_dialog_overlay(frame, dialog_ui, speaker, lines, choices);
+            draw_dialog_overlay(frame, dialog_ui, speaker, lines);
+            if let Some((selected, choices)) = choices {
+                draw_choice_box(frame, dialog_ui, choices, selected);
+            }
         })
         .map(|_| ())
 }
@@ -403,11 +415,14 @@ fn draw_dialog(
     dialog_ui: &crate::ui::DialogUiFile,
     speaker: &str,
     lines: &[String],
-    choices: Option<(usize, &[String])>,
+    choices: Option<(usize, &[ChoiceView])>,
 ) -> io::Result<()> {
     terminal
         .draw(|frame| {
-            draw_dialog_overlay(frame, dialog_ui, speaker, lines, choices);
+            draw_dialog_overlay(frame, dialog_ui, speaker, lines);
+            if let Some((selected, choices)) = choices {
+                draw_choice_box(frame, dialog_ui, choices, selected);
+            }
         })
         .map(|_| ())
 }
@@ -417,11 +432,12 @@ fn draw_dialog_overlay(
     dialog_ui: &crate::ui::DialogUiFile,
     speaker: &str,
     lines: &[String],
-    choices: Option<(usize, &[String])>,
 ) {
     let area = dialog_area(frame.size(), dialog_ui);
     let inner_width = area.width.saturating_sub(2) as usize;
     let mut content = Vec::new();
+
+    frame.render_widget(Clear, area);
 
     if dialog_ui.show_speaker && !speaker.is_empty() {
         content.push(Line::from(Span::styled(
@@ -436,20 +452,25 @@ fn draw_dialog_overlay(
         content.push(Line::from(Span::raw(truncate_line(line, inner_width))));
     }
 
-    if let Some((selected, choices)) = choices {
-        for (index, choice) in choices.iter().enumerate() {
-            let prefix = if index == selected { "> " } else { "  " };
-            let text = format!("{}{}", prefix, choice);
-            content.push(Line::from(Span::raw(truncate_line(&text, inner_width))));
-        }
-    }
-
     frame.render_widget(Clear, area);
     let paragraph = Paragraph::new(content)
         .block(Block::default().borders(Borders::ALL))
         .alignment(Alignment::Left)
         .wrap(Wrap { trim: false });
     frame.render_widget(paragraph, area);
+
+    if !dialog_ui.continue_marker.is_empty() {
+        let marker_area = Rect::new(
+            area.x + 1,
+            area.y + area.height.saturating_sub(2),
+            area.width.saturating_sub(2),
+            1,
+        );
+        let marker = Paragraph::new(dialog_ui.continue_marker.as_str())
+            .alignment(Alignment::Right)
+            .wrap(Wrap { trim: false });
+        frame.render_widget(marker, marker_area);
+    }
 }
 
 fn wait_for_continue<F>(
@@ -482,7 +503,7 @@ fn choose_dialog_option(
     bindings: &InputBindings,
     speaker: &str,
     lines: &[String],
-    choices: &[String],
+    choices: &[ChoiceView],
 ) -> io::Result<Option<usize>> {
     let mut selected = 0usize;
     loop {
@@ -510,13 +531,8 @@ fn choose_dialog_option(
                     Action::Cancel | Action::Menu => return Ok(None),
                     Action::Quit => {
                         if confirm_quit(session, |frame| {
-                            draw_dialog_overlay(
-                                frame,
-                                dialog_ui,
-                                speaker,
-                                lines,
-                                Some((selected, choices)),
-                            );
+                            draw_dialog_overlay(frame, dialog_ui, speaker, lines);
+                            draw_choice_box(frame, dialog_ui, choices, selected);
                         })? {
                             return Err(io::Error::new(ErrorKind::Interrupted, "quit"));
                         }
@@ -536,7 +552,7 @@ fn choose_dialog_option_on_map(
     bindings: &InputBindings,
     speaker: &str,
     lines: &[String],
-    choices: &[String],
+    choices: &[ChoiceView],
 ) -> io::Result<Option<usize>> {
     let mut selected = 0usize;
     loop {
@@ -567,13 +583,8 @@ fn choose_dialog_option_on_map(
                     Action::Quit => {
                         if confirm_quit(session, |frame| {
                             draw_overworld_frame(frame, map, player_pos);
-                            draw_dialog_overlay(
-                                frame,
-                                dialog_ui,
-                                speaker,
-                                lines,
-                                Some((selected, choices)),
-                            );
+                            draw_dialog_overlay(frame, dialog_ui, speaker, lines);
+                            draw_choice_box(frame, dialog_ui, choices, selected);
                         })? {
                             return Err(io::Error::new(ErrorKind::Interrupted, "quit"));
                         }
@@ -593,6 +604,7 @@ where
         session.terminal.draw(|frame| {
             draw_background(frame);
             let area = centered_rect(frame.size(), 40, 5);
+            frame.render_widget(Clear, area);
             let content = vec![
                 Line::from(Span::raw("Quit the game?")),
                 Line::from(Span::raw("Press Y to confirm.")),
@@ -611,6 +623,60 @@ where
             }
         }
     }
+}
+
+fn draw_choice_box(
+    frame: &mut Frame,
+    dialog_ui: &crate::ui::DialogUiFile,
+    choices: &[ChoiceView],
+    selected: usize,
+) {
+    if choices.is_empty() {
+        return;
+    }
+
+    let marker = dialog_ui.continue_marker.as_str();
+    let marker_len = marker.chars().count();
+    let max_len = choices
+        .iter()
+        .map(|choice| {
+            let suffix = if choice.show_next { 1 + marker_len } else { 0 };
+            choice.label.chars().count() + suffix
+        })
+        .max()
+        .unwrap_or(0);
+    let width = (max_len as u16).saturating_add(2).max(12);
+    let height = (choices.len() as u16).saturating_add(2);
+    let area = centered_rect(frame.size(), width, height);
+
+    frame.render_widget(Clear, area);
+
+    let lines = choices
+        .iter()
+        .enumerate()
+        .map(|(index, choice)| {
+            let suffix = if choice.show_next {
+                format!(" {}", marker)
+            } else {
+                String::new()
+            };
+            let text = format!("{}{}", choice.label, suffix);
+            let style = if index == selected {
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD)
+            } else {
+                Style::default()
+            };
+            Line::from(Span::styled(text, style))
+        })
+        .collect::<Vec<_>>();
+
+    let paragraph = Paragraph::new(lines)
+        .block(Block::default().borders(Borders::ALL))
+        .alignment(Alignment::Left)
+        .wrap(Wrap { trim: false });
+    frame.render_widget(paragraph, area);
 }
 
 fn map_action(id: &str) -> TitleAction {
@@ -680,6 +746,12 @@ fn dialog_area(area: Rect, dialog_ui: &crate::ui::DialogUiFile) -> Rect {
             height,
         ),
     }
+}
+
+fn dialog_inner_width(session: &TuiSession, dialog_ui: &crate::ui::DialogUiFile) -> usize {
+    let area = session.terminal.size().unwrap_or_default();
+    let dialog = dialog_area(area, dialog_ui);
+    dialog.width.saturating_sub(2).max(1) as usize
 }
 
 fn truncate_line(line: &str, width: usize) -> String {
