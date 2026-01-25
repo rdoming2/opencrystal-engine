@@ -166,6 +166,21 @@ pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
                 ));
             }
         }
+        for sign in &map.signs {
+            if sign.pos[0] < 0 || sign.pos[1] < 0 {
+                errors.push(format!(
+                    "maps/{}: sign '{}' has negative position",
+                    map.id, sign.id
+                ));
+                continue;
+            }
+            if sign.pos[0] >= map.width as i32 || sign.pos[1] >= map.height as i32 {
+                errors.push(format!(
+                    "maps/{}: sign '{}' position {:?} out of bounds",
+                    map.id, sign.id, sign.pos
+                ));
+            }
+        }
         for transition in &map.transitions {
             if !map_ids.contains(&transition.target_map) {
                 errors.push(format!(

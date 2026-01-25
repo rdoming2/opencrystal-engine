@@ -1,11 +1,11 @@
 use std::io::{self, ErrorKind, Stdout};
 
+use crossterm::ExecutableCommand;
 use crossterm::event::{self, Event, KeyCode};
 use crossterm::terminal::{
-    disable_raw_mode, enable_raw_mode, Clear as TermClear, ClearType, EnterAlternateScreen,
-    LeaveAlternateScreen,
+    Clear as TermClear, ClearType, EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode,
+    enable_raw_mode,
 };
-use crossterm::ExecutableCommand;
 use ratatui::backend::CrosstermBackend;
 use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
@@ -29,12 +29,15 @@ pub struct TuiSession {
 }
 
 pub struct MapView {
+    pub name: String,
+    pub hide_name: bool,
     pub width: u16,
     pub height: u16,
     pub tiles: Vec<String>,
     pub legend: HashMap<char, TileRender>,
     pub transitions: Vec<TransitionView>,
     pub npcs: Vec<NpcView>,
+    pub signs: Vec<SignView>,
     pub save_points: Vec<(i32, i32)>,
     pub use_color: bool,
 }
@@ -69,6 +72,14 @@ pub struct NpcView {
     pub pos: (i32, i32),
     pub glyph: char,
     pub palette: Option<String>,
+}
+
+pub struct SignView {
+    pub id: String,
+    pub pos: (i32, i32),
+    pub glyph: char,
+    pub palette: Option<String>,
+    pub text: String,
 }
 
 impl TuiSession {
@@ -201,6 +212,46 @@ pub fn show_dialog_on_map(
     }
 
     Ok(())
+}
+
+pub fn show_centered_dialog_on_map(
+    session: &mut TuiSession,
+    map: &MapView,
+    player_pos: (i32, i32),
+    dialog_ui: &crate::ui::DialogUiFile,
+    bindings: &InputBindings,
+    text: &str,
+) -> io::Result<()> {
+    let width = centered_dialog_width(session, dialog_ui);
+    let lines = wrap_text(text, width);
+    let mut pages = paginate_lines(lines, dialog_ui, "");
+
+    while let Some(page) = pages.pop() {
+        draw_overworld_with_centered_dialog(session, map, player_pos, dialog_ui, &page)?;
+        wait_for_continue(session, bindings, |frame| {
+            draw_overworld_frame(frame, map, player_pos);
+            draw_centered_dialog_overlay(frame, dialog_ui, &page);
+        })?;
+    }
+
+    Ok(())
+}
+
+pub fn draw_overworld_with_tooltip(
+    session: &mut TuiSession,
+    map: &MapView,
+    player_pos: (i32, i32),
+    dialog_ui: &crate::ui::DialogUiFile,
+    text: &str,
+) -> io::Result<()> {
+    let lines = tooltip_lines(session, dialog_ui, text);
+    session
+        .terminal
+        .draw(|frame| {
+            draw_overworld_frame(frame, map, player_pos);
+            draw_tooltip_overlay(frame, &lines);
+        })
+        .map(|_| ())
 }
 
 pub fn show_dialog_with_choices_on_map(
@@ -377,6 +428,7 @@ const DEFAULT_PLAYER_PALETTE: &str = "bright_white";
 const DEFAULT_NPC_PALETTE: &str = "bright_yellow";
 const DEFAULT_TRANSITION_PALETTE: &str = "bright_magenta";
 const DEFAULT_SAVE_POINT_PALETTE: &str = "bright_cyan";
+const DEFAULT_SIGN_PALETTE: &str = "bright_yellow";
 
 pub fn draw_overworld_frame(frame: &mut Frame, map: &MapView, player_pos: (i32, i32)) {
     let area = frame.size();
@@ -402,6 +454,9 @@ pub fn draw_overworld_frame(frame: &mut Frame, map: &MapView, player_pos: (i32, 
             } else if let Some(npc) = map.npcs.iter().find(|npc| npc.pos == (map_x, map_y)) {
                 glyph = npc.glyph;
                 palette = npc.palette.as_deref().or(Some(DEFAULT_NPC_PALETTE));
+            } else if let Some(sign) = map.signs.iter().find(|sign| sign.pos == (map_x, map_y)) {
+                glyph = sign.glyph;
+                palette = sign.palette.as_deref().or(Some(DEFAULT_SIGN_PALETTE));
             } else if let Some(transition) = map
                 .transitions
                 .iter()
@@ -455,6 +510,22 @@ fn draw_overworld_with_dialog(
         .map(|_| ())
 }
 
+fn draw_overworld_with_centered_dialog(
+    session: &mut TuiSession,
+    map: &MapView,
+    player_pos: (i32, i32),
+    dialog_ui: &crate::ui::DialogUiFile,
+    lines: &[String],
+) -> io::Result<()> {
+    session
+        .terminal
+        .draw(|frame| {
+            draw_overworld_frame(frame, map, player_pos);
+            draw_centered_dialog_overlay(frame, dialog_ui, lines);
+        })
+        .map(|_| ())
+}
+
 fn draw_dialog(
     terminal: &mut Terminal<CrosstermBackend<Stdout>>,
     dialog_ui: &crate::ui::DialogUiFile,
@@ -501,6 +572,70 @@ fn draw_dialog_overlay(
     let paragraph = Paragraph::new(content)
         .block(Block::default().borders(Borders::ALL))
         .alignment(Alignment::Left)
+        .wrap(Wrap { trim: false });
+    frame.render_widget(paragraph, area);
+
+    if !dialog_ui.continue_marker.is_empty() {
+        let marker_area = Rect::new(
+            area.x + 1,
+            area.y + area.height.saturating_sub(2),
+            area.width.saturating_sub(2),
+            1,
+        );
+        let marker = Paragraph::new(dialog_ui.continue_marker.as_str())
+            .alignment(Alignment::Right)
+            .wrap(Wrap { trim: false });
+        frame.render_widget(marker, marker_area);
+    }
+}
+
+fn draw_tooltip_overlay(frame: &mut Frame, lines: &[String]) {
+    if lines.is_empty() {
+        return;
+    }
+
+    let max_len = lines
+        .iter()
+        .map(|line| line.chars().count())
+        .max()
+        .unwrap_or(0);
+    let width = (max_len as u16).saturating_add(2).max(12);
+    let height = (lines.len() as u16).saturating_add(2).max(3);
+    let area = centered_rect(frame.size(), width, height);
+    let inner_width = area.width.saturating_sub(2) as usize;
+
+    frame.render_widget(Clear, area);
+
+    let content = lines
+        .iter()
+        .map(|line| Line::from(Span::raw(truncate_line(line, inner_width))))
+        .collect::<Vec<_>>();
+    let paragraph = Paragraph::new(content)
+        .block(Block::default().borders(Borders::ALL))
+        .alignment(Alignment::Center)
+        .wrap(Wrap { trim: false });
+    frame.render_widget(paragraph, area);
+}
+
+fn draw_centered_dialog_overlay(
+    frame: &mut Frame,
+    dialog_ui: &crate::ui::DialogUiFile,
+    lines: &[String],
+) {
+    let area = centered_dialog_area(frame.size(), dialog_ui);
+    let inner_width = area.width.saturating_sub(2) as usize;
+    let mut content = Vec::new();
+
+    frame.render_widget(Clear, area);
+
+    for line in lines {
+        content.push(Line::from(Span::raw(truncate_line(line, inner_width))));
+    }
+
+    frame.render_widget(Clear, area);
+    let paragraph = Paragraph::new(content)
+        .block(Block::default().borders(Borders::ALL))
+        .alignment(Alignment::Center)
         .wrap(Wrap { trim: false });
     frame.render_widget(paragraph, area);
 
@@ -648,12 +783,9 @@ where
     loop {
         session.terminal.draw(|frame| {
             draw_background(frame);
-            let area = centered_rect(frame.size(), 40, 5);
+            let area = centered_rect(frame.size(), 40, 3);
             frame.render_widget(Clear, area);
-            let content = vec![
-                Line::from(Span::raw("Quit the game?")),
-                Line::from(Span::raw("Press Y to confirm.")),
-            ];
+            let content = vec![Line::from(Span::raw("Quit the game? (Y/N)"))];
             let paragraph = Paragraph::new(content)
                 .block(Block::default().borders(Borders::ALL))
                 .alignment(Alignment::Center);
@@ -781,6 +913,41 @@ fn dialog_area(area: Rect, dialog_ui: &crate::ui::DialogUiFile) -> Rect {
             height,
         ),
     }
+}
+
+fn centered_dialog_area(area: Rect, dialog_ui: &crate::ui::DialogUiFile) -> Rect {
+    let height = dialog_ui.height.min(area.height).max(3);
+    let width = centered_dialog_width_for_area(area);
+    centered_rect(area, width, height)
+}
+
+fn centered_dialog_width(session: &TuiSession, dialog_ui: &crate::ui::DialogUiFile) -> usize {
+    let area = session.terminal.size().unwrap_or_default();
+    let width = centered_dialog_width_for_area(area);
+    width.saturating_sub(2).max(1) as usize
+}
+
+fn tooltip_lines(
+    session: &TuiSession,
+    dialog_ui: &crate::ui::DialogUiFile,
+    text: &str,
+) -> Vec<String> {
+    let area = session.terminal.size().unwrap_or_default();
+    let max_width = centered_dialog_width_for_area(area)
+        .saturating_sub(2)
+        .max(10) as usize;
+    let lines = wrap_text(text, max_width);
+    let available_lines = dialog_ui.height.saturating_sub(1) as usize;
+    if lines.len() > available_lines {
+        lines.into_iter().take(available_lines.max(1)).collect()
+    } else {
+        lines
+    }
+}
+
+fn centered_dialog_width_for_area(area: Rect) -> u16 {
+    let width = area.width.saturating_sub(10).max(20);
+    width.min(60).min(area.width.saturating_sub(2))
 }
 
 fn dialog_inner_width(session: &TuiSession, dialog_ui: &crate::ui::DialogUiFile) -> usize {

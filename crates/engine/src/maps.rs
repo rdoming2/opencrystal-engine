@@ -7,6 +7,8 @@ pub struct MapFile {
     pub version: u32,
     pub id: String,
     pub name: String,
+    #[serde(default)]
+    pub hide_name: bool,
     pub world: String,
     pub width: u32,
     pub height: u32,
@@ -15,6 +17,8 @@ pub struct MapFile {
     pub encounters: Vec<EncounterZone>,
     pub events: Vec<MapEvent>,
     pub npcs: Vec<MapNpc>,
+    #[serde(default)]
+    pub signs: Vec<MapSign>,
     pub shops: Vec<MapShop>,
     #[serde(default = "default_allow_save")]
     pub allow_save: bool,
@@ -22,6 +26,17 @@ pub struct MapFile {
     pub save_points: Vec<[i32; 2]>,
     #[serde(default)]
     pub transitions: Vec<MapTransition>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct MapSign {
+    pub id: String,
+    pub pos: [i32; 2],
+    #[serde(default)]
+    pub glyph: Option<String>,
+    #[serde(default)]
+    pub palette: Option<String>,
+    pub text: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

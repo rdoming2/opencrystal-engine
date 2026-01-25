@@ -10,9 +10,10 @@ use engine::{
     Engine,
 };
 use tui::app::{
-    draw_overworld, run_title, show_dialog, show_dialog_on_map, show_dialog_with_choices,
-    show_dialog_with_choices_on_map, show_shop, ChoiceView, MapView, NpcView, ShopItem, ShopView,
-    TileRender, TitleAction, TransitionView, TuiSession,
+    draw_overworld, draw_overworld_with_tooltip, run_title, show_centered_dialog_on_map,
+    show_dialog, show_dialog_on_map, show_dialog_with_choices, show_dialog_with_choices_on_map,
+    show_shop, ChoiceView, MapView, NpcView, ShopItem, ShopView, TileRender, TitleAction,
+    TransitionView, TuiSession,
 };
 use tui::input::{Action, InputBindings, InputFile};
 use tui::renderer::RenderMode;
@@ -550,6 +551,8 @@ fn run_overworld_loop(
     let mut current_map_id = map_id.to_string();
     let mut player_pos = start_pos;
     let mut return_positions: HashMap<String, (String, (i32, i32))> = HashMap::new();
+    let mut last_map_id = String::new();
+    let mut area_name_active = false;
 
     let mut running = true;
     while running {
@@ -562,17 +565,44 @@ fn run_overworld_loop(
             }
         };
 
-        draw_overworld(session, &map, player_pos)?;
+        if current_map_id != last_map_id {
+            area_name_active = !map.hide_name && !map.name.is_empty();
+            last_map_id = current_map_id.clone();
+        }
+
+        if area_name_active {
+            draw_overworld_with_tooltip(session, &map, player_pos, dialog_ui, &map.name)?;
+        } else {
+            draw_overworld(session, &map, player_pos)?;
+        }
 
         let previous_pos = player_pos;
         if let Some(action) = read_action(bindings) {
             match action {
-                Action::MoveUp => player_pos.1 -= 1,
-                Action::MoveDown => player_pos.1 += 1,
-                Action::MoveLeft => player_pos.0 -= 1,
-                Action::MoveRight => player_pos.0 += 1,
+                Action::MoveUp => {
+                    player_pos.1 -= 1;
+                    area_name_active = false;
+                }
+                Action::MoveDown => {
+                    player_pos.1 += 1;
+                    area_name_active = false;
+                }
+                Action::MoveLeft => {
+                    player_pos.0 -= 1;
+                    area_name_active = false;
+                }
+                Action::MoveRight => {
+                    player_pos.0 += 1;
+                    area_name_active = false;
+                }
                 Action::Confirm => {
-                    if let Some(dialog_id) = find_npc_dialog(runtime, &current_map_id, player_pos) {
+                    if let Some(text) = find_sign_text(runtime, &current_map_id, player_pos) {
+                        show_centered_dialog_on_map(
+                            session, &map, player_pos, dialog_ui, bindings, &text,
+                        )?;
+                    } else if let Some(dialog_id) =
+                        find_npc_dialog(runtime, &current_map_id, player_pos)
+                    {
                         run_dialog_on_map(
                             runtime, dialog_ui, bindings, session, &dialog_id, &map, player_pos,
                         )?;
@@ -609,7 +639,9 @@ fn run_overworld_loop(
                 )
             };
 
-            if !transition.return_to_last {
+            if !transition.return_to_last
+                && !is_returning_from_child(&return_positions, &current_map_id, &next_map)
+            {
                 return_positions.insert(next_map.clone(), (current_map_id.clone(), player_pos));
             }
             current_map_id = next_map;
@@ -618,6 +650,7 @@ fn run_overworld_loop(
 
         if !is_passable(runtime, &current_map_id, player_pos)
             || npc_at(runtime, &current_map_id, player_pos)
+            || sign_at(runtime, &current_map_id, player_pos)
         {
             player_pos = previous_pos;
         }
@@ -630,6 +663,17 @@ fn read_action(bindings: &tui::input::InputBindings) -> Option<Action> {
         return bindings.action_for(key.code);
     }
     None
+}
+
+fn is_returning_from_child(
+    return_positions: &HashMap<String, (String, (i32, i32))>,
+    current_map_id: &str,
+    target_map_id: &str,
+) -> bool {
+    return_positions
+        .get(current_map_id)
+        .map(|(return_map, _)| return_map == target_map_id)
+        .unwrap_or(false)
 }
 
 fn build_map_view(runtime: &GameRuntime, map_id: &str) -> Option<MapView> {
@@ -649,6 +693,21 @@ fn build_map_view(runtime: &GameRuntime, map_id: &str) -> Option<MapView> {
                 .iter()
                 .find(|entry| entry.id == npc.id)
                 .and_then(|entry| entry.palette.clone()),
+        })
+        .collect();
+    let signs = map
+        .signs
+        .iter()
+        .map(|sign| tui::app::SignView {
+            id: sign.id.clone(),
+            pos: (sign.pos[0], sign.pos[1]),
+            glyph: sign
+                .glyph
+                .as_ref()
+                .and_then(|glyph| glyph.chars().next())
+                .unwrap_or('⚑'),
+            palette: sign.palette.clone(),
+            text: sign.text.clone(),
         })
         .collect();
     let save_points = map.save_points.iter().map(|pos| (pos[0], pos[1])).collect();
@@ -685,12 +744,15 @@ fn build_map_view(runtime: &GameRuntime, map_id: &str) -> Option<MapView> {
         .eq_ignore_ascii_case("terminal");
 
     Some(MapView {
+        name: map.name.clone(),
+        hide_name: map.hide_name,
         width: map.width as u16,
         height: map.height as u16,
         tiles: map.tiles.clone(),
         legend,
         transitions,
         npcs,
+        signs,
         save_points,
         use_color,
     })
@@ -790,6 +852,20 @@ fn npc_at(runtime: &GameRuntime, map_id: &str, pos: (i32, i32)) -> bool {
     map.npcs.iter().any(|npc| (npc.pos[0], npc.pos[1]) == pos)
 }
 
+fn sign_at(runtime: &GameRuntime, map_id: &str, pos: (i32, i32)) -> bool {
+    let index = match runtime.content.map_index.get(map_id) {
+        Some(index) => *index,
+        None => return false,
+    };
+    let map = match runtime.content.maps.get(index) {
+        Some(map) => map,
+        None => return false,
+    };
+    map.signs
+        .iter()
+        .any(|sign| (sign.pos[0], sign.pos[1]) == pos)
+}
+
 fn find_npc_dialog(runtime: &GameRuntime, map_id: &str, pos: (i32, i32)) -> Option<String> {
     let index = runtime.content.map_index.get(map_id)?;
     let map = runtime.content.maps.get(*index)?;
@@ -806,6 +882,17 @@ fn find_npc_dialog(runtime: &GameRuntime, map_id: &str, pos: (i32, i32)) -> Opti
         .iter()
         .find(|npc| npc.id == target.id)
         .map(|npc| npc.dialog.clone())
+}
+
+fn find_sign_text(runtime: &GameRuntime, map_id: &str, pos: (i32, i32)) -> Option<String> {
+    let index = runtime.content.map_index.get(map_id)?;
+    let map = runtime.content.maps.get(*index)?;
+    let sign = map.signs.iter().find(|sign| {
+        let dx = (sign.pos[0] - pos.0).abs();
+        let dy = (sign.pos[1] - pos.1).abs();
+        (dx == 1 && dy == 0) || (dx == 0 && dy == 1)
+    })?;
+    Some(sign.text.clone())
 }
 
 fn npc_glyph(runtime: &GameRuntime, npc_id: &str) -> char {

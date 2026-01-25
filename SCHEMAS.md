@@ -116,11 +116,16 @@ Map data for overworlds, towns, and dungeons.
 NPCs reference `entities/npcs.json` by ID. `script` is optional; if omitted, the NPC
 uses its dialog tree.
 
+`hide_name` controls whether the map name tooltip is shown on entry. Defaults to false.
+
+`signs` are inline interactive objects that display a centered dialog with no speaker.
+
 ```json
 {
   "version": 1,
   "id": "overworld_gaia",
   "name": "Gaia Overworld",
+  "hide_name": false,
   "world": "gaia",
   "width": 64,
   "height": 48,
@@ -156,6 +161,15 @@ uses its dialog tree.
       "requires_flags": ["world.intro_complete"]
     }
   ],
+  "signs": [
+    {
+      "id": "town_notice",
+      "pos": [9, 6],
+      "glyph": "⚑",
+      "palette": "bright_yellow",
+      "text": "North Road"
+    }
+  ],
   "shops": [
     {"id": "corner_store", "pos": [8, 6]}
   ],
@@ -187,6 +201,13 @@ Rendering notes:
 
 - `legend.palette` sets the terminal palette name for the tile glyph.
 - `transitions` may include a `glyph` override and `palette` to highlight exits.
+
+Sign notes:
+
+- `signs.glyph` is optional; defaults to `⚑` if omitted.
+- `signs.text` appears in a centered dialog when the player confirms nearby.
+- Signs block movement and are not passable.
+- Signs are interactive objects defined directly on maps; they are not NPCs.
 
 ## entities/encounters.json
 

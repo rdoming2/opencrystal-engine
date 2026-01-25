@@ -38,6 +38,12 @@ It is a design reference meant to guide initial implementation.
 - Tile definitions use single glyph + palette index + collision/zone metadata.
 - Transition markers can override glyphs and palettes to highlight exits.
 - NPCs render with per-definition palette overrides (theme-driven colors).
+- Signs render as map objects with a glyph override (default `⚑`), block movement, and open a centered dialog on confirm.
+
+### Area name popup
+
+- On entering a map, show the map name as a tooltip that disappears on movement.
+- Controlled by `maps/*.json` `hide_name` (default false).
 
 ### Battle rendering
 
