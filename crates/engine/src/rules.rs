@@ -8,6 +8,8 @@ pub struct RulesFile {
     #[serde(default = "default_party_mode")]
     pub party_mode: PartyMode,
     #[serde(default)]
+    pub party_create: PartyCreateRules,
+    #[serde(default)]
     pub systems: HashMap<String, bool>,
     pub features: FeatureRules,
     pub render: RenderRules,
@@ -64,6 +66,7 @@ pub struct Ruleset {
     pub magic_system: MagicSystem,
     pub start_event: Option<String>,
     pub party_mode: PartyMode,
+    pub party_create: PartyCreateRules,
     pub systems: HashMap<String, bool>,
 }
 
@@ -78,6 +81,7 @@ impl Ruleset {
             magic_system: MagicSystem::Mp,
             start_event: Some("intro_cutscene".to_string()),
             party_mode: PartyMode::Predefined,
+            party_create: PartyCreateRules::default(),
             systems: HashMap::new(),
         }
     }
@@ -92,6 +96,7 @@ impl Ruleset {
             magic_system: file.game.magic_system,
             start_event: file.game.start_event,
             party_mode: file.party_mode,
+            party_create: file.party_create,
             systems: file.systems,
         }
     }
@@ -132,6 +137,36 @@ pub enum PartyMode {
     Predefined,
 }
 
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct PartyCreateRules {
+    pub default_job: String,
+    #[serde(default = "default_party_level")]
+    pub starting_level: u32,
+    #[serde(default = "default_name_length")]
+    pub name_length: usize,
+    #[serde(default)]
+    pub starting_equipment: HashMap<String, String>,
+}
+
+impl Default for PartyCreateRules {
+    fn default() -> Self {
+        Self {
+            default_job: "shallot_knight".to_string(),
+            starting_level: default_party_level(),
+            name_length: default_name_length(),
+            starting_equipment: HashMap::new(),
+        }
+    }
+}
+
 fn default_party_mode() -> PartyMode {
     PartyMode::Predefined
+}
+
+fn default_party_level() -> u32 {
+    1
+}
+
+fn default_name_length() -> usize {
+    12
 }

@@ -129,10 +129,11 @@ All runtime data is loaded from JSON. Files are organized into top-level categor
 ### Party creation
 
 - Party creation modes (`party_mode`):
-  - `create`: FF1-style startup; party is built at new game.
+  - `create`: name-only startup; party is built at new game using `party_create` defaults.
   - `predefined`: roster-driven party (FF5/FF6 style) with optional job menu.
 - Job change is disabled by default; unlockable via event flag.
 - Future slot rules (e.g., dual wield constraints) can extend job equipment slots.
+- Renaming is planned as a reusable menu/action for story joins or rename NPCs.
 
 ### Job system
 

@@ -5,16 +5,17 @@ use std::path::PathBuf;
 use engine::{
     Engine,
     content::Content,
-    rules::Ruleset,
+    party::PartyState,
+    rules::{PartyMode, Ruleset},
     runtime::{GameRuntime, GameState, MenuFocus},
     world::WorldState,
 };
 use tui::app::{
     ChoiceView, MapView, MenuEntryView, MenuPane, MenuPanelView, NpcView, ShopItem, ShopView,
     TileRender, TitleAction, TransitionView, TuiSession, draw_menu, draw_menu_frame,
-    draw_overworld, draw_overworld_with_tooltip, run_title, show_centered_dialog_on_map,
-    show_dialog, show_dialog_on_map, show_dialog_with_choices, show_dialog_with_choices_on_map,
-    show_shop,
+    draw_overworld, draw_overworld_with_tooltip, prompt_text, run_title,
+    show_centered_dialog_on_map, show_dialog, show_dialog_on_map, show_dialog_with_choices,
+    show_dialog_with_choices_on_map, show_shop,
 };
 use tui::input::{Action, InputBindings, InputFile};
 use tui::renderer::RenderMode;
@@ -137,7 +138,6 @@ fn run_play(args: Vec<String>) {
 
     let _engine = Engine::new(rules.clone(), world.clone());
     let mut runtime = GameRuntime::new(content);
-    runtime.start_new_game(&rules);
 
     match render_mode {
         RenderMode::Auto => println!("Starting OpenCrystal (render: auto)..."),
@@ -162,6 +162,14 @@ fn run_play(args: Vec<String>) {
     match action {
         TitleAction::NewGame => {
             if let Some(session) = session_guard.as_mut() {
+                if rules.party_mode == PartyMode::Create {
+                    if let Err(err) = run_party_create_flow(session, &mut runtime, &rules) {
+                        if err.kind() == std::io::ErrorKind::Interrupted {
+                            return;
+                        }
+                    }
+                }
+                runtime.start_new_game(&rules);
                 if let Err(err) = run_event_loop(&mut runtime, &dialog_ui, &input_bindings, session)
                 {
                     if err.kind() == std::io::ErrorKind::Interrupted {
@@ -183,6 +191,14 @@ fn run_play(args: Vec<String>) {
                     }
                 }
             } else {
+                if rules.party_mode == PartyMode::Create {
+                    runtime.party = PartyState::from_created(
+                        &runtime.content,
+                        &rules,
+                        default_party_names(&rules),
+                    );
+                }
+                runtime.start_new_game(&rules);
                 run_event_loop_console(&mut runtime, &dialog_ui);
             }
         }
@@ -579,6 +595,35 @@ fn read_line_console() -> String {
     let mut input = String::new();
     let _ = std::io::stdin().read_line(&mut input);
     input
+}
+
+fn run_party_create_flow(
+    session: &mut TuiSession,
+    runtime: &mut GameRuntime,
+    rules: &Ruleset,
+) -> std::io::Result<()> {
+    let max_len = rules.party_create.name_length;
+    let mut names = Vec::new();
+    for index in 0..rules.party_size {
+        let default_name = format!("Hero {}", index + 1);
+        let prompt = format!("Name character {}:", index + 1);
+        match prompt_text(session, "Create Party", &prompt, &default_name, max_len)? {
+            Some(name) => names.push(name),
+            None => return Err(std::io::Error::new(std::io::ErrorKind::Interrupted, "quit")),
+        }
+    }
+    runtime.party = PartyState::from_created(&runtime.content, rules, names);
+    Ok(())
+}
+
+fn default_party_names(rules: &Ruleset) -> Vec<String> {
+    let max_len = rules.party_create.name_length;
+    (1..=rules.party_size)
+        .map(|index| {
+            let name = format!("Hero {}", index);
+            name.chars().take(max_len).collect()
+        })
+        .collect()
 }
 
 fn run_overworld_loop(

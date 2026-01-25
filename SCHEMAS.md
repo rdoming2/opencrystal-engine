@@ -40,6 +40,8 @@ Configurable input bindings.
 Global rules and feature flags.
 
 `party_mode` controls party creation mode (`create` or `predefined`).
+`party_create` provides defaults for create mode (default job, name length, and
+starter equipment).
 `systems` toggles whether a gameplay system/menu is enabled at all. It should be
 used for global availability (e.g., disabling materia). Menu entries can still
 add `unlock_flag` gating for progression-driven unlocks.
@@ -60,6 +62,15 @@ add `unlock_flag` gating for progression-driven unlocks.
     "currency": {"id": "gil", "name": "G", "symbol": "G"}
   },
   "party_mode": "predefined",
+  "party_create": {
+    "default_job": "shallot_knight",
+    "starting_level": 1,
+    "name_length": 12,
+    "starting_equipment": {
+      "weapon": "bronze_sword",
+      "armor": "bronze_armor"
+    }
+  },
   "systems": {
     "items": true,
     "magic": true,

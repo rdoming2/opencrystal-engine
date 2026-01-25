@@ -241,7 +241,7 @@ pub fn show_centered_dialog_on_map(
     bindings: &InputBindings,
     text: &str,
 ) -> io::Result<()> {
-    let width = centered_dialog_width(session, dialog_ui);
+    let width = centered_dialog_width(session);
     let lines = wrap_text(text, width);
     let mut pages = paginate_lines(lines, dialog_ui, "");
 
@@ -629,7 +629,7 @@ fn draw_overworld_with_dialog(
             draw_overworld_frame(frame, map, player_pos);
             draw_dialog_overlay(frame, dialog_ui, speaker, lines);
             if let Some((selected, choices)) = choices {
-                draw_choice_box(frame, dialog_ui, choices, selected);
+                draw_choice_box(frame, choices, selected);
             }
         })
         .map(|_| ())
@@ -662,7 +662,7 @@ fn draw_dialog(
         .draw(|frame| {
             draw_dialog_overlay(frame, dialog_ui, speaker, lines);
             if let Some((selected, choices)) = choices {
-                draw_choice_box(frame, dialog_ui, choices, selected);
+                draw_choice_box(frame, choices, selected);
             }
         })
         .map(|_| ())
@@ -837,7 +837,7 @@ fn choose_dialog_option(
                     Action::Quit => {
                         if confirm_quit(session, |frame| {
                             draw_dialog_overlay(frame, dialog_ui, speaker, lines);
-                            draw_choice_box(frame, dialog_ui, choices, selected);
+                            draw_choice_box(frame, choices, selected);
                         })? {
                             return Err(io::Error::new(ErrorKind::Interrupted, "quit"));
                         }
@@ -889,7 +889,7 @@ fn choose_dialog_option_on_map(
                         if confirm_quit(session, |frame| {
                             draw_overworld_frame(frame, map, player_pos);
                             draw_dialog_overlay(frame, dialog_ui, speaker, lines);
-                            draw_choice_box(frame, dialog_ui, choices, selected);
+                            draw_choice_box(frame, choices, selected);
                         })? {
                             return Err(io::Error::new(ErrorKind::Interrupted, "quit"));
                         }
@@ -927,12 +927,73 @@ where
     }
 }
 
-fn draw_choice_box(
+pub fn prompt_text(
+    session: &mut TuiSession,
+    title: &str,
+    prompt: &str,
+    default: &str,
+    max_len: usize,
+) -> io::Result<Option<String>> {
+    let mut value = default.to_string();
+    loop {
+        session.terminal.draw(|frame| {
+            draw_text_prompt_frame(frame, title, prompt, &value, max_len);
+        })?;
+
+        if let Event::Key(key) = event::read()? {
+            match key.code {
+                KeyCode::Enter => {
+                    let trimmed = value.trim();
+                    if trimmed.is_empty() {
+                        return Ok(Some(default.to_string()));
+                    }
+                    return Ok(Some(trimmed.to_string()));
+                }
+                KeyCode::Esc => return Ok(None),
+                KeyCode::Backspace => {
+                    value.pop();
+                }
+                KeyCode::Char(ch) => {
+                    if value.chars().count() < max_len {
+                        value.push(ch);
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+}
+
+fn draw_text_prompt_frame(
     frame: &mut Frame,
-    dialog_ui: &crate::ui::DialogUiFile,
-    choices: &[ChoiceView],
-    selected: usize,
+    title: &str,
+    prompt: &str,
+    value: &str,
+    max_len: usize,
 ) {
+    let content = vec![
+        Line::from(Span::raw(prompt)),
+        Line::from(Span::styled(value, Style::default().fg(Color::Yellow))),
+        Line::from(Span::raw(format!("{}/{}", value.chars().count(), max_len))),
+    ];
+    let width = content
+        .iter()
+        .map(|line| line.width() as u16)
+        .max()
+        .unwrap_or(20)
+        .saturating_add(4)
+        .max(30);
+    let height = content.len() as u16 + 2;
+    let area = centered_rect(frame.size(), width, height);
+    frame.render_widget(Clear, area);
+    let paragraph = Paragraph::new(content)
+        .block(Block::default().borders(Borders::ALL).title(title))
+        .alignment(Alignment::Left)
+        .wrap(Wrap { trim: false });
+    frame.render_widget(paragraph, area);
+}
+
+fn draw_choice_box(frame: &mut Frame, choices: &[ChoiceView], selected: usize) {
     if choices.is_empty() {
         return;
     }
@@ -1046,7 +1107,7 @@ fn centered_dialog_area(area: Rect, dialog_ui: &crate::ui::DialogUiFile) -> Rect
     centered_rect(area, width, height)
 }
 
-fn centered_dialog_width(session: &TuiSession, dialog_ui: &crate::ui::DialogUiFile) -> usize {
+fn centered_dialog_width(session: &TuiSession) -> usize {
     let area = session.terminal.size().unwrap_or_default();
     let width = centered_dialog_width_for_area(area);
     width.saturating_sub(2).max(1) as usize

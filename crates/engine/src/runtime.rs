@@ -85,7 +85,9 @@ impl GameRuntime {
     }
 
     pub fn start_new_game(&mut self, rules: &Ruleset) {
-        self.party = PartyState::from_content(&self.content, rules);
+        if rules.party_mode == crate::rules::PartyMode::Predefined || self.party.roster.is_empty() {
+            self.party = PartyState::from_content(&self.content, rules);
+        }
         if let Some(event_id) = &rules.start_event {
             self.queue_event(event_id);
             self.state = GameState::Event;

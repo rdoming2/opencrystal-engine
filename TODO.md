@@ -12,7 +12,8 @@
 
 - [x] Party roster + stats pipeline.
   - [x] Predefined party loading.
-  - [ ] Create-mode party builder.
+  - [x] Create-mode party builder.
+  - [ ] Rename menu/action for story joins.
 
 - [x] Event state.
 - [ ] Implement event executor.

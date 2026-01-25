@@ -4,7 +4,7 @@ use std::path::Path;
 
 use crate::content::Content;
 use crate::entities::{EquipmentDefinition, JobDefinition};
-use crate::rules::{PartyMode, Ruleset};
+use crate::rules::{PartyCreateRules, PartyMode, Ruleset};
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct PartyFile {
@@ -64,6 +64,10 @@ impl PartyState {
             PartyMode::Predefined => build_predefined_party(content, rules.party_size),
         }
     }
+
+    pub fn from_created(content: &Content, rules: &Ruleset, names: Vec<String>) -> Self {
+        build_created_party(content, &rules.party_create, rules.party_size, names)
+    }
 }
 
 impl PartyFile {
@@ -76,18 +80,8 @@ fn build_predefined_party(content: &Content, party_size: usize) -> PartyState {
     let Some(party_file) = &content.party else {
         return PartyState::empty();
     };
-    let job_lookup: HashMap<&str, &JobDefinition> = content
-        .jobs
-        .jobs
-        .iter()
-        .map(|job| (job.id.as_str(), job))
-        .collect();
-    let equipment_lookup: HashMap<&str, &EquipmentDefinition> = content
-        .equipment
-        .equipment
-        .iter()
-        .map(|equipment| (equipment.id.as_str(), equipment))
-        .collect();
+    let job_lookup = build_job_lookup(content);
+    let equipment_lookup = build_equipment_lookup(content);
 
     let mut roster = HashMap::new();
     for actor in &party_file.roster {
@@ -117,6 +111,63 @@ fn build_predefined_party(content: &Content, party_size: usize) -> PartyState {
         active,
         reserve,
     }
+}
+
+fn build_created_party(
+    content: &Content,
+    create_rules: &PartyCreateRules,
+    party_size: usize,
+    names: Vec<String>,
+) -> PartyState {
+    let job_lookup = build_job_lookup(content);
+    let equipment_lookup = build_equipment_lookup(content);
+    let job = job_lookup.get(create_rules.default_job.as_str()).copied();
+
+    let mut roster = HashMap::new();
+    let mut active = Vec::new();
+
+    for (index, name) in names.into_iter().enumerate() {
+        if active.len() >= party_size {
+            break;
+        }
+        let actor_id = format!("create_{}", index + 1);
+        let actor = ActorDefinition {
+            id: actor_id.clone(),
+            name,
+            job_id: create_rules.default_job.clone(),
+            level: create_rules.starting_level,
+            base_stats: HashMap::new(),
+            starting_equipment: create_rules.starting_equipment.clone(),
+            spells: Vec::new(),
+        };
+        let built = build_actor(&actor, job, &equipment_lookup);
+        roster.insert(actor_id.clone(), built);
+        active.push(actor_id);
+    }
+
+    PartyState {
+        roster,
+        active,
+        reserve: Vec::new(),
+    }
+}
+
+fn build_job_lookup(content: &Content) -> HashMap<&str, &JobDefinition> {
+    content
+        .jobs
+        .jobs
+        .iter()
+        .map(|job| (job.id.as_str(), job))
+        .collect()
+}
+
+fn build_equipment_lookup(content: &Content) -> HashMap<&str, &EquipmentDefinition> {
+    content
+        .equipment
+        .equipment
+        .iter()
+        .map(|equipment| (equipment.id.as_str(), equipment))
+        .collect()
 }
 
 fn build_actor(
