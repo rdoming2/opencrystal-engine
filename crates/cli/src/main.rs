@@ -857,15 +857,10 @@ fn handle_dialog_action(
             }
         }
         "set_flag" => {
-            if let Some(flag) = &action.flag {
-                println!("Set flag: {}", flag);
-            }
+            let _ = &action.flag;
         }
         "give_item" => {
-            if let Some(item) = &action.item {
-                let qty = action.qty.unwrap_or(1);
-                println!("Give item: {} x{}", item, qty);
-            }
+            let _ = &action.item;
         }
         _ => {
             println!("Dialog action: {}", action.r#type);
