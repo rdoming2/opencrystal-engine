@@ -18,6 +18,35 @@ use tui::input::{Action, InputBindings, InputFile};
 use tui::renderer::RenderMode;
 use tui::ui::{BattleUiFile, DialogUiFile, ProgressUiFile, TitleUiFile};
 
+struct SessionGuard(Option<TuiSession>);
+
+impl SessionGuard {
+    fn start() -> Self {
+        let session = match TuiSession::start() {
+            Ok(session) => Some(session),
+            Err(err) => {
+                eprintln!("Failed to start TUI: {}", err);
+                None
+            }
+        };
+        Self(session)
+    }
+
+    fn as_mut(&mut self) -> Option<&mut TuiSession> {
+        self.0.as_mut()
+    }
+}
+
+impl Drop for SessionGuard {
+    fn drop(&mut self) {
+        if let Some(session) = self.0.take() {
+            if let Err(err) = session.finish() {
+                eprintln!("Failed to close TUI: {}", err);
+            }
+        }
+    }
+}
+
 fn main() {
     let mut args = env::args().skip(1);
     let command = args.next();
@@ -105,15 +134,9 @@ fn run_play(args: Vec<String>) {
         RenderMode::Modern => println!("Starting OpenCrystal (render: modern)..."),
     }
 
-    let mut session = match TuiSession::start() {
-        Ok(session) => Some(session),
-        Err(err) => {
-            eprintln!("Failed to start TUI: {}", err);
-            None
-        }
-    };
+    let mut session_guard = SessionGuard::start();
 
-    let action = if let Some(session) = session.as_mut() {
+    let action = if let Some(session) = session_guard.as_mut() {
         match run_title(session, &title_ui, &input_bindings) {
             Ok(action) => action,
             Err(err) => {
@@ -127,7 +150,7 @@ fn run_play(args: Vec<String>) {
 
     match action {
         TitleAction::NewGame => {
-            if let Some(session) = session.as_mut() {
+            if let Some(session) = session_guard.as_mut() {
                 if let Err(err) = run_event_loop(&mut runtime, &dialog_ui, &input_bindings, session)
                 {
                     if err.kind() == std::io::ErrorKind::Interrupted {
@@ -154,12 +177,6 @@ fn run_play(args: Vec<String>) {
         TitleAction::Load => println!("Load not implemented."),
         TitleAction::Settings => println!("Settings not implemented."),
         TitleAction::Exit => println!("Exit."),
-    }
-
-    if let Some(session) = session {
-        if let Err(err) = session.finish() {
-            eprintln!("Failed to close TUI: {}", err);
-        }
     }
 }
 
