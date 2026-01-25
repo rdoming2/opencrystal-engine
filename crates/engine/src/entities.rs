@@ -192,6 +192,8 @@ pub struct NpcDefinition {
     pub id: String,
     pub name: String,
     pub sprite: String,
+    #[serde(default)]
+    pub palette: Option<String>,
     pub dialog: String,
     pub behavior: NpcBehavior,
 }

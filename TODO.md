@@ -40,7 +40,8 @@
 - [x] Overworld renderer.
   - [x] Tile map rendering.
   - [x] NPC rendering + gating.
-  - [ ] Transition markers (optional).
+  - [x] Transition markers (glyph + palette highlight).
+  - [x] Terminal palette tile coloring (theme-aware).
 - [ ] Battle renderer.
   - [ ] Battlefield + enemy art/glyph modes.
   - [ ] Command row (enemy list, commands, party list).

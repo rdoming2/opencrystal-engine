@@ -11,6 +11,8 @@ compatibility.
 - All IDs are lowercase snake_case strings.
 - All entity references use IDs, not filenames.
 - Missing optional fields should fall back to documented defaults.
+- Palette values use terminal color names (`red`, `green`, `blue`, etc.) plus bright variants
+  (`bright_red`, `bright_green`, etc.). These map to the user's terminal theme.
 
 ## input.json
 
@@ -128,9 +130,9 @@ uses its dialog tree.
     "~~~~..^^....~~~~..^^....~~~~...."
   ],
   "legend": {
-    "~": {"tile": "water", "passable": false},
-    ".": {"tile": "grass", "passable": true},
-    "^": {"tile": "mountain", "passable": false}
+    "~": {"tile": "water", "passable": false, "palette": "blue"},
+    ".": {"tile": "grass", "passable": true, "palette": "green"},
+    "^": {"tile": "mountain", "passable": false, "palette": "bright_black"}
   },
   "encounters": [
     {
@@ -164,7 +166,9 @@ uses its dialog tree.
       "id": "to_ember",
       "pos": [5, 8],
       "target_map": "dungeon_ember",
-      "target_pos": [1, 1]
+      "target_pos": [1, 1],
+      "glyph": "D",
+      "palette": "bright_magenta"
     }
   ]
 }
@@ -175,6 +179,11 @@ Saving rules:
 - `allow_save` controls whether the main menu save command is enabled on the map.
 - `save_points` lists coordinates where saving is always allowed, even if
   `allow_save` is false.
+
+Rendering notes:
+
+- `legend.palette` sets the terminal palette name for the tile glyph.
+- `transitions` may include a `glyph` override and `palette` to highlight exits.
 
 ## entities/encounters.json
 
@@ -223,6 +232,7 @@ in a battle grid from `[0,0]` to `[9,5]` (10x6).
 ## entities/npcs.json
 
 Defines NPC metadata and behavior. Map placement is handled in `maps/*.json`.
+`palette` is optional and sets the terminal color for the NPC glyph.
 
 ```json
 {
@@ -232,6 +242,7 @@ Defines NPC metadata and behavior. Map placement is handled in `maps/*.json`.
       "id": "wanderer",
       "name": "Sky Tinker",
       "sprite": "wanderer",
+      "palette": "bright_magenta",
       "dialog": "sky_tinker",
       "behavior": {"type": "roam", "radius": 4, "persist": true}
     }

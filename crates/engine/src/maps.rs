@@ -28,6 +28,8 @@ pub struct MapFile {
 pub struct TileLegend {
     pub tile: String,
     pub passable: bool,
+    #[serde(default)]
+    pub palette: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -65,6 +67,10 @@ pub struct MapTransition {
     pub pos: [i32; 2],
     pub target_map: String,
     pub target_pos: [i32; 2],
+    #[serde(default)]
+    pub glyph: Option<String>,
+    #[serde(default)]
+    pub palette: Option<String>,
 }
 
 impl MapFile {

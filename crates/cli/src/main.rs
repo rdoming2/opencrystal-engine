@@ -11,7 +11,7 @@ use engine::{
 use tui::app::{
     draw_overworld, run_title, show_dialog, show_dialog_on_map, show_dialog_with_choices,
     show_dialog_with_choices_on_map, show_shop, ChoiceView, MapView, NpcView, ShopItem, ShopView,
-    TitleAction, TuiSession,
+    TileRender, TitleAction, TransitionView, TuiSession,
 };
 use tui::input::{Action, InputBindings, InputFile};
 use tui::renderer::RenderMode;
@@ -604,16 +604,57 @@ fn build_map_view(runtime: &GameRuntime, map_id: &str) -> Option<MapView> {
             id: npc.id.clone(),
             pos: (npc.pos[0], npc.pos[1]),
             glyph: npc_glyph(runtime, &npc.id),
+            palette: runtime
+                .content
+                .npcs
+                .npcs
+                .iter()
+                .find(|entry| entry.id == npc.id)
+                .and_then(|entry| entry.palette.clone()),
         })
         .collect();
     let save_points = map.save_points.iter().map(|pos| (pos[0], pos[1])).collect();
+    let legend = map
+        .legend
+        .iter()
+        .filter_map(|(glyph, entry)| {
+            let key = glyph.chars().next()?;
+            Some((
+                key,
+                TileRender {
+                    palette: entry.palette.clone(),
+                },
+            ))
+        })
+        .collect();
+    let transitions = map
+        .transitions
+        .iter()
+        .map(|transition| TransitionView {
+            pos: (transition.pos[0], transition.pos[1]),
+            glyph: transition
+                .glyph
+                .as_ref()
+                .and_then(|glyph| glyph.chars().next()),
+            palette: transition.palette.clone(),
+        })
+        .collect();
+    let use_color = runtime
+        .content
+        .rules
+        .render
+        .palette
+        .eq_ignore_ascii_case("terminal");
 
     Some(MapView {
         width: map.width as u16,
         height: map.height as u16,
         tiles: map.tiles.clone(),
+        legend,
+        transitions,
         npcs,
         save_points,
+        use_color,
     })
 }
 

@@ -12,6 +12,7 @@ use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, Paragraph, Wrap};
 use ratatui::{Frame, Terminal};
+use std::collections::HashMap;
 
 use crate::input::{Action, InputBindings};
 use crate::ui::TitleUiFile;
@@ -31,8 +32,21 @@ pub struct MapView {
     pub width: u16,
     pub height: u16,
     pub tiles: Vec<String>,
+    pub legend: HashMap<char, TileRender>,
+    pub transitions: Vec<TransitionView>,
     pub npcs: Vec<NpcView>,
     pub save_points: Vec<(i32, i32)>,
+    pub use_color: bool,
+}
+
+pub struct TileRender {
+    pub palette: Option<String>,
+}
+
+pub struct TransitionView {
+    pub pos: (i32, i32),
+    pub glyph: Option<char>,
+    pub palette: Option<String>,
 }
 
 pub struct ShopView {
@@ -54,6 +68,7 @@ pub struct NpcView {
     pub id: String,
     pub pos: (i32, i32),
     pub glyph: char,
+    pub palette: Option<String>,
 }
 
 impl TuiSession {
@@ -358,6 +373,11 @@ fn draw_title_frame(frame: &mut Frame, title_ui: &TitleUiFile, selected: usize) 
     frame.render_widget(footer, layout[3]);
 }
 
+const DEFAULT_PLAYER_PALETTE: &str = "bright_white";
+const DEFAULT_NPC_PALETTE: &str = "bright_yellow";
+const DEFAULT_TRANSITION_PALETTE: &str = "bright_magenta";
+const DEFAULT_SAVE_POINT_PALETTE: &str = "bright_cyan";
+
 pub fn draw_overworld_frame(frame: &mut Frame, map: &MapView, player_pos: (i32, i32)) {
     let area = frame.size();
     let view_width = area.width.saturating_sub(2);
@@ -366,23 +386,43 @@ pub fn draw_overworld_frame(frame: &mut Frame, map: &MapView, player_pos: (i32, 
     let mut lines = Vec::new();
 
     for y in 0..view_height {
-        let mut row = String::new();
+        let mut row = Vec::new();
         for x in 0..view_width {
             let map_x = start_x + x as i32;
             let map_y = start_y + y as i32;
+            let mut glyph = tile_at(map, map_x, map_y);
+            let mut palette = map
+                .legend
+                .get(&glyph)
+                .and_then(|entry| entry.palette.as_deref());
+
             if (map_x, map_y) == player_pos {
-                row.push('@');
-                continue;
+                glyph = '@';
+                palette = Some(DEFAULT_PLAYER_PALETTE);
+            } else if let Some(npc) = map.npcs.iter().find(|npc| npc.pos == (map_x, map_y)) {
+                glyph = npc.glyph;
+                palette = npc.palette.as_deref().or(Some(DEFAULT_NPC_PALETTE));
+            } else if let Some(transition) = map
+                .transitions
+                .iter()
+                .find(|transition| transition.pos == (map_x, map_y))
+            {
+                if let Some(transition_glyph) = transition.glyph {
+                    glyph = transition_glyph;
+                }
+                palette = transition
+                    .palette
+                    .as_deref()
+                    .or(Some(DEFAULT_TRANSITION_PALETTE));
+            } else if map.save_points.iter().any(|pos| *pos == (map_x, map_y)) {
+                glyph = 'S';
+                palette = Some(DEFAULT_SAVE_POINT_PALETTE);
             }
-            if let Some(npc) = map.npcs.iter().find(|npc| npc.pos == (map_x, map_y)) {
-                row.push(npc.glyph);
-                continue;
-            }
-            if map.save_points.iter().any(|pos| *pos == (map_x, map_y)) {
-                row.push('S');
-                continue;
-            }
-            row.push(tile_at(map, map_x, map_y));
+
+            row.push(Span::styled(
+                glyph.to_string(),
+                palette_style(map.use_color, palette),
+            ));
         }
         lines.push(Line::from(row));
     }
@@ -754,6 +794,42 @@ fn truncate_line(line: &str, width: usize) -> String {
         return line.to_string();
     }
     line.chars().take(width).collect()
+}
+
+fn palette_style(use_color: bool, palette: Option<&str>) -> Style {
+    if !use_color {
+        return Style::default();
+    }
+    match palette.and_then(palette_color) {
+        Some(color) => Style::default().fg(color),
+        None => Style::default(),
+    }
+}
+
+fn palette_color(name: &str) -> Option<Color> {
+    let key = name.trim().to_ascii_lowercase();
+    match key.as_str() {
+        "black" => Some(Color::Black),
+        "red" => Some(Color::Red),
+        "green" => Some(Color::Green),
+        "yellow" => Some(Color::Yellow),
+        "blue" => Some(Color::Blue),
+        "magenta" => Some(Color::Magenta),
+        "cyan" => Some(Color::Cyan),
+        "white" => Some(Color::White),
+        "gray" | "grey" => Some(Color::Gray),
+        "dark_gray" | "dark_grey" => Some(Color::DarkGray),
+        "bright_black" | "light_black" => Some(Color::DarkGray),
+        "bright_red" | "light_red" => Some(Color::LightRed),
+        "bright_green" | "light_green" => Some(Color::LightGreen),
+        "bright_yellow" | "light_yellow" => Some(Color::LightYellow),
+        "bright_blue" | "light_blue" => Some(Color::LightBlue),
+        "bright_magenta" | "light_magenta" => Some(Color::LightMagenta),
+        "bright_cyan" | "light_cyan" => Some(Color::LightCyan),
+        "bright_white" | "light_white" => Some(Color::White),
+        "bright_gray" | "bright_grey" => Some(Color::Gray),
+        _ => None,
+    }
 }
 
 fn tile_at(map: &MapView, x: i32, y: i32) -> char {

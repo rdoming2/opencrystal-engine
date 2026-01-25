@@ -29,11 +29,15 @@ It is a design reference meant to guide initial implementation.
 
 - Use semantic palette indices instead of fixed RGB values.
 - Allow terminal themes (Catppuccin, Ristretto, etc.) to define the mood.
+- Palette names map to ANSI colors (`red`, `green`, `blue`, etc.) with `bright_*` variants
+  for highlights; monochrome modes ignore palette styling.
 
 ### Map rendering (exploration)
 
 - Nethack-like glyph tiles for overworld/towns/dungeons.
 - Tile definitions use single glyph + palette index + collision/zone metadata.
+- Transition markers can override glyphs and palettes to highlight exits.
+- NPCs render with per-definition palette overrides (theme-driven colors).
 
 ### Battle rendering
 
