@@ -86,6 +86,21 @@ pub struct MenuPanelView {
     pub lines: Vec<String>,
 }
 
+#[derive(Clone, Debug)]
+pub struct InventoryLine {
+    pub label: String,
+    pub count: i32,
+    pub enabled: bool,
+    pub equipped_by: Option<String>,
+}
+
+#[derive(Clone, Debug)]
+pub struct InventoryHeader {
+    pub title: String,
+    pub filters: Vec<(String, bool)>,
+    pub sort_label: String,
+}
+
 pub struct NpcView {
     pub id: String,
     pub pos: (i32, i32),
@@ -459,6 +474,21 @@ pub fn draw_menu(
         .map(|_| ())
 }
 
+pub fn draw_inventory(
+    session: &mut TuiSession,
+    header: &InventoryHeader,
+    entries: &[InventoryLine],
+    selected: usize,
+    right_panel: &MenuPanelView,
+) -> io::Result<()> {
+    session
+        .terminal
+        .draw(|frame| {
+            draw_inventory_frame(frame, header, entries, selected, right_panel);
+        })
+        .map(|_| ())
+}
+
 pub fn draw_menu_frame(
     frame: &mut Frame,
     menu_ui: &MenuUiFile,
@@ -547,6 +577,101 @@ fn menu_layout_percentages(layout: &MenuLayout) -> (u16, u16) {
     let left_percent = (left_ratio * 100.0).round().clamp(10.0, 90.0) as u16;
     let right_percent = 100u16.saturating_sub(left_percent).max(1);
     (left_percent, right_percent)
+}
+
+pub fn draw_inventory_frame(
+    frame: &mut Frame,
+    header: &InventoryHeader,
+    entries: &[InventoryLine],
+    selected: usize,
+    right_panel: &MenuPanelView,
+) {
+    let size = frame.size();
+    let layout = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Min(1), Constraint::Length(1)])
+        .split(size);
+    let columns = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([Constraint::Percentage(45), Constraint::Percentage(55)])
+        .split(layout[0]);
+
+    let mut filter_spans = Vec::new();
+    filter_spans.push(Span::raw("Filter: "));
+    for (index, (label, active)) in header.filters.iter().enumerate() {
+        if index > 0 {
+            filter_spans.push(Span::raw(" | "));
+        }
+        let style = if *active {
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(Color::Gray)
+        };
+        filter_spans.push(Span::styled(label.as_str(), style));
+    }
+    filter_spans.push(Span::raw("   Sort: "));
+    filter_spans.push(Span::styled(
+        header.sort_label.as_str(),
+        Style::default().fg(Color::Cyan),
+    ));
+
+    let mut left_lines = Vec::new();
+    left_lines.push(Line::from(filter_spans));
+    left_lines.extend(entries.iter().enumerate().map(|(index, entry)| {
+        let is_selected = index == selected;
+        let mut style = if entry.enabled {
+            Style::default().fg(Color::White)
+        } else {
+            Style::default().fg(Color::DarkGray)
+        };
+        if entry.equipped_by.is_some() {
+            style = style.fg(Color::Cyan);
+        }
+        if is_selected {
+            style = style.add_modifier(Modifier::BOLD);
+        }
+        let prefix = if is_selected { "> " } else { "  " };
+        let mut label = format!("{}{} x{}", prefix, entry.label, entry.count);
+        if let Some(owner) = &entry.equipped_by {
+            label.push_str(" ");
+            label.push_str("(");
+            label.push_str(owner);
+            label.push_str(")");
+        }
+        Line::from(Span::styled(label, style))
+    }));
+
+    let left_panel = Paragraph::new(left_lines)
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title(header.title.as_str()),
+        )
+        .alignment(Alignment::Left)
+        .wrap(Wrap { trim: false });
+    frame.render_widget(left_panel, columns[0]);
+
+    let detail_lines = right_panel
+        .lines
+        .iter()
+        .map(|line| Line::from(Span::raw(line.as_str())))
+        .collect::<Vec<_>>();
+    let detail_panel = Paragraph::new(detail_lines)
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title(right_panel.title.as_str()),
+        )
+        .alignment(Alignment::Left)
+        .wrap(Wrap { trim: false });
+    frame.render_widget(detail_panel, columns[1]);
+
+    let footer = Paragraph::new("Confirm: use/equip  Cancel: back  Pause: sort")
+        .alignment(Alignment::Center)
+        .block(Block::default().borders(Borders::NONE));
+    frame.render_widget(footer, layout[1]);
 }
 
 const DEFAULT_PLAYER_PALETTE: &str = "bright_white";

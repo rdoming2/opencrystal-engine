@@ -5,6 +5,8 @@ pub mod encounters;
 pub mod entities;
 pub mod events;
 pub mod expr;
+pub mod inventory;
+
 pub mod io;
 pub mod maps;
 pub mod party;

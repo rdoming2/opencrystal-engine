@@ -47,6 +47,8 @@ starter equipment). When `systems.jobs` is false, job selection is skipped and
 `exp_curve` defines the XP thresholds for leveling. Use `mode: "table"` with
 absolute XP totals per level or `mode: "formula"` with a formula string (use
 `lvl` in the formula). `max_level` caps progression.
+
+`inventory` seeds starting inventory and sets `max_stack` for items/equipment.
 `systems` toggles whether a gameplay system/menu is enabled at all. It should be
 used for global availability (e.g., disabling materia). Menu entries can still
 add `unlock_flag` gating for progression-driven unlocks.
@@ -80,6 +82,11 @@ add `unlock_flag` gating for progression-driven unlocks.
     "mode": "table",
     "table": [0, 10, 30, 60, 100],
     "max_level": 5
+  },
+  "inventory": {
+    "max_stack": 99,
+    "items": [{"id": "potion", "qty": 5}],
+    "equipment": [{"id": "bronze_sword", "qty": 1}]
   },
   "systems": {
     "items": true,
@@ -504,6 +511,11 @@ Spell costs are flexible. Use `{"type": "mp"}` for MP-based casting or
 
 ## entities/items.json
 
+Item usage defines where and how items can be used. `context` values: `field`,
+`battle`, or `both`. `target` values: `self`, `ally`, `party`, `enemy`.
+
+Common effect types: `heal_hp`, `heal_mp`, `revive`, `warp`.
+
 ```json
 {
   "version": 1,
@@ -512,12 +524,14 @@ Spell costs are flexible. Use `{"type": "mp"}` for MP-based casting or
       "id": "potion",
       "name": "Potion",
       "type": "consumable",
-      "effect": {"type": "heal", "power": 50}
+      "usage": {"context": "field", "target": "ally"},
+      "effect": {"type": "heal_hp", "power": 50}
     },
     {
       "id": "warp_scroll",
       "name": "Warp Scroll",
       "type": "travel",
+      "usage": {"context": "field", "target": "self"},
       "effect": {
         "type": "warp",
         "target": "world_map",

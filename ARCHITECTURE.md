@@ -149,6 +149,12 @@ All runtime data is loaded from JSON. Files are organized into top-level categor
 - Job growth can use formula or table modes per base stat.
 - Derived stat formulas support `lvl` for level-based scaling.
 
+### Inventory + equipment
+
+- Inventory stacks are seeded from `rules.json` `inventory` and capped by `max_stack`.
+- Equipment is slot-based (weapons, armor, accessories) and validated by job categories.
+- Equipping recomputes derived stats and clamps current HP/MP to new maxima.
+
 ### Magic system
 
 - Magic schools are data-driven (white/black in demo; expandable to blue/time/etc).
@@ -233,6 +239,11 @@ All runtime data is loaded from JSON. Files are organized into top-level categor
     "mode": "table",
     "table": [0, 10, 30, 60, 100],
     "max_level": 5
+  },
+  "inventory": {
+    "max_stack": 99,
+    "items": [{"id": "potion", "qty": 5}],
+    "equipment": [{"id": "bronze_sword", "qty": 1}]
   },
   "systems": {
     "items": true,

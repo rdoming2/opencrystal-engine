@@ -130,6 +130,7 @@ pub struct ItemDefinition {
     pub id: String,
     pub name: String,
     pub r#type: String,
+    pub usage: ItemUsage,
     pub effect: ItemEffect,
 }
 
@@ -139,6 +140,12 @@ pub struct ItemEffect {
     pub power: Option<i32>,
     pub target: Option<String>,
     pub destination: Option<ItemDestination>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct ItemUsage {
+    pub context: String,
+    pub target: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

@@ -5,15 +5,16 @@ use std::path::PathBuf;
 use engine::{
     Engine,
     content::Content,
-    party::{PartyState, exp_for_level},
+    party::{PartyState, actor_slots, exp_for_level, recompute_derived_stats},
     rules::{PartyMode, Ruleset},
     runtime::{GameRuntime, GameState, MenuFocus},
     world::WorldState,
 };
 use tui::app::{
-    ChoiceView, MapView, MenuEntryView, MenuPane, MenuPanelView, NpcView, ShopItem, ShopView,
-    TileRender, TitleAction, TransitionView, TuiSession, draw_menu, draw_menu_frame,
-    draw_overworld, draw_overworld_with_tooltip, prompt_choice, prompt_text, run_title,
+    ChoiceView, InventoryHeader, InventoryLine, MapView, MenuEntryView, MenuPane, MenuPanelView,
+    NpcView, ShopItem, ShopView, TileRender, TitleAction, TransitionView, TuiSession,
+    draw_inventory, draw_inventory_frame, draw_menu, draw_menu_frame, draw_overworld,
+    draw_overworld_with_tooltip, prompt_choice, prompt_text, run_title,
     show_centered_dialog_on_map, show_dialog, show_dialog_on_map, show_dialog_with_choices,
     show_dialog_with_choices_on_map, show_shop,
 };
@@ -846,6 +847,38 @@ struct MenuEntryState {
     selectable: bool,
 }
 
+#[derive(Clone, Debug, PartialEq)]
+enum InventoryFilter {
+    Items,
+    Equipment,
+    Weapons,
+    Armor,
+    Accessory,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+enum InventorySort {
+    Name,
+    Type,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+enum InventoryKind {
+    Item,
+    Equipment,
+}
+
+struct InventoryEntry {
+    id: String,
+    label: String,
+    qty: i32,
+    kind: InventoryKind,
+    slot: Option<String>,
+    category: Option<String>,
+    usable: bool,
+    equipped_by: Vec<String>,
+}
+
 fn run_menu_loop(
     session: &mut TuiSession,
     runtime: &mut GameRuntime,
@@ -921,9 +954,32 @@ fn run_menu_loop(
                     if matches!(focus, MenuPane::List) {
                         if let Some(entry) = entries.get(runtime.menu_state.selected) {
                             if entry.selectable {
-                                runtime.menu_state.focus = MenuFocus::Detail;
-                                runtime.menu_state.active_submenu = Some(entry.action.clone());
-                                runtime.menu_state.detail_page = 0;
+                                match entry.action.as_str() {
+                                    "items" => {
+                                        if let Err(err) =
+                                            run_inventory_menu(session, runtime, bindings)
+                                        {
+                                            if err.kind() == std::io::ErrorKind::Interrupted {
+                                                return Err(err);
+                                            }
+                                        }
+                                    }
+                                    "equipment" => {
+                                        if let Err(err) =
+                                            run_equipment_menu(session, runtime, bindings)
+                                        {
+                                            if err.kind() == std::io::ErrorKind::Interrupted {
+                                                return Err(err);
+                                            }
+                                        }
+                                    }
+                                    _ => {
+                                        runtime.menu_state.focus = MenuFocus::Detail;
+                                        runtime.menu_state.active_submenu =
+                                            Some(entry.action.clone());
+                                        runtime.menu_state.detail_page = 0;
+                                    }
+                                }
                             }
                         }
                     }
@@ -964,6 +1020,799 @@ fn run_menu_loop(
                 _ => {}
             }
         }
+    }
+}
+
+fn run_inventory_menu(
+    session: &mut TuiSession,
+    runtime: &mut GameRuntime,
+    bindings: &tui::input::InputBindings,
+) -> std::io::Result<()> {
+    let mut filter = InventoryFilter::Items;
+    let mut sort_mode = InventorySort::Name;
+    let mut selected = 0usize;
+
+    loop {
+        let entries = build_inventory_entries(runtime, &filter, &sort_mode);
+        if entries.is_empty() {
+            let panel = MenuPanelView {
+                title: "Inventory".to_string(),
+                lines: vec!["No items available.".to_string()],
+            };
+            let header = inventory_header(&filter, &sort_mode, "Inventory");
+            draw_inventory(session, &header, &[], 0, &panel)?;
+        } else {
+            if selected >= entries.len() {
+                selected = 0;
+            }
+            let header = inventory_header(&filter, &sort_mode, "Inventory");
+            let lines = entries
+                .iter()
+                .map(|entry| InventoryLine {
+                    label: entry.label.clone(),
+                    count: entry.qty,
+                    enabled: entry.usable,
+                    equipped_by: equipped_label(entry),
+                })
+                .collect::<Vec<_>>();
+            let detail = build_inventory_detail(runtime, &entries[selected]);
+            draw_inventory(session, &header, &lines, selected, &detail)?;
+        }
+
+        if let Some(action) = read_action(bindings) {
+            match action {
+                Action::MoveUp => {
+                    if selected > 0 {
+                        selected -= 1;
+                    }
+                }
+                Action::MoveDown => {
+                    if selected + 1 < entries.len() {
+                        selected += 1;
+                    }
+                }
+                Action::MoveLeft => {
+                    filter = prev_inventory_filter(&filter);
+                    selected = 0;
+                }
+                Action::MoveRight => {
+                    filter = next_inventory_filter(&filter);
+                    selected = 0;
+                }
+                Action::Pause => {
+                    sort_mode = toggle_sort(sort_mode);
+                }
+                Action::Confirm => {
+                    if let Some(entry) = entries.get(selected) {
+                        if entry.kind == InventoryKind::Item && entry.usable {
+                            if use_item(session, runtime, bindings, entry)? {
+                                selected = selected.min(entries.len().saturating_sub(1));
+                            }
+                        }
+                    }
+                }
+                Action::Cancel | Action::Menu => return Ok(()),
+                Action::Quit => {
+                    if tui::app::confirm_quit(session, |frame| {
+                        let header = inventory_header(&filter, &sort_mode, "Inventory");
+                        let lines = entries
+                            .iter()
+                            .map(|entry| InventoryLine {
+                                label: entry.label.clone(),
+                                count: entry.qty,
+                                enabled: entry.usable,
+                                equipped_by: equipped_label(entry),
+                            })
+                            .collect::<Vec<_>>();
+                        let detail = entries
+                            .get(selected)
+                            .map(|entry| build_inventory_detail(runtime, entry))
+                            .unwrap_or(MenuPanelView {
+                                title: "Inventory".to_string(),
+                                lines: Vec::new(),
+                            });
+                        draw_inventory_frame(frame, &header, &lines, selected, &detail);
+                    })? {
+                        return Err(std::io::Error::new(std::io::ErrorKind::Interrupted, "quit"));
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn run_equipment_menu(
+    session: &mut TuiSession,
+    runtime: &mut GameRuntime,
+    bindings: &tui::input::InputBindings,
+) -> std::io::Result<()> {
+    if runtime.party.active.is_empty() {
+        return Ok(());
+    }
+    let party_names = runtime
+        .party
+        .active
+        .iter()
+        .filter_map(|id| runtime.party.roster.get(id))
+        .map(|actor| actor.name.clone())
+        .collect::<Vec<_>>();
+    let selected = match prompt_choice(
+        session,
+        bindings,
+        "Equipment",
+        "Choose a party member:",
+        &party_names,
+        0,
+    )? {
+        Some(index) => index,
+        None => return Ok(()),
+    };
+    let actor_id = runtime.party.active[selected].clone();
+    let slots = if let Some(actor) = runtime.party.roster.get(&actor_id) {
+        actor_slots(&runtime.content, actor)
+    } else {
+        Vec::new()
+    };
+    if slots.is_empty() {
+        return Ok(());
+    }
+    let slot_label = slots
+        .iter()
+        .map(|slot| {
+            let equipped = runtime
+                .party
+                .roster
+                .get(&actor_id)
+                .and_then(|actor| actor.equipment.get(slot))
+                .and_then(|item_id| {
+                    runtime
+                        .content
+                        .equipment
+                        .equipment
+                        .iter()
+                        .find(|item| item.id == *item_id)
+                        .map(|item| item.name.as_str())
+                })
+                .unwrap_or("Empty");
+            format!("{}: {}", slot, equipped)
+        })
+        .collect::<Vec<_>>();
+    let slot_index = match prompt_choice(
+        session,
+        bindings,
+        "Equipment",
+        "Choose a slot:",
+        &slot_label,
+        0,
+    )? {
+        Some(index) => index,
+        None => return Ok(()),
+    };
+    let slot = slots[slot_index].clone();
+    run_equipment_slot_menu(session, runtime, bindings, &actor_id, &slot)
+}
+
+fn run_equipment_slot_menu(
+    session: &mut TuiSession,
+    runtime: &mut GameRuntime,
+    bindings: &tui::input::InputBindings,
+    actor_id: &str,
+    slot: &str,
+) -> std::io::Result<()> {
+    let mut selected = 0usize;
+    loop {
+        let entries = build_equipment_entries(runtime, actor_id, slot);
+        if entries.is_empty() {
+            return Ok(());
+        }
+        if selected >= entries.len() {
+            selected = 0;
+        }
+        let header = inventory_header(
+            &InventoryFilter::Equipment,
+            &InventorySort::Name,
+            &format!("Equip: {}", slot),
+        );
+        let lines = entries
+            .iter()
+            .map(|entry| InventoryLine {
+                label: entry.label.clone(),
+                count: entry.qty,
+                enabled: entry.usable,
+                equipped_by: equipped_label(entry),
+            })
+            .collect::<Vec<_>>();
+        let detail = build_equipment_detail(runtime, actor_id, slot, &entries[selected]);
+        draw_inventory(session, &header, &lines, selected, &detail)?;
+
+        if let Some(action) = read_action(bindings) {
+            match action {
+                Action::MoveUp => {
+                    if selected > 0 {
+                        selected -= 1;
+                    }
+                }
+                Action::MoveDown => {
+                    if selected + 1 < entries.len() {
+                        selected += 1;
+                    }
+                }
+                Action::Confirm => {
+                    if let Some(entry) = entries.get(selected) {
+                        if entry.usable {
+                            equip_item(runtime, actor_id, slot, entry);
+                            return Ok(());
+                        }
+                    }
+                }
+                Action::Cancel | Action::Menu => return Ok(()),
+                Action::Quit => {
+                    if tui::app::confirm_quit(session, |frame| {
+                        let detail = entries
+                            .get(selected)
+                            .map(|entry| build_equipment_detail(runtime, actor_id, slot, entry))
+                            .unwrap_or(MenuPanelView {
+                                title: "Equipment".to_string(),
+                                lines: Vec::new(),
+                            });
+                        draw_inventory_frame(frame, &header, &lines, selected, &detail);
+                    })? {
+                        return Err(std::io::Error::new(std::io::ErrorKind::Interrupted, "quit"));
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+}
+
+fn inventory_header(
+    filter: &InventoryFilter,
+    sort: &InventorySort,
+    title: &str,
+) -> InventoryHeader {
+    let filters = inventory_filters()
+        .into_iter()
+        .map(|entry| {
+            let active = filter_label(filter) == entry;
+            (entry, active)
+        })
+        .collect::<Vec<_>>();
+    InventoryHeader {
+        title: title.to_string(),
+        filters,
+        sort_label: sort_label(sort).to_string(),
+    }
+}
+
+fn inventory_filters() -> Vec<String> {
+    vec![
+        "Items".to_string(),
+        "Equipment".to_string(),
+        "Weapons".to_string(),
+        "Armor".to_string(),
+        "Accessory".to_string(),
+    ]
+}
+
+fn filter_label(filter: &InventoryFilter) -> String {
+    match filter {
+        InventoryFilter::Items => "Items",
+        InventoryFilter::Equipment => "Equipment",
+        InventoryFilter::Weapons => "Weapons",
+        InventoryFilter::Armor => "Armor",
+        InventoryFilter::Accessory => "Accessory",
+    }
+    .to_string()
+}
+
+fn next_inventory_filter(current: &InventoryFilter) -> InventoryFilter {
+    match current {
+        InventoryFilter::Items => InventoryFilter::Equipment,
+        InventoryFilter::Equipment => InventoryFilter::Weapons,
+        InventoryFilter::Weapons => InventoryFilter::Armor,
+        InventoryFilter::Armor => InventoryFilter::Accessory,
+        InventoryFilter::Accessory => InventoryFilter::Items,
+    }
+}
+
+fn prev_inventory_filter(current: &InventoryFilter) -> InventoryFilter {
+    match current {
+        InventoryFilter::Items => InventoryFilter::Accessory,
+        InventoryFilter::Equipment => InventoryFilter::Items,
+        InventoryFilter::Weapons => InventoryFilter::Equipment,
+        InventoryFilter::Armor => InventoryFilter::Weapons,
+        InventoryFilter::Accessory => InventoryFilter::Armor,
+    }
+}
+
+fn sort_label(sort: &InventorySort) -> &'static str {
+    match sort {
+        InventorySort::Name => "Name",
+        InventorySort::Type => "Type",
+    }
+}
+
+fn toggle_sort(current: InventorySort) -> InventorySort {
+    match current {
+        InventorySort::Name => InventorySort::Type,
+        InventorySort::Type => InventorySort::Name,
+    }
+}
+
+fn build_inventory_entries(
+    runtime: &GameRuntime,
+    filter: &InventoryFilter,
+    sort: &InventorySort,
+) -> Vec<InventoryEntry> {
+    let equipped_map = build_equipped_map(runtime);
+    let mut entries = Vec::new();
+
+    if matches!(filter, InventoryFilter::Items) {
+        for item in &runtime.content.items.items {
+            let qty = runtime.inventory.item_qty(&item.id);
+            if qty <= 0 {
+                continue;
+            }
+            let usable = item_usage_allows_field(&item.usage.context);
+            entries.push(InventoryEntry {
+                id: item.id.clone(),
+                label: item.name.clone(),
+                qty,
+                kind: InventoryKind::Item,
+                slot: None,
+                category: None,
+                usable,
+                equipped_by: Vec::new(),
+            });
+        }
+    } else {
+        for equipment in &runtime.content.equipment.equipment {
+            if !matches_filter_equipment(filter, equipment) {
+                continue;
+            }
+            let qty = runtime.inventory.equipment_qty(&equipment.id);
+            let equipped_by = equipped_map.get(&equipment.id).cloned().unwrap_or_default();
+            if qty <= 0 && equipped_by.is_empty() {
+                continue;
+            }
+            entries.push(InventoryEntry {
+                id: equipment.id.clone(),
+                label: equipment.name.clone(),
+                qty,
+                kind: InventoryKind::Equipment,
+                slot: Some(equipment.slot.clone()),
+                category: Some(equipment.category.clone()),
+                usable: true,
+                equipped_by,
+            });
+        }
+    }
+
+    entries.sort_by(|left, right| inventory_sort_key(left, right, sort));
+    entries
+}
+
+fn matches_filter_equipment(
+    filter: &InventoryFilter,
+    equipment: &engine::entities::EquipmentDefinition,
+) -> bool {
+    match filter {
+        InventoryFilter::Equipment => true,
+        InventoryFilter::Weapons => equipment.slot == "weapon",
+        InventoryFilter::Armor => equipment.slot == "armor",
+        InventoryFilter::Accessory => equipment.slot == "accessory",
+        InventoryFilter::Items => false,
+    }
+}
+
+fn inventory_sort_key(
+    left: &InventoryEntry,
+    right: &InventoryEntry,
+    sort: &InventorySort,
+) -> std::cmp::Ordering {
+    match sort {
+        InventorySort::Name => left.label.cmp(&right.label),
+        InventorySort::Type => {
+            let left_kind = match left.kind {
+                InventoryKind::Item => 0,
+                InventoryKind::Equipment => 1,
+            };
+            let right_kind = match right.kind {
+                InventoryKind::Item => 0,
+                InventoryKind::Equipment => 1,
+            };
+            left_kind
+                .cmp(&right_kind)
+                .then_with(|| left.slot.cmp(&right.slot))
+                .then_with(|| left.category.cmp(&right.category))
+                .then_with(|| left.label.cmp(&right.label))
+        }
+    }
+}
+
+fn equipped_label(entry: &InventoryEntry) -> Option<String> {
+    if entry.equipped_by.is_empty() {
+        None
+    } else {
+        Some(format!("Equipped: {}", entry.equipped_by.join(", ")))
+    }
+}
+
+fn build_inventory_detail(runtime: &GameRuntime, entry: &InventoryEntry) -> MenuPanelView {
+    match entry.kind {
+        InventoryKind::Item => {
+            let item = runtime
+                .content
+                .items
+                .items
+                .iter()
+                .find(|item| item.id == entry.id);
+            if let Some(item) = item {
+                let mut lines = Vec::new();
+                lines.push(format!("Qty: {}", entry.qty));
+                lines.push(format!("Usage: {}", item.usage.context));
+                lines.push(format!("Target: {}", item.usage.target));
+                lines.push(format!("Effect: {}", item.effect.r#type));
+                if let Some(power) = item.effect.power {
+                    lines.push(format!("Power: {}", power));
+                }
+                if !entry.usable {
+                    lines.push("".to_string());
+                    lines.push("Cannot use in field.".to_string());
+                }
+                MenuPanelView {
+                    title: item.name.clone(),
+                    lines,
+                }
+            } else {
+                MenuPanelView {
+                    title: "Item".to_string(),
+                    lines: vec!["Item not found.".to_string()],
+                }
+            }
+        }
+        InventoryKind::Equipment => build_equipment_detail(runtime, "", "", entry),
+    }
+}
+
+fn build_equipment_detail(
+    runtime: &GameRuntime,
+    actor_id: &str,
+    slot: &str,
+    entry: &InventoryEntry,
+) -> MenuPanelView {
+    if entry.id.is_empty() {
+        return MenuPanelView {
+            title: "Unequip".to_string(),
+            lines: vec!["Remove equipment from slot.".to_string()],
+        };
+    }
+    let equipment = runtime
+        .content
+        .equipment
+        .equipment
+        .iter()
+        .find(|item| item.id == entry.id);
+    let mut lines = Vec::new();
+    if let Some(equipment) = equipment {
+        lines.push(format!("Slot: {}", equipment.slot));
+        lines.push(format!("Category: {}", equipment.category));
+        if let Some(owner) = equipped_label(entry) {
+            lines.push(owner);
+        }
+        if !actor_id.is_empty() {
+            if let Some(actor) = runtime.party.roster.get(actor_id) {
+                let preview = preview_equipment_delta(runtime, actor, slot, equipment);
+                lines.extend(preview);
+            }
+        } else {
+            lines.push("".to_string());
+            lines.push("Stats: ".to_string());
+            for (stat, value) in &equipment.stats {
+                lines.push(format!("{} +{}", stat, value));
+            }
+        }
+        MenuPanelView {
+            title: equipment.name.clone(),
+            lines,
+        }
+    } else {
+        MenuPanelView {
+            title: "Equipment".to_string(),
+            lines: vec!["Equipment not found.".to_string()],
+        }
+    }
+}
+
+fn preview_equipment_delta(
+    runtime: &GameRuntime,
+    actor: &engine::party::Actor,
+    slot: &str,
+    equipment: &engine::entities::EquipmentDefinition,
+) -> Vec<String> {
+    let mut lines = Vec::new();
+    let mut clone = actor.clone();
+    clone
+        .equipment
+        .insert(slot.to_string(), equipment.id.clone());
+    recompute_derived_stats(&runtime.content, &mut clone);
+    lines.push("".to_string());
+    lines.push("Stat changes:".to_string());
+    for stat in runtime
+        .content
+        .stats
+        .stats
+        .base
+        .iter()
+        .chain(runtime.content.stats.stats.derived.iter())
+    {
+        let current = actor.derived_stats.get(&stat.id).copied().unwrap_or(0);
+        let next = clone.derived_stats.get(&stat.id).copied().unwrap_or(0);
+        if current != next {
+            let diff = next - current;
+            lines.push(format!("{} {} ({} {:+})", stat.name, next, current, diff));
+        }
+    }
+    if lines.len() == 2 {
+        lines.push("No stat changes.".to_string());
+    }
+    lines
+}
+
+fn build_equipped_map(runtime: &GameRuntime) -> HashMap<String, Vec<String>> {
+    let mut map = HashMap::new();
+    for actor in runtime.party.roster.values() {
+        for item_id in actor.equipment.values() {
+            map.entry(item_id.clone())
+                .or_insert_with(Vec::new)
+                .push(actor.name.clone());
+        }
+    }
+    map
+}
+
+fn build_equipped_counts(runtime: &GameRuntime) -> HashMap<String, i32> {
+    let mut map = HashMap::new();
+    for actor in runtime.party.roster.values() {
+        for item_id in actor.equipment.values() {
+            *map.entry(item_id.clone()).or_insert(0) += 1;
+        }
+    }
+    map
+}
+
+fn build_equipment_entries(
+    runtime: &GameRuntime,
+    actor_id: &str,
+    slot: &str,
+) -> Vec<InventoryEntry> {
+    let equipped_map = build_equipped_map(runtime);
+    let equipped_counts = build_equipped_counts(runtime);
+    let actor = match runtime.party.roster.get(actor_id) {
+        Some(actor) => actor,
+        None => return Vec::new(),
+    };
+    let job = runtime
+        .content
+        .jobs
+        .jobs
+        .iter()
+        .find(|job| job.id == actor.job_id);
+
+    let mut entries = Vec::new();
+    entries.push(InventoryEntry {
+        id: "".to_string(),
+        label: "Unequip".to_string(),
+        qty: 0,
+        kind: InventoryKind::Equipment,
+        slot: Some(slot.to_string()),
+        category: None,
+        usable: true,
+        equipped_by: Vec::new(),
+    });
+
+    for equipment in &runtime.content.equipment.equipment {
+        if !equipment_slot_matches(slot, &equipment.slot) {
+            continue;
+        }
+        if let Some(job) = job {
+            if !equipment_allowed(job, equipment) {
+                continue;
+            }
+        }
+        let total_qty = runtime.inventory.equipment_qty(&equipment.id);
+        let equipped_count = equipped_counts.get(&equipment.id).copied().unwrap_or(0);
+        let mut available = total_qty - equipped_count;
+        let equipped_by = equipped_map.get(&equipment.id).cloned().unwrap_or_default();
+        let already_equipped = actor
+            .equipment
+            .values()
+            .any(|item_id| item_id == &equipment.id);
+        if already_equipped {
+            available += 1;
+        }
+        if available <= 0 && equipped_by.is_empty() {
+            continue;
+        }
+        let usable = available > 0 || !equipped_by.is_empty();
+        entries.push(InventoryEntry {
+            id: equipment.id.clone(),
+            label: equipment.name.clone(),
+            qty: available.max(0),
+            kind: InventoryKind::Equipment,
+            slot: Some(equipment.slot.clone()),
+            category: Some(equipment.category.clone()),
+            usable,
+            equipped_by,
+        });
+    }
+
+    entries
+}
+
+fn equipment_slot_matches(slot: &str, equipment_slot: &str) -> bool {
+    if slot.starts_with("accessory") {
+        equipment_slot == "accessory"
+    } else {
+        slot == equipment_slot
+    }
+}
+
+fn equipment_allowed(
+    job: &engine::entities::JobDefinition,
+    equipment: &engine::entities::EquipmentDefinition,
+) -> bool {
+    if let Some(allowed) = &equipment.allowed_jobs {
+        if !allowed.contains(&job.id) {
+            return false;
+        }
+    }
+    match equipment.slot.as_str() {
+        "weapon" => job.equipment.weapons.contains(&equipment.category),
+        "armor" => job.equipment.armor.contains(&equipment.category),
+        _ => true,
+    }
+}
+
+fn use_item(
+    session: &mut TuiSession,
+    runtime: &mut GameRuntime,
+    bindings: &tui::input::InputBindings,
+    entry: &InventoryEntry,
+) -> std::io::Result<bool> {
+    let item = match runtime
+        .content
+        .items
+        .items
+        .iter()
+        .find(|item| item.id == entry.id)
+        .cloned()
+    {
+        Some(item) => item,
+        None => return Ok(false),
+    };
+    if !item_usage_allows_field(&item.usage.context) {
+        return Ok(false);
+    }
+    let targets = build_item_targets(runtime, &item);
+    if targets.is_empty() {
+        return Ok(false);
+    }
+    match item.usage.target.as_str() {
+        "party" => {
+            for actor_id in targets {
+                apply_item_to_actor(runtime, &item, &actor_id);
+            }
+        }
+        _ => {
+            let labels = targets
+                .iter()
+                .filter_map(|id| runtime.party.roster.get(id))
+                .map(|actor| actor.name.clone())
+                .collect::<Vec<_>>();
+            let selected = match prompt_choice(
+                session,
+                bindings,
+                "Use Item",
+                "Choose a target:",
+                &labels,
+                0,
+            )? {
+                Some(index) => index,
+                None => return Ok(false),
+            };
+            let actor_id = &targets[selected];
+            apply_item_to_actor(runtime, &item, actor_id);
+        }
+    }
+    runtime.inventory.remove_item(&item.id, 1);
+    Ok(true)
+}
+
+fn build_item_targets(
+    runtime: &GameRuntime,
+    item: &engine::entities::ItemDefinition,
+) -> Vec<String> {
+    let mut targets = runtime.party.active.clone();
+    match item.effect.r#type.as_str() {
+        "revive" => {
+            targets.retain(|id| {
+                runtime
+                    .party
+                    .roster
+                    .get(id)
+                    .map(|actor| actor.current_hp <= 0)
+                    .unwrap_or(false)
+            });
+        }
+        _ => {}
+    }
+    targets
+}
+
+fn apply_item_to_actor(
+    runtime: &mut GameRuntime,
+    item: &engine::entities::ItemDefinition,
+    actor_id: &str,
+) {
+    let Some(actor) = runtime.party.roster.get_mut(actor_id) else {
+        return;
+    };
+    let max_hp = actor.derived_stats.get("hp").copied().unwrap_or(0);
+    let max_mp = actor.derived_stats.get("mp").copied().unwrap_or(0);
+    let power = item.effect.power.unwrap_or(0);
+    match item.effect.r#type.as_str() {
+        "heal_hp" => {
+            actor.current_hp = (actor.current_hp + power).clamp(0, max_hp);
+        }
+        "heal_mp" => {
+            actor.current_mp = (actor.current_mp + power).clamp(0, max_mp);
+        }
+        "revive" => {
+            if actor.current_hp <= 0 {
+                let amount = if power > 0 { power } else { max_hp };
+                actor.current_hp = amount.clamp(1, max_hp);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn item_usage_allows_field(context: &str) -> bool {
+    matches!(context, "field" | "both")
+}
+
+fn equip_item(runtime: &mut GameRuntime, actor_id: &str, slot: &str, entry: &InventoryEntry) {
+    let target_id = actor_id.to_string();
+    if entry.id.is_empty() {
+        if let Some(actor) = runtime.party.roster.get_mut(&target_id) {
+            actor.equipment.remove(slot);
+            recompute_derived_stats(&runtime.content, actor);
+        }
+        return;
+    }
+    let mut owner_to_clear = None;
+    for (id, actor) in &runtime.party.roster {
+        for (equip_slot, item_id) in &actor.equipment {
+            if item_id == &entry.id && id != &target_id {
+                owner_to_clear = Some((id.clone(), equip_slot.clone()));
+                break;
+            }
+        }
+        if owner_to_clear.is_some() {
+            break;
+        }
+    }
+    if let Some((owner_id, equip_slot)) = owner_to_clear {
+        if let Some(owner) = runtime.party.roster.get_mut(&owner_id) {
+            owner.equipment.remove(&equip_slot);
+            recompute_derived_stats(&runtime.content, owner);
+        }
+    }
+    if let Some(actor) = runtime.party.roster.get_mut(&target_id) {
+        actor.equipment.insert(slot.to_string(), entry.id.clone());
+        recompute_derived_stats(&runtime.content, actor);
     }
 }
 
@@ -1009,53 +1858,6 @@ fn build_menu_entries(
         .collect()
 }
 
-fn menu_default_panel(menu_ui: &MenuUiFile, runtime: &GameRuntime) -> MenuPanelView {
-    let panel = menu_ui
-        .panels
-        .iter()
-        .find(|panel| panel.id == menu_ui.default_panel);
-    let (title, panel_type) = match panel {
-        Some(panel) => (panel.title.clone(), panel.panel_type.as_str()),
-        None => ("Status".to_string(), "unknown"),
-    };
-    match panel_type {
-        "party_summary" => MenuPanelView {
-            title,
-            lines: build_party_summary(runtime),
-        },
-        "progress" => MenuPanelView {
-            title,
-            lines: vec![
-                "Progress panel (stub).".to_string(),
-                "TODO: render ui/progress.json.".to_string(),
-            ],
-        },
-        _ => MenuPanelView {
-            title,
-            lines: vec!["Menu panel not configured.".to_string()],
-        },
-    }
-}
-
-fn build_party_summary(runtime: &GameRuntime) -> Vec<String> {
-    if runtime.party.active.is_empty() {
-        return vec!["No party members.".to_string()];
-    }
-    let mut lines = Vec::new();
-    for member_id in &runtime.party.active {
-        if let Some(actor) = runtime.party.roster.get(member_id) {
-            let hp = actor.derived_stats.get("hp").copied().unwrap_or(0);
-            let mp = actor.derived_stats.get("mp").copied().unwrap_or(0);
-            let line = format!("{}  Lv{}  HP {}  MP {}", actor.name, actor.level, hp, mp);
-            lines.push(line);
-        }
-    }
-    if lines.is_empty() {
-        lines.push("No party members.".to_string());
-    }
-    lines
-}
-
 fn menu_detail_panel(
     label: &str,
     action: &str,
@@ -1093,14 +1895,14 @@ fn build_status_panel(runtime: &GameRuntime, page: usize) -> Vec<String> {
                 .map(|job| job.name.as_str())
                 .unwrap_or(actor.job_id.as_str());
             if page == 0 {
+                let max_hp = actor.derived_stats.get("hp").copied().unwrap_or(0);
+                let max_mp = actor.derived_stats.get("mp").copied().unwrap_or(0);
                 let exp_next = exp_for_level(&runtime.content.rules.exp_curve, actor.level + 1)
                     .unwrap_or(actor.exp);
                 let exp_remaining = exp_next.saturating_sub(actor.exp);
-                let hp = actor.derived_stats.get("hp").copied().unwrap_or(0);
-                let mp = actor.derived_stats.get("mp").copied().unwrap_or(0);
                 lines.push(format!(
-                    "{}  Lv{}  HP {}  MP {}",
-                    actor.name, actor.level, hp, mp
+                    "{}  Lv{}  HP {}/{}  MP {}/{}",
+                    actor.name, actor.level, actor.current_hp, max_hp, actor.current_mp, max_mp
                 ));
                 lines.push(format!("Job: {}", job_name));
                 lines.push(format!("EXP {} (next {})", actor.exp, exp_remaining));
@@ -1119,12 +1921,67 @@ fn build_status_panel(runtime: &GameRuntime, page: usize) -> Vec<String> {
             lines.push("".to_string());
         }
     }
-    if page == 0 {
-        lines.push("".to_string());
-        lines.push("Left/Right: details".to_string());
+    lines.push("".to_string());
+    lines.push(if page == 0 {
+        "Left/Right: details".to_string()
     } else {
-        lines.push("".to_string());
-        lines.push("Left/Right: summary".to_string());
+        "Left/Right: summary".to_string()
+    });
+    lines
+}
+
+fn menu_default_panel(menu_ui: &MenuUiFile, runtime: &GameRuntime) -> MenuPanelView {
+    let panel = menu_ui
+        .panels
+        .iter()
+        .find(|panel| panel.id == menu_ui.default_panel);
+    let (title, panel_type) = match panel {
+        Some(panel) => (panel.title.clone(), panel.panel_type.as_str()),
+        None => ("Status".to_string(), "unknown"),
+    };
+    match panel_type {
+        "party_summary" => MenuPanelView {
+            title,
+            lines: build_party_summary(runtime),
+        },
+        "progress" => MenuPanelView {
+            title,
+            lines: vec![
+                "Progress panel (stub).".to_string(),
+                "TODO: render ui/progress.json.".to_string(),
+            ],
+        },
+        _ => MenuPanelView {
+            title,
+            lines: vec!["Menu panel not configured.".to_string()],
+        },
+    }
+}
+
+fn build_party_summary(runtime: &GameRuntime) -> Vec<String> {
+    if runtime.party.active.is_empty() {
+        return vec!["No party members.".to_string()];
+    }
+    let mut lines = Vec::new();
+    for member_id in &runtime.party.active {
+        if let Some(actor) = runtime.party.roster.get(member_id) {
+            let max_hp = actor.derived_stats.get("hp").copied().unwrap_or(0);
+            let max_mp = actor.derived_stats.get("mp").copied().unwrap_or(0);
+            let job_name = runtime
+                .content
+                .jobs
+                .jobs
+                .iter()
+                .find(|job| job.id == actor.job_id)
+                .map(|job| job.name.as_str())
+                .unwrap_or(actor.job_id.as_str());
+            lines.push(format!(
+                "{}  Lv{}  HP {}/{}  MP {}/{}",
+                actor.name, actor.level, actor.current_hp, max_hp, actor.current_mp, max_mp
+            ));
+            lines.push(format!("Job: {}", job_name));
+            lines.push("".to_string());
+        }
     }
     lines
 }

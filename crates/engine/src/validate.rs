@@ -473,6 +473,22 @@ pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
             .iter()
             .map(|item| item.id.as_str())
             .collect();
+        let valid_contexts: HashSet<&str> = ["field", "battle", "both"].into_iter().collect();
+        let valid_targets: HashSet<&str> = ["self", "ally", "party", "enemy"].into_iter().collect();
+        for item in &items.items {
+            if !valid_contexts.contains(item.usage.context.as_str()) {
+                errors.push(format!(
+                    "items.json: item '{}' has invalid usage context '{}'",
+                    item.id, item.usage.context
+                ));
+            }
+            if !valid_targets.contains(item.usage.target.as_str()) {
+                errors.push(format!(
+                    "items.json: item '{}' has invalid usage target '{}'",
+                    item.id, item.usage.target
+                ));
+            }
+        }
         for shop in &shops.shops {
             for entry in &shop.inventory {
                 if !item_ids.contains(entry.item.as_str())
@@ -483,6 +499,46 @@ pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
                         shop.id, entry.item
                     ));
                 }
+            }
+        }
+    }
+
+    if let (Some(rules), Some(items), Some(equipment)) = (&rules, &items, &equipment) {
+        let item_ids: HashSet<&str> = items.items.iter().map(|item| item.id.as_str()).collect();
+        let equipment_ids: HashSet<&str> = equipment
+            .equipment
+            .iter()
+            .map(|item| item.id.as_str())
+            .collect();
+        if rules.inventory.max_stack <= 0 {
+            errors.push("rules.json: inventory.max_stack must be > 0".to_string());
+        }
+        for stack in &rules.inventory.items {
+            if stack.qty <= 0 {
+                errors.push(format!(
+                    "rules.json: inventory item '{}' must have qty > 0",
+                    stack.id
+                ));
+            }
+            if !item_ids.contains(stack.id.as_str()) {
+                errors.push(format!(
+                    "rules.json: inventory item '{}' not found in items.json",
+                    stack.id
+                ));
+            }
+        }
+        for stack in &rules.inventory.equipment {
+            if stack.qty <= 0 {
+                errors.push(format!(
+                    "rules.json: inventory equipment '{}' must have qty > 0",
+                    stack.id
+                ));
+            }
+            if !equipment_ids.contains(stack.id.as_str()) {
+                errors.push(format!(
+                    "rules.json: inventory equipment '{}' not found in equipment.json",
+                    stack.id
+                ));
             }
         }
     }

@@ -69,6 +69,10 @@
   - [x] Party/journal/save/settings/exit submenus (stub views).
   - [x] Save entry enable/disable based on map rules.
   - [x] Save-point glyph rendering (use `S`).
+- [x] Inventory + equipment UI.
+  - [x] Inventory filters + sorting.
+  - [x] Item field use (heal/revive).
+  - [x] Equipment swap flow with stat preview.
 
 ## Battle System
 - [ ] Turn-based flow (command selection, targeting, resolve action).

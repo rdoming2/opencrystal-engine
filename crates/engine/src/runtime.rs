@@ -1,4 +1,5 @@
 use crate::content::Content;
+use crate::inventory::InventoryState;
 use crate::party::PartyState;
 use crate::rules::Ruleset;
 use std::collections::HashSet;
@@ -47,6 +48,7 @@ pub struct GameRuntime {
     pub flags: HashSet<String>,
     pub menu_state: MenuState,
     pub party: PartyState,
+    pub inventory: InventoryState,
 }
 
 impl GameRuntime {
@@ -60,6 +62,7 @@ impl GameRuntime {
             flags: HashSet::new(),
             menu_state: MenuState::default(),
             party: PartyState::empty(),
+            inventory: InventoryState::default(),
         }
     }
 
@@ -90,6 +93,16 @@ impl GameRuntime {
     pub fn start_new_game(&mut self, rules: &Ruleset) {
         if rules.party_mode == crate::rules::PartyMode::Predefined || self.party.roster.is_empty() {
             self.party = PartyState::from_content(&self.content, rules);
+        }
+        if self.inventory.is_empty() {
+            for item in &rules.inventory.items {
+                self.inventory
+                    .add_item(&item.id, item.qty, rules.inventory.max_stack);
+            }
+            for item in &rules.inventory.equipment {
+                self.inventory
+                    .add_equipment(&item.id, item.qty, rules.inventory.max_stack);
+            }
         }
         if let Some(event_id) = &rules.start_event {
             self.queue_event(event_id);

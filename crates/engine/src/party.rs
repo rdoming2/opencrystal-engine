@@ -38,6 +38,8 @@ pub struct Actor {
     pub job_id: String,
     pub level: u32,
     pub exp: i32,
+    pub current_hp: i32,
+    pub current_mp: i32,
     pub base_stats: HashMap<String, i32>,
     pub derived_stats: HashMap<String, i32>,
     pub equipment: HashMap<String, String>,
@@ -207,12 +209,17 @@ fn build_actor(
         equipment_lookup,
     );
 
+    let max_hp = derived_stats.get("hp").copied().unwrap_or(0);
+    let max_mp = derived_stats.get("mp").copied().unwrap_or(0);
+
     Actor {
         id: actor.id.clone(),
         name: actor.name.clone(),
         job_id: actor.job_id.clone(),
         level: actor.level,
         exp: 0,
+        current_hp: max_hp,
+        current_mp: max_mp,
         base_stats,
         derived_stats,
         equipment,
@@ -237,6 +244,16 @@ fn job_slots(job: &JobDefinition) -> Vec<String> {
         slots.push(format!("accessory_{}", index));
     }
     slots
+}
+
+pub fn actor_slots(content: &Content, actor: &Actor) -> Vec<String> {
+    content
+        .jobs
+        .jobs
+        .iter()
+        .find(|job| job.id == actor.job_id)
+        .map(job_slots)
+        .unwrap_or_default()
 }
 
 fn apply_job_modifiers(
@@ -283,6 +300,7 @@ pub fn recompute_derived_stats(content: &Content, actor: &mut Actor) {
         job,
         &equipment_lookup,
     );
+    clamp_current_stats(actor);
 }
 
 pub fn exp_for_level(curve: &ExpCurveRules, level: u32) -> Option<i32> {
@@ -413,4 +431,11 @@ fn compute_equipment_stats(
         }
     }
     stats
+}
+
+fn clamp_current_stats(actor: &mut Actor) {
+    let max_hp = actor.derived_stats.get("hp").copied().unwrap_or(0);
+    let max_mp = actor.derived_stats.get("mp").copied().unwrap_or(0);
+    actor.current_hp = actor.current_hp.clamp(0, max_hp);
+    actor.current_mp = actor.current_mp.clamp(0, max_mp);
 }

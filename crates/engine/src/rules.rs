@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+use crate::inventory::InventoryStack;
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct RulesFile {
     pub version: u32,
@@ -11,6 +13,8 @@ pub struct RulesFile {
     pub party_create: PartyCreateRules,
     #[serde(default)]
     pub exp_curve: ExpCurveRules,
+    #[serde(default)]
+    pub inventory: InventoryRules,
     #[serde(default)]
     pub systems: HashMap<String, bool>,
     pub features: FeatureRules,
@@ -70,6 +74,7 @@ pub struct Ruleset {
     pub party_mode: PartyMode,
     pub party_create: PartyCreateRules,
     pub exp_curve: ExpCurveRules,
+    pub inventory: InventoryRules,
     pub systems: HashMap<String, bool>,
 }
 
@@ -86,6 +91,7 @@ impl Ruleset {
             party_mode: PartyMode::Predefined,
             party_create: PartyCreateRules::default(),
             exp_curve: ExpCurveRules::default(),
+            inventory: InventoryRules::default(),
             systems: HashMap::new(),
         }
     }
@@ -102,6 +108,7 @@ impl Ruleset {
             party_mode: file.party_mode,
             party_create: file.party_create,
             exp_curve: file.exp_curve,
+            inventory: file.inventory,
             systems: file.systems,
         }
     }
@@ -187,6 +194,26 @@ pub struct ExpCurveRules {
     pub max_level: u32,
 }
 
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct InventoryRules {
+    #[serde(default = "default_inventory_stack")]
+    pub max_stack: i32,
+    #[serde(default)]
+    pub items: Vec<InventoryStack>,
+    #[serde(default)]
+    pub equipment: Vec<InventoryStack>,
+}
+
+impl Default for InventoryRules {
+    fn default() -> Self {
+        Self {
+            max_stack: default_inventory_stack(),
+            items: Vec::new(),
+            equipment: Vec::new(),
+        }
+    }
+}
+
 impl Default for ExpCurveRules {
     fn default() -> Self {
         Self {
@@ -199,5 +226,9 @@ impl Default for ExpCurveRules {
 }
 
 fn default_max_level() -> u32 {
+    99
+}
+
+fn default_inventory_stack() -> i32 {
     99
 }
