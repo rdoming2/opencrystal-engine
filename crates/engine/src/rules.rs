@@ -10,6 +10,8 @@ pub struct RulesFile {
     #[serde(default)]
     pub party_create: PartyCreateRules,
     #[serde(default)]
+    pub exp_curve: ExpCurveRules,
+    #[serde(default)]
     pub systems: HashMap<String, bool>,
     pub features: FeatureRules,
     pub render: RenderRules,
@@ -67,6 +69,7 @@ pub struct Ruleset {
     pub start_event: Option<String>,
     pub party_mode: PartyMode,
     pub party_create: PartyCreateRules,
+    pub exp_curve: ExpCurveRules,
     pub systems: HashMap<String, bool>,
 }
 
@@ -82,6 +85,7 @@ impl Ruleset {
             start_event: Some("intro_cutscene".to_string()),
             party_mode: PartyMode::Predefined,
             party_create: PartyCreateRules::default(),
+            exp_curve: ExpCurveRules::default(),
             systems: HashMap::new(),
         }
     }
@@ -97,6 +101,7 @@ impl Ruleset {
             start_event: file.game.start_event,
             party_mode: file.party_mode,
             party_create: file.party_create,
+            exp_curve: file.exp_curve,
             systems: file.systems,
         }
     }
@@ -169,4 +174,23 @@ fn default_party_level() -> u32 {
 
 fn default_name_length() -> usize {
     12
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct ExpCurveRules {
+    pub mode: String,
+    #[serde(default)]
+    pub table: Vec<i32>,
+    #[serde(default)]
+    pub formula: Option<String>,
+}
+
+impl Default for ExpCurveRules {
+    fn default() -> Self {
+        Self {
+            mode: "table".to_string(),
+            table: vec![0, 10, 30, 60, 100],
+            formula: None,
+        }
+    }
 }

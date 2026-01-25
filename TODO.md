@@ -13,6 +13,7 @@
 - [x] Party roster + stats pipeline.
   - [x] Predefined party loading.
   - [x] Create-mode party builder.
+  - [x] Create-mode job selection.
   - [ ] Rename menu/action for story joins.
 
 - [x] Event state.
@@ -82,6 +83,11 @@
 ## Magic System
 - [ ] Implement job-based spell learnsets (level/tier/item).
 - [ ] Track learned spells per actor.
+
+## Progression
+- [ ] Implement experience + level-up pipeline.
+- [ ] Apply job growth formulas/tables on level-up.
+- [ ] Recompute derived stats with `lvl` variable.
 
 ## World + Events
 - [x] Map transitions (enter/exit dungeons, overworld zoom).

@@ -13,7 +13,7 @@ use engine::{
 use tui::app::{
     ChoiceView, MapView, MenuEntryView, MenuPane, MenuPanelView, NpcView, ShopItem, ShopView,
     TileRender, TitleAction, TransitionView, TuiSession, draw_menu, draw_menu_frame,
-    draw_overworld, draw_overworld_with_tooltip, prompt_text, run_title,
+    draw_overworld, draw_overworld_with_tooltip, prompt_choice, prompt_text, run_title,
     show_centered_dialog_on_map, show_dialog, show_dialog_on_map, show_dialog_with_choices,
     show_dialog_with_choices_on_map, show_shop,
 };
@@ -163,12 +163,15 @@ fn run_play(args: Vec<String>) {
         TitleAction::NewGame => {
             if let Some(session) = session_guard.as_mut() {
                 if rules.party_mode == PartyMode::Create {
-                    if let Err(err) = run_party_create_flow(session, &mut runtime, &rules) {
+                    if let Err(err) =
+                        run_party_create_flow(session, &mut runtime, &rules, &input_bindings)
+                    {
                         if err.kind() == std::io::ErrorKind::Interrupted {
                             return;
                         }
                     }
                 }
+
                 runtime.start_new_game(&rules);
                 if let Err(err) = run_event_loop(&mut runtime, &dialog_ui, &input_bindings, session)
                 {
@@ -601,29 +604,106 @@ fn run_party_create_flow(
     session: &mut TuiSession,
     runtime: &mut GameRuntime,
     rules: &Ruleset,
+    bindings: &tui::input::InputBindings,
 ) -> std::io::Result<()> {
     let max_len = rules.party_create.name_length;
-    let mut names = Vec::new();
+    let jobs_enabled = rules.systems.get("jobs").copied().unwrap_or(false);
+    let job_options = if jobs_enabled {
+        build_available_jobs(runtime)
+    } else {
+        Vec::new()
+    };
+    if jobs_enabled && job_options.is_empty() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "no jobs available for party creation",
+        ));
+    }
+    let default_job_index = job_options
+        .iter()
+        .position(|job| job.is_default)
+        .unwrap_or(0);
+    let mut members = Vec::new();
     for index in 0..rules.party_size {
         let default_name = format!("Hero {}", index + 1);
         let prompt = format!("Name character {}:", index + 1);
-        match prompt_text(session, "Create Party", &prompt, &default_name, max_len)? {
-            Some(name) => names.push(name),
+        let name = match prompt_text(session, "Create Party", &prompt, &default_name, max_len)? {
+            Some(name) => name,
             None => return Err(std::io::Error::new(std::io::ErrorKind::Interrupted, "quit")),
-        }
+        };
+        let job_id = if jobs_enabled {
+            let labels = job_options
+                .iter()
+                .map(|job| job.name.clone())
+                .collect::<Vec<_>>();
+            match prompt_choice(
+                session,
+                bindings,
+                "Choose Job",
+                "Select a job:",
+                &labels,
+                default_job_index,
+            )? {
+                Some(selection) => job_options[selection].id.clone(),
+                None => return Err(std::io::Error::new(std::io::ErrorKind::Interrupted, "quit")),
+            }
+        } else {
+            rules.party_create.default_job.clone()
+        };
+        members.push((name, job_id));
     }
-    runtime.party = PartyState::from_created(&runtime.content, rules, names);
+    runtime.party = PartyState::from_created(&runtime.content, rules, members);
     Ok(())
 }
 
-fn default_party_names(rules: &Ruleset) -> Vec<String> {
+fn default_party_names(rules: &Ruleset) -> Vec<(String, String)> {
     let max_len = rules.party_create.name_length;
+    let default_job = rules.party_create.default_job.clone();
     (1..=rules.party_size)
         .map(|index| {
             let name = format!("Hero {}", index);
-            name.chars().take(max_len).collect()
+            let name = name.chars().take(max_len).collect::<String>();
+            (name, default_job.clone())
         })
         .collect()
+}
+
+fn build_available_jobs(runtime: &GameRuntime) -> Vec<JobOption> {
+    let mut jobs = runtime
+        .content
+        .jobs
+        .jobs
+        .iter()
+        .filter(|job| job_unlock_available(runtime, job))
+        .map(|job| JobOption {
+            id: job.id.clone(),
+            name: job.name.clone(),
+            is_default: job.is_default,
+            sort_order: job.sort_order,
+        })
+        .collect::<Vec<_>>();
+    jobs.sort_by(|left, right| {
+        let left_order = left.sort_order.unwrap_or(0);
+        let right_order = right.sort_order.unwrap_or(0);
+        left_order
+            .cmp(&right_order)
+            .then_with(|| left.name.cmp(&right.name))
+    });
+    jobs
+}
+
+fn job_unlock_available(runtime: &GameRuntime, job: &engine::entities::JobDefinition) -> bool {
+    match job.unlock_flag.as_deref() {
+        Some(flag) if !flag.trim().is_empty() => runtime.has_flag(flag),
+        _ => true,
+    }
+}
+
+struct JobOption {
+    id: String,
+    name: String,
+    is_default: bool,
+    sort_order: Option<i32>,
 }
 
 fn run_overworld_loop(

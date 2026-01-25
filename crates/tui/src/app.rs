@@ -964,6 +964,48 @@ pub fn prompt_text(
     }
 }
 
+pub fn prompt_choice(
+    session: &mut TuiSession,
+    bindings: &crate::input::InputBindings,
+    title: &str,
+    prompt: &str,
+    options: &[String],
+    mut selected: usize,
+) -> io::Result<Option<usize>> {
+    if options.is_empty() {
+        return Ok(None);
+    }
+    if selected >= options.len() {
+        selected = 0;
+    }
+    loop {
+        session.terminal.draw(|frame| {
+            draw_choice_prompt_frame(frame, title, prompt, options, selected);
+        })?;
+
+        if let Event::Key(key) = event::read()? {
+            if let Some(action) = bindings.action_for(key.code) {
+                match action {
+                    Action::MoveUp => {
+                        if selected > 0 {
+                            selected -= 1;
+                        }
+                    }
+                    Action::MoveDown => {
+                        if selected + 1 < options.len() {
+                            selected += 1;
+                        }
+                    }
+                    Action::Confirm => return Ok(Some(selected)),
+                    Action::Cancel | Action::Menu => return Ok(None),
+                    Action::Quit => return Ok(None),
+                    _ => {}
+                }
+            }
+        }
+    }
+}
+
 fn draw_text_prompt_frame(
     frame: &mut Frame,
     title: &str,
@@ -987,6 +1029,45 @@ fn draw_text_prompt_frame(
     let area = centered_rect(frame.size(), width, height);
     frame.render_widget(Clear, area);
     let paragraph = Paragraph::new(content)
+        .block(Block::default().borders(Borders::ALL).title(title))
+        .alignment(Alignment::Left)
+        .wrap(Wrap { trim: false });
+    frame.render_widget(paragraph, area);
+}
+
+fn draw_choice_prompt_frame(
+    frame: &mut Frame,
+    title: &str,
+    prompt: &str,
+    options: &[String],
+    selected: usize,
+) {
+    let max_option = options
+        .iter()
+        .map(|item| item.chars().count())
+        .max()
+        .unwrap_or(8);
+    let header = Line::from(Span::raw(prompt));
+    let list = options
+        .iter()
+        .enumerate()
+        .map(|(index, label)| {
+            let mut style = Style::default();
+            if index == selected {
+                style = style.fg(Color::Yellow).add_modifier(Modifier::BOLD);
+            }
+            Line::from(Span::styled(label.as_str(), style))
+        })
+        .collect::<Vec<_>>();
+    let mut lines = Vec::with_capacity(list.len() + 1);
+    lines.push(header);
+    lines.extend(list);
+
+    let width = (max_option as u16).saturating_add(6).max(26);
+    let height = (lines.len() as u16).saturating_add(2);
+    let area = centered_rect(frame.size(), width, height);
+    frame.render_widget(Clear, area);
+    let paragraph = Paragraph::new(lines)
         .block(Block::default().borders(Borders::ALL).title(title))
         .alignment(Alignment::Left)
         .wrap(Wrap { trim: false });

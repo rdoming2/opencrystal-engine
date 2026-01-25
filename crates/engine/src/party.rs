@@ -65,8 +65,12 @@ impl PartyState {
         }
     }
 
-    pub fn from_created(content: &Content, rules: &Ruleset, names: Vec<String>) -> Self {
-        build_created_party(content, &rules.party_create, rules.party_size, names)
+    pub fn from_created(
+        content: &Content,
+        rules: &Ruleset,
+        members: Vec<(String, String)>,
+    ) -> Self {
+        build_created_party(content, &rules.party_create, rules.party_size, members)
     }
 }
 
@@ -117,24 +121,24 @@ fn build_created_party(
     content: &Content,
     create_rules: &PartyCreateRules,
     party_size: usize,
-    names: Vec<String>,
+    members: Vec<(String, String)>,
 ) -> PartyState {
     let job_lookup = build_job_lookup(content);
     let equipment_lookup = build_equipment_lookup(content);
-    let job = job_lookup.get(create_rules.default_job.as_str()).copied();
 
     let mut roster = HashMap::new();
     let mut active = Vec::new();
 
-    for (index, name) in names.into_iter().enumerate() {
+    for (index, (name, job_id)) in members.into_iter().enumerate() {
         if active.len() >= party_size {
             break;
         }
         let actor_id = format!("create_{}", index + 1);
+        let job = job_lookup.get(job_id.as_str()).copied();
         let actor = ActorDefinition {
             id: actor_id.clone(),
             name,
-            job_id: create_rules.default_job.clone(),
+            job_id: job_id.clone(),
             level: create_rules.starting_level,
             base_stats: HashMap::new(),
             starting_equipment: create_rules.starting_equipment.clone(),

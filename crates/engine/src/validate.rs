@@ -240,7 +240,56 @@ pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
             .iter()
             .map(|spell| spell.id.as_str())
             .collect();
+        let base_stats: HashSet<&str> = stats
+            .as_ref()
+            .map(|stats| {
+                stats
+                    .stats
+                    .base
+                    .iter()
+                    .map(|stat| stat.id.as_str())
+                    .collect()
+            })
+            .unwrap_or_default();
+        let default_jobs = jobs.jobs.iter().filter(|job| job.is_default).count();
+        if default_jobs == 0 {
+            errors.push("jobs.json: at least one job must be marked is_default".to_string());
+        } else if default_jobs > 1 {
+            errors.push("jobs.json: only one job can be marked is_default".to_string());
+        }
         for job in &jobs.jobs {
+            match job.growth.mode.as_str() {
+                "table" => {
+                    if job.growth.tables.is_empty() {
+                        errors.push(format!(
+                            "jobs.json: job '{}' table growth requires tables",
+                            job.id
+                        ));
+                    }
+                    for stat in &base_stats {
+                        if !job.growth.tables.contains_key(*stat) {
+                            errors.push(format!(
+                                "jobs.json: job '{}' table growth missing stat '{}'",
+                                job.id, stat
+                            ));
+                        }
+                    }
+                }
+                "formula" => {
+                    if job.growth.per_level.is_empty() {
+                        errors.push(format!(
+                            "jobs.json: job '{}' formula growth requires per_level",
+                            job.id
+                        ));
+                    }
+                }
+                other => {
+                    errors.push(format!(
+                        "jobs.json: job '{}' has unknown growth mode '{}'",
+                        job.id, other
+                    ));
+                }
+            }
             for spell in &job.spells {
                 if !spell_ids.contains(spell.id.as_str()) {
                     errors.push(format!(
@@ -330,6 +379,44 @@ pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
                     "party.json: party member '{}' not found in roster",
                     actor_id
                 ));
+            }
+        }
+    }
+
+    if let (Some(rules), Some(jobs)) = (&rules, &jobs) {
+        if rules.party_mode == PartyMode::Create {
+            let default_job = rules.party_create.default_job.as_str();
+            if !jobs.jobs.iter().any(|job| job.id == default_job) {
+                errors.push(format!(
+                    "rules.json: party_create.default_job '{}' not found in jobs.json",
+                    default_job
+                ));
+            }
+            let default_count = jobs.jobs.iter().filter(|job| job.is_default).count();
+            if default_count == 0 {
+                errors.push("jobs.json: create mode requires a default job".to_string());
+            } else if default_count > 1 {
+                errors.push("jobs.json: create mode requires a single default job".to_string());
+            }
+            let default_entry = jobs.jobs.iter().find(|job| job.id == default_job);
+            if let Some(job) = default_entry {
+                if !job.is_default {
+                    errors.push(format!(
+                        "rules.json: party_create.default_job '{}' must be marked is_default",
+                        default_job
+                    ));
+                }
+                if job
+                    .unlock_flag
+                    .as_ref()
+                    .map(|flag| !flag.trim().is_empty())
+                    .unwrap_or(false)
+                {
+                    errors.push(format!(
+                        "jobs.json: default job '{}' cannot be gated by unlock_flag",
+                        default_job
+                    ));
+                }
             }
         }
     }

@@ -38,12 +38,21 @@ pub struct JobDefinition {
     pub stat_modifiers: HashMap<String, StatModifier>,
     #[serde(default)]
     pub spells: Vec<JobSpell>,
+    #[serde(default)]
+    pub unlock_flag: Option<String>,
+    #[serde(default)]
+    pub is_default: bool,
+    #[serde(default)]
+    pub sort_order: Option<i32>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct GrowthConfig {
-    pub r#type: String,
+    pub mode: String,
+    #[serde(default)]
     pub per_level: HashMap<String, String>,
+    #[serde(default)]
+    pub tables: HashMap<String, Vec<i32>>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

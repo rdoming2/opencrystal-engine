@@ -41,7 +41,11 @@ Global rules and feature flags.
 
 `party_mode` controls party creation mode (`create` or `predefined`).
 `party_create` provides defaults for create mode (default job, name length, and
-starter equipment).
+starter equipment). When `systems.jobs` is false, job selection is skipped and
+`default_job` is used for all members.
+
+`exp_curve` defines the XP thresholds for leveling. Use `mode: "table"` with
+absolute XP totals per level or `mode: "formula"` with a formula string.
 `systems` toggles whether a gameplay system/menu is enabled at all. It should be
 used for global availability (e.g., disabling materia). Menu entries can still
 add `unlock_flag` gating for progression-driven unlocks.
@@ -70,6 +74,10 @@ add `unlock_flag` gating for progression-driven unlocks.
       "weapon": "bronze_sword",
       "armor": "bronze_armor"
     }
+  },
+  "exp_curve": {
+    "mode": "table",
+    "table": [0, 10, 30, 60, 100]
   },
   "systems": {
     "items": true,
@@ -371,6 +379,11 @@ Dialog action types:
 Growth formulas can reference current base stats (e.g., `vit`, `int`) as inputs.
 Growth expressions follow the same syntax as `stats.json` formulas.
 
+Growth modes:
+
+- `formula`: per-level delta formulas for each base stat.
+- `table`: absolute per-level values for each base stat (deltas computed at level-up).
+
 ```json
 {
   "version": 1,
@@ -380,7 +393,7 @@ Growth expressions follow the same syntax as `stats.json` formulas.
       "name": "Fighter",
       "stats": {"hp": 30, "mp": 0, "str": 8, "int": 2},
       "growth": {
-        "type": "formula",
+        "mode": "formula",
         "per_level": {
           "hp": "6 + vit",
           "mp": "0",
@@ -399,6 +412,8 @@ Growth expressions follow the same syntax as `stats.json` formulas.
         "str": {"add": 2, "mult": 1.05},
         "int": {"add": -1, "mult": 0.95}
       },
+      "is_default": true,
+      "sort_order": 10,
       "spells": []
     },
     {
@@ -440,6 +455,12 @@ Job spell fields:
 - `level`: required when `method` is `level`.
 - `tier`: required when `method` is `tier` (FF1-style learn/buy).
 - `item`: required when `method` is `item` (spellbook).
+
+Job gating fields:
+
+- `unlock_flag`: optional flag required to choose the job.
+- `is_default`: marks the job pre-selected in create mode; must be ungated.
+- `sort_order`: manual ordering for job lists.
 
 Equipment slot fields:
 
