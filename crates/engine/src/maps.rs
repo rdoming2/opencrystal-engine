@@ -68,6 +68,8 @@ pub struct MapTransition {
     pub target_map: String,
     pub target_pos: [i32; 2],
     #[serde(default)]
+    pub return_to_last: bool,
+    #[serde(default)]
     pub glyph: Option<String>,
     #[serde(default)]
     pub palette: Option<String>,

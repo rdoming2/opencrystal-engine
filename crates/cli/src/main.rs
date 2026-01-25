@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::env;
 use std::path::PathBuf;
 
@@ -531,6 +532,7 @@ fn run_overworld_loop(
 ) -> std::io::Result<()> {
     let mut current_map_id = map_id.to_string();
     let mut player_pos = start_pos;
+    let mut return_positions: HashMap<String, (String, (i32, i32))> = HashMap::new();
 
     let mut running = true;
     while running {
@@ -559,9 +561,7 @@ fn run_overworld_loop(
                         )?;
                     }
                 }
-                Action::Menu | Action::Cancel => {
-                    running = false;
-                }
+                Action::Menu | Action::Cancel => {}
                 Action::Quit => {
                     if tui::app::confirm_quit(session, |frame| {
                         tui::app::draw_overworld_frame(frame, &map, player_pos);
@@ -573,7 +573,28 @@ fn run_overworld_loop(
             }
         }
 
-        if let Some((next_map, next_pos)) = find_transition(runtime, &current_map_id, player_pos) {
+        if let Some(transition) = find_transition(runtime, &current_map_id, player_pos) {
+            let (next_map, next_pos) = if transition.return_to_last {
+                return_positions
+                    .get(&current_map_id)
+                    .cloned()
+                    .map(|(return_map, return_pos)| (return_map, return_pos))
+                    .unwrap_or_else(|| {
+                        (
+                            transition.target_map.clone(),
+                            (transition.target_pos[0], transition.target_pos[1]),
+                        )
+                    })
+            } else {
+                (
+                    transition.target_map.clone(),
+                    (transition.target_pos[0], transition.target_pos[1]),
+                )
+            };
+
+            if !transition.return_to_last {
+                return_positions.insert(next_map.clone(), (current_map_id.clone(), player_pos));
+            }
             current_map_id = next_map;
             player_pos = next_pos;
         }
@@ -731,19 +752,13 @@ fn find_transition(
     runtime: &GameRuntime,
     map_id: &str,
     pos: (i32, i32),
-) -> Option<(String, (i32, i32))> {
+) -> Option<engine::maps::MapTransition> {
     let index = runtime.content.map_index.get(map_id)?;
     let map = runtime.content.maps.get(*index)?;
-    map.transitions.iter().find_map(|transition| {
-        if transition.pos == [pos.0, pos.1] {
-            Some((
-                transition.target_map.clone(),
-                (transition.target_pos[0], transition.target_pos[1]),
-            ))
-        } else {
-            None
-        }
-    })
+    map.transitions
+        .iter()
+        .find(|transition| transition.pos == [pos.0, pos.1])
+        .cloned()
 }
 
 fn npc_at(runtime: &GameRuntime, map_id: &str, pos: (i32, i32)) -> bool {

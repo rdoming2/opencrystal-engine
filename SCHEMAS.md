@@ -167,6 +167,7 @@ uses its dialog tree.
       "pos": [5, 8],
       "target_map": "dungeon_ember",
       "target_pos": [1, 1],
+      "return_to_last": false,
       "glyph": "D",
       "palette": "bright_magenta"
     }
@@ -179,6 +180,8 @@ Saving rules:
 - `allow_save` controls whether the main menu save command is enabled on the map.
 - `save_points` lists coordinates where saving is always allowed, even if
   `allow_save` is false.
+- `return_to_last` on transitions uses the last entry position for the current map
+  when leaving (falls back to `target_map` + `target_pos` if unavailable).
 
 Rendering notes:
 
