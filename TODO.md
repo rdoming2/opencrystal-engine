@@ -4,8 +4,12 @@
 - [x] Create runtime state machine.
   - [x] Title state.
   - [x] Overworld state.
-  - [ ] Battle state.
-  - [ ] Menu state.
+- [ ] Battle state.
+- [x] Menu state.
+  - [x] Store menu focus (left list vs right pane).
+  - [x] Track active submenu and selection.
+  - [x] Pause overworld updates while menu open.
+
   - [x] Event state.
 - [ ] Implement event executor.
   - [x] Dialog and narration.
@@ -50,11 +54,15 @@
   - [ ] Status menu panels from `ui/progress.json`.
   - [ ] Journal/quest display.
   - [ ] Party management UI.
-- [ ] Main menu UI.
-  - [ ] Default party summary panel.
-  - [ ] Items/equipment/magic/stat submenus.
-  - [ ] Settings + save entry integration.
-  - [ ] Save-point glyph rendering (use `S`).
+- [x] Main menu UI.
+  - [x] Two-pane layout (left list, right detail pane).
+  - [x] Default party summary panel.
+  - [x] Focus switching (confirm enters right pane, cancel returns).
+  - [x] Optional menu entries (rules systems + unlock flag gating).
+  - [x] Items/equipment/magic/status submenus (stub views).
+  - [x] Party/journal/save/settings/exit submenus (stub views).
+  - [x] Save entry enable/disable based on map rules.
+  - [x] Save-point glyph rendering (use `S`).
 
 ## Battle System
 - [ ] Turn-based flow (command selection, targeting, resolve action).
@@ -79,6 +87,7 @@
 - [x] Add missing demo content (town map, shop UI, basic quests).
 - [x] Extend validation for event step payloads.
 - [ ] Add content authoring guide.
+- [x] Add `ui/menu.json` schema + validation.
 - [ ] Extend map schema for saving.
   - [ ] `allow_save` flag for main menu saving.
   - [ ] `save_points` coordinates (always valid save spots).

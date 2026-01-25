@@ -1,11 +1,11 @@
 use std::io::{self, ErrorKind, Stdout};
 
+use crossterm::ExecutableCommand;
 use crossterm::event::{self, Event, KeyCode};
 use crossterm::terminal::{
-    disable_raw_mode, enable_raw_mode, Clear as TermClear, ClearType, EnterAlternateScreen,
-    LeaveAlternateScreen,
+    Clear as TermClear, ClearType, EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode,
+    enable_raw_mode,
 };
-use crossterm::ExecutableCommand;
 use ratatui::backend::CrosstermBackend;
 use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
@@ -15,7 +15,7 @@ use ratatui::{Frame, Terminal};
 use std::collections::HashMap;
 
 use crate::input::{Action, InputBindings};
-use crate::ui::TitleUiFile;
+use crate::ui::{MenuLayout, MenuUiFile, TitleUiFile};
 
 pub enum TitleAction {
     NewGame,
@@ -65,6 +65,25 @@ pub struct ShopItem {
 pub struct ChoiceView {
     pub label: String,
     pub show_next: bool,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub enum MenuPane {
+    List,
+    Detail,
+}
+
+#[derive(Clone, Debug)]
+pub struct MenuEntryView {
+    pub id: String,
+    pub label: String,
+    pub enabled: bool,
+}
+
+#[derive(Clone, Debug)]
+pub struct MenuPanelView {
+    pub title: String,
+    pub lines: Vec<String>,
 }
 
 pub struct NpcView {
@@ -422,6 +441,112 @@ fn draw_title_frame(frame: &mut Frame, title_ui: &TitleUiFile, selected: usize) 
     .alignment(Alignment::Center)
     .block(Block::default().borders(Borders::NONE));
     frame.render_widget(footer, layout[3]);
+}
+
+pub fn draw_menu(
+    session: &mut TuiSession,
+    menu_ui: &MenuUiFile,
+    entries: &[MenuEntryView],
+    selected: usize,
+    focus: MenuPane,
+    right_panel: &MenuPanelView,
+) -> io::Result<()> {
+    session
+        .terminal
+        .draw(|frame| {
+            draw_menu_frame(frame, menu_ui, entries, selected, focus, right_panel);
+        })
+        .map(|_| ())
+}
+
+pub fn draw_menu_frame(
+    frame: &mut Frame,
+    menu_ui: &MenuUiFile,
+    entries: &[MenuEntryView],
+    selected: usize,
+    focus: MenuPane,
+    right_panel: &MenuPanelView,
+) {
+    let size = frame.size();
+    let layout = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Min(1), Constraint::Length(1)])
+        .split(size);
+    let (left_percent, right_percent) = menu_layout_percentages(&menu_ui.layout);
+    let columns = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Percentage(left_percent),
+            Constraint::Percentage(right_percent),
+        ])
+        .split(layout[0]);
+
+    let menu_lines = entries
+        .iter()
+        .enumerate()
+        .map(|(index, entry)| {
+            let is_selected = index == selected;
+            let mut style = if entry.enabled {
+                Style::default().fg(Color::White)
+            } else {
+                Style::default().fg(Color::DarkGray)
+            };
+            if is_selected {
+                style = match focus {
+                    MenuPane::List => style.fg(Color::Yellow).add_modifier(Modifier::BOLD),
+                    MenuPane::Detail => style.fg(Color::Cyan),
+                };
+            }
+            let prefix = if is_selected && matches!(focus, MenuPane::List) {
+                "> "
+            } else {
+                "  "
+            };
+            Line::from(Span::styled(format!("{}{}", prefix, entry.label), style))
+        })
+        .collect::<Vec<_>>();
+
+    let menu_panel = Paragraph::new(menu_lines)
+        .block(Block::default().borders(Borders::ALL).title("Menu"))
+        .alignment(Alignment::Left)
+        .wrap(Wrap { trim: false });
+    frame.render_widget(menu_panel, columns[0]);
+
+    let detail_lines = right_panel
+        .lines
+        .iter()
+        .map(|line| Line::from(Span::raw(line.as_str())))
+        .collect::<Vec<_>>();
+    let detail_panel = Paragraph::new(detail_lines)
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title(right_panel.title.as_str()),
+        )
+        .alignment(Alignment::Left)
+        .wrap(Wrap { trim: false });
+    frame.render_widget(detail_panel, columns[1]);
+
+    let footer_text = match focus {
+        MenuPane::List => "Confirm: open  Cancel: close",
+        MenuPane::Detail => "Cancel: back",
+    };
+    let footer = Paragraph::new(footer_text)
+        .alignment(Alignment::Center)
+        .block(Block::default().borders(Borders::NONE));
+    frame.render_widget(footer, layout[1]);
+}
+
+fn menu_layout_percentages(layout: &MenuLayout) -> (u16, u16) {
+    let total = layout.left_width_ratio + layout.right_width_ratio;
+    let left_ratio = if total > 0.0 {
+        layout.left_width_ratio / total
+    } else {
+        0.4
+    };
+    let left_percent = (left_ratio * 100.0).round().clamp(10.0, 90.0) as u16;
+    let right_percent = 100u16.saturating_sub(left_percent).max(1);
+    (left_percent, right_percent)
 }
 
 const DEFAULT_PLAYER_PALETTE: &str = "bright_white";

@@ -17,6 +17,48 @@ pub struct ProgressUiFile {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct MenuUiFile {
+    pub version: u32,
+    pub layout: MenuLayout,
+    pub default_panel: String,
+    pub menu: Vec<MenuEntry>,
+    pub panels: Vec<MenuPanel>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct MenuLayout {
+    #[serde(default = "default_menu_left_ratio")]
+    pub left_width_ratio: f32,
+    #[serde(default = "default_menu_right_ratio")]
+    pub right_width_ratio: f32,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct MenuEntry {
+    pub id: String,
+    pub label: String,
+    pub action: String,
+    #[serde(default = "default_menu_enabled")]
+    pub enabled: bool,
+    #[serde(default)]
+    pub system: Option<String>,
+    #[serde(default)]
+    pub unlock_flag: Option<String>,
+    #[serde(default)]
+    pub locked_behavior: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct MenuPanel {
+    pub id: String,
+    pub title: String,
+    #[serde(rename = "type")]
+    pub panel_type: String,
+    #[serde(default)]
+    pub source: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ProgressPanel {
     pub id: String,
     pub title: String,
@@ -206,6 +248,24 @@ impl ProgressUiFile {
     pub fn load(path: impl AsRef<Path>) -> Result<Self, String> {
         load_json(path)
     }
+}
+
+impl MenuUiFile {
+    pub fn load(path: impl AsRef<Path>) -> Result<Self, String> {
+        load_json(path)
+    }
+}
+
+fn default_menu_left_ratio() -> f32 {
+    0.4
+}
+
+fn default_menu_right_ratio() -> f32 {
+    0.6
+}
+
+fn default_menu_enabled() -> bool {
+    true
 }
 
 fn load_json<T: serde::de::DeserializeOwned>(path: impl AsRef<Path>) -> Result<T, String> {

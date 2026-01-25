@@ -3,21 +3,22 @@ use std::env;
 use std::path::PathBuf;
 
 use engine::{
+    Engine,
     content::Content,
     rules::Ruleset,
-    runtime::{GameRuntime, GameState},
+    runtime::{GameRuntime, GameState, MenuFocus},
     world::WorldState,
-    Engine,
 };
 use tui::app::{
+    ChoiceView, MapView, MenuEntryView, MenuPane, MenuPanelView, NpcView, ShopItem, ShopView,
+    TileRender, TitleAction, TransitionView, TuiSession, draw_menu, draw_menu_frame,
     draw_overworld, draw_overworld_with_tooltip, run_title, show_centered_dialog_on_map,
     show_dialog, show_dialog_on_map, show_dialog_with_choices, show_dialog_with_choices_on_map,
-    show_shop, ChoiceView, MapView, NpcView, ShopItem, ShopView, TileRender, TitleAction,
-    TransitionView, TuiSession,
+    show_shop,
 };
 use tui::input::{Action, InputBindings, InputFile};
 use tui::renderer::RenderMode;
-use tui::ui::{BattleUiFile, DialogUiFile, ProgressUiFile, TitleUiFile};
+use tui::ui::{BattleUiFile, DialogUiFile, MenuUiFile, ProgressUiFile, TitleUiFile};
 
 struct SessionGuard(Option<TuiSession>);
 
@@ -65,6 +66,7 @@ fn run_play(args: Vec<String>) {
     let content_dir = parse_content_dir(&args).unwrap_or_else(|| PathBuf::from("content/demo"));
     let input_path = content_dir.join("input.json");
     let title_ui_path = content_dir.join("ui").join("title.json");
+    let menu_ui_path = content_dir.join("ui").join("menu.json");
     let battle_ui_path = content_dir.join("ui").join("battle.json");
     let dialog_ui_path = content_dir.join("ui").join("dialog.json");
     let progress_ui_path = content_dir.join("ui").join("progress.json");
@@ -105,6 +107,14 @@ fn run_play(args: Vec<String>) {
         Ok(title_ui) => title_ui,
         Err(err) => {
             eprintln!("Failed to load title UI: {}", err);
+            return;
+        }
+    };
+
+    let menu_ui = match MenuUiFile::load(&menu_ui_path) {
+        Ok(menu_ui) => menu_ui,
+        Err(err) => {
+            eprintln!("Failed to load menu UI: {}", err);
             return;
         }
     };
@@ -163,6 +173,7 @@ fn run_play(args: Vec<String>) {
                     session,
                     &mut runtime,
                     &dialog_ui,
+                    &menu_ui,
                     &input_bindings,
                     &world.map_id,
                     spawn,
@@ -224,12 +235,22 @@ fn handle_event_step(
         }
         "set_flag" => {
             if let Some(flag) = &step.flag {
+                runtime.set_flag(flag);
                 println!("Set flag: {}", flag);
             }
         }
         "require_flags" => {
             if let Some(flags) = &step.flags {
-                println!("Require flags: {}", flags.join(", "));
+                let missing = flags
+                    .iter()
+                    .filter(|flag| !runtime.has_flag(flag))
+                    .cloned()
+                    .collect::<Vec<_>>();
+                if missing.is_empty() {
+                    println!("Require flags met: {}", flags.join(", "));
+                } else {
+                    println!("Require flags missing: {}", missing.join(", "));
+                }
             }
         }
         "start_dialog" => {
@@ -290,6 +311,26 @@ fn handle_event_step_console(
         "start_dialog" => {
             if let Some(dialog) = &step.dialog {
                 run_dialog_console(runtime, dialog_ui, dialog);
+            }
+        }
+        "set_flag" => {
+            if let Some(flag) = &step.flag {
+                runtime.set_flag(flag);
+                println!("Set flag: {}", flag);
+            }
+        }
+        "require_flags" => {
+            if let Some(flags) = &step.flags {
+                let missing = flags
+                    .iter()
+                    .filter(|flag| !runtime.has_flag(flag))
+                    .cloned()
+                    .collect::<Vec<_>>();
+                if missing.is_empty() {
+                    println!("Require flags met: {}", flags.join(", "));
+                } else {
+                    println!("Require flags missing: {}", missing.join(", "));
+                }
             }
         }
         _ => {
@@ -544,6 +585,7 @@ fn run_overworld_loop(
     session: &mut TuiSession,
     runtime: &mut GameRuntime,
     dialog_ui: &DialogUiFile,
+    menu_ui: &MenuUiFile,
     bindings: &tui::input::InputBindings,
     map_id: &str,
     start_pos: (i32, i32),
@@ -608,7 +650,22 @@ fn run_overworld_loop(
                         )?;
                     }
                 }
-                Action::Menu | Action::Cancel => {}
+                Action::Menu => {
+                    runtime.open_menu();
+                    if let Err(err) = run_menu_loop(
+                        session,
+                        runtime,
+                        menu_ui,
+                        bindings,
+                        &current_map_id,
+                        player_pos,
+                    ) {
+                        if err.kind() == std::io::ErrorKind::Interrupted {
+                            return Err(err);
+                        }
+                    }
+                }
+                Action::Cancel => {}
                 Action::Quit => {
                     if tui::app::confirm_quit(session, |frame| {
                         tui::app::draw_overworld_frame(frame, &map, player_pos);
@@ -656,6 +713,236 @@ fn run_overworld_loop(
         }
     }
     Ok(())
+}
+
+struct MenuEntryState {
+    view: MenuEntryView,
+    action: String,
+    selectable: bool,
+}
+
+fn run_menu_loop(
+    session: &mut TuiSession,
+    runtime: &mut GameRuntime,
+    menu_ui: &MenuUiFile,
+    bindings: &tui::input::InputBindings,
+    map_id: &str,
+    player_pos: (i32, i32),
+) -> std::io::Result<()> {
+    let entries = build_menu_entries(runtime, menu_ui, map_id, player_pos);
+    if entries.is_empty() {
+        runtime.close_menu();
+        return Ok(());
+    }
+    let entry_views = entries
+        .iter()
+        .map(|entry| entry.view.clone())
+        .collect::<Vec<_>>();
+
+    if runtime.menu_state.selected >= entry_views.len() {
+        runtime.menu_state.selected = 0;
+    }
+
+    loop {
+        let focus = match runtime.menu_state.focus {
+            MenuFocus::List => MenuPane::List,
+            MenuFocus::Detail => MenuPane::Detail,
+        };
+        let right_panel = if matches!(focus, MenuPane::Detail) {
+            let selected = entries.get(runtime.menu_state.selected);
+            let label = selected
+                .map(|entry| entry.view.label.as_str())
+                .unwrap_or("Menu");
+            let action = runtime
+                .menu_state
+                .active_submenu
+                .as_deref()
+                .or_else(|| selected.map(|entry| entry.action.as_str()))
+                .unwrap_or("menu");
+            menu_detail_panel(label, action)
+        } else {
+            menu_default_panel(menu_ui)
+        };
+
+        draw_menu(
+            session,
+            menu_ui,
+            &entry_views,
+            runtime.menu_state.selected,
+            focus,
+            &right_panel,
+        )?;
+
+        if let Some(action) = read_action(bindings) {
+            match action {
+                Action::MoveUp => {
+                    if matches!(focus, MenuPane::List) && runtime.menu_state.selected > 0 {
+                        runtime.menu_state.selected -= 1;
+                    }
+                }
+                Action::MoveDown => {
+                    if matches!(focus, MenuPane::List)
+                        && runtime.menu_state.selected + 1 < entry_views.len()
+                    {
+                        runtime.menu_state.selected += 1;
+                    }
+                }
+                Action::Confirm => {
+                    if matches!(focus, MenuPane::List) {
+                        if let Some(entry) = entries.get(runtime.menu_state.selected) {
+                            if entry.selectable {
+                                runtime.menu_state.focus = MenuFocus::Detail;
+                                runtime.menu_state.active_submenu = Some(entry.action.clone());
+                            }
+                        }
+                    }
+                }
+                Action::Cancel | Action::Menu => {
+                    if matches!(focus, MenuPane::Detail) {
+                        runtime.menu_state.focus = MenuFocus::List;
+                        runtime.menu_state.active_submenu = None;
+                    } else {
+                        runtime.close_menu();
+                        return Ok(());
+                    }
+                }
+                Action::Quit => {
+                    if tui::app::confirm_quit(session, |frame| {
+                        draw_menu_frame(
+                            frame,
+                            menu_ui,
+                            &entry_views,
+                            runtime.menu_state.selected,
+                            focus,
+                            &right_panel,
+                        );
+                    })? {
+                        return Err(std::io::Error::new(std::io::ErrorKind::Interrupted, "quit"));
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+}
+
+fn build_menu_entries(
+    runtime: &GameRuntime,
+    menu_ui: &MenuUiFile,
+    map_id: &str,
+    player_pos: (i32, i32),
+) -> Vec<MenuEntryState> {
+    let save_allowed = map_save_allowed(runtime, map_id, player_pos);
+    menu_ui
+        .menu
+        .iter()
+        .filter_map(|entry| {
+            let system_enabled = system_enabled(runtime, entry.system.as_deref());
+            if !system_enabled {
+                return None;
+            }
+            let unlock_enabled = unlock_flag_enabled(runtime, entry.unlock_flag.as_deref());
+            let mut selectable = entry.enabled && unlock_enabled;
+            if entry.action == "save" && !save_allowed {
+                selectable = false;
+            }
+            let show = selectable
+                || (!entry.enabled && entry.locked_behavior.as_deref() == Some("disable"))
+                || (!unlock_enabled && entry.locked_behavior.as_deref() == Some("disable"))
+                || (entry.action == "save"
+                    && !save_allowed
+                    && entry.locked_behavior.as_deref() == Some("disable"));
+            if !show {
+                return None;
+            }
+            Some(MenuEntryState {
+                view: MenuEntryView {
+                    id: entry.id.clone(),
+                    label: entry.label.clone(),
+                    enabled: selectable,
+                },
+                action: entry.action.clone(),
+                selectable,
+            })
+        })
+        .collect()
+}
+
+fn menu_default_panel(menu_ui: &MenuUiFile) -> MenuPanelView {
+    let panel = menu_ui
+        .panels
+        .iter()
+        .find(|panel| panel.id == menu_ui.default_panel);
+    let (title, panel_type) = match panel {
+        Some(panel) => (panel.title.clone(), panel.panel_type.as_str()),
+        None => ("Status".to_string(), "unknown"),
+    };
+    match panel_type {
+        "party_summary" => MenuPanelView {
+            title,
+            lines: vec![
+                "Party summary (stub).".to_string(),
+                "TODO: render party stats.".to_string(),
+            ],
+        },
+        "progress" => MenuPanelView {
+            title,
+            lines: vec![
+                "Progress panel (stub).".to_string(),
+                "TODO: render ui/progress.json.".to_string(),
+            ],
+        },
+        _ => MenuPanelView {
+            title,
+            lines: vec!["Menu panel not configured.".to_string()],
+        },
+    }
+}
+
+fn menu_detail_panel(label: &str, action: &str) -> MenuPanelView {
+    MenuPanelView {
+        title: label.to_string(),
+        lines: vec![
+            format!("{} menu not implemented.", label),
+            format!("TODO: implement '{}' submenu.", action),
+        ],
+    }
+}
+
+fn map_save_allowed(runtime: &GameRuntime, map_id: &str, player_pos: (i32, i32)) -> bool {
+    let index = match runtime.content.map_index.get(map_id) {
+        Some(index) => *index,
+        None => return false,
+    };
+    let map = match runtime.content.maps.get(index) {
+        Some(map) => map,
+        None => return false,
+    };
+    map.allow_save
+        || map
+            .save_points
+            .iter()
+            .any(|pos| (pos[0], pos[1]) == player_pos)
+}
+
+fn system_enabled(runtime: &GameRuntime, system: Option<&str>) -> bool {
+    match system {
+        Some(key) if !key.trim().is_empty() => runtime
+            .content
+            .rules
+            .systems
+            .get(key)
+            .copied()
+            .unwrap_or(false),
+        _ => true,
+    }
+}
+
+fn unlock_flag_enabled(runtime: &GameRuntime, unlock_flag: Option<&str>) -> bool {
+    match unlock_flag {
+        Some(flag) if !flag.trim().is_empty() => runtime.has_flag(flag),
+        _ => true,
+    }
 }
 
 fn read_action(bindings: &tui::input::InputBindings) -> Option<Action> {
@@ -1026,6 +1313,7 @@ fn run_validate() {
 
     let input_path = content_dir.join("input.json");
     let title_ui_path = content_dir.join("ui").join("title.json");
+    let menu_ui_path = content_dir.join("ui").join("menu.json");
     let battle_ui_path = content_dir.join("ui").join("battle.json");
     let dialog_ui_path = content_dir.join("ui").join("dialog.json");
     let progress_ui_path = content_dir.join("ui").join("progress.json");
@@ -1035,6 +1323,9 @@ fn run_validate() {
     }
     if let Err(err) = TitleUiFile::load(&title_ui_path) {
         errors.push(format!("ui/title.json: {}", err));
+    }
+    if let Err(err) = MenuUiFile::load(&menu_ui_path) {
+        errors.push(format!("ui/menu.json: {}", err));
     }
     if let Err(err) = BattleUiFile::load(&battle_ui_path) {
         errors.push(format!("ui/battle.json: {}", err));

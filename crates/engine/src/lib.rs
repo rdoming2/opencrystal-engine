@@ -6,11 +6,11 @@ pub mod entities;
 pub mod events;
 pub mod io;
 pub mod maps;
-pub mod validate;
 pub mod rules;
 pub mod runtime;
 pub mod save;
 pub mod stats;
+pub mod validate;
 pub mod world;
 
 pub struct Engine {

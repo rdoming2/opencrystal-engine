@@ -1,9 +1,12 @@
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct RulesFile {
     pub version: u32,
     pub game: GameRules,
+    #[serde(default)]
+    pub systems: HashMap<String, bool>,
     pub features: FeatureRules,
     pub render: RenderRules,
     pub stats: StatsRules,
@@ -58,6 +61,7 @@ pub struct Ruleset {
     pub battle_mode: BattleMode,
     pub magic_system: MagicSystem,
     pub start_event: Option<String>,
+    pub systems: HashMap<String, bool>,
 }
 
 impl Ruleset {
@@ -70,6 +74,7 @@ impl Ruleset {
             battle_mode: BattleMode::Turn,
             magic_system: MagicSystem::Mp,
             start_event: Some("intro_cutscene".to_string()),
+            systems: HashMap::new(),
         }
     }
 
@@ -82,6 +87,7 @@ impl Ruleset {
             battle_mode: file.game.battle_mode,
             magic_system: file.game.magic_system,
             start_event: file.game.start_event,
+            systems: file.systems,
         }
     }
 }

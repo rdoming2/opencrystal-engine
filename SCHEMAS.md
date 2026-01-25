@@ -39,6 +39,10 @@ Configurable input bindings.
 
 Global rules and feature flags.
 
+`systems` toggles whether a gameplay system/menu is enabled at all. It should be
+used for global availability (e.g., disabling materia). Menu entries can still
+add `unlock_flag` gating for progression-driven unlocks.
+
 ```json
 {
   "version": 1,
@@ -53,6 +57,19 @@ Global rules and feature flags.
     "job_change_enabled": false,
     "job_change_flag": "world.job_change_unlocked",
     "currency": {"id": "gil", "name": "G", "symbol": "G"}
+  },
+  "systems": {
+    "items": true,
+    "magic": true,
+    "equipment": true,
+    "status": true,
+    "party": true,
+    "jobs": true,
+    "journal": true,
+    "save": true,
+    "settings": true,
+    "summons": false,
+    "materia": false
   },
   "features": {
     "journal": true,
@@ -595,6 +612,96 @@ Configurable menu panels for progress stats.
   ]
 }
 ```
+
+## ui/menu.json
+
+Defines the main menu layout and entry list. The menu is a two-pane layout with a
+left list and right detail pane. The right pane defaults to party/status summary
+until a submenu is confirmed.
+
+Menu entries can be gated by a rules `systems` toggle and an optional
+`unlock_flag`. If gating fails, the entry is hidden by default; set
+`locked_behavior` to `disable` to show it disabled instead.
+
+```json
+{
+  "version": 1,
+  "layout": {
+    "left_width_ratio": 0.4,
+    "right_width_ratio": 0.6
+  },
+  "default_panel": "party_status",
+  "menu": [
+    {
+      "id": "items",
+      "label": "Items",
+      "action": "items",
+      "system": "items"
+    },
+    {
+      "id": "magic",
+      "label": "Magic",
+      "action": "magic",
+      "system": "magic",
+      "locked_behavior": "disable"
+    },
+    {
+      "id": "summons",
+      "label": "Summons",
+      "action": "summons",
+      "system": "summons",
+      "unlock_flag": "system.summons_unlocked",
+      "locked_behavior": "disable"
+    },
+    {
+      "id": "journal",
+      "label": "Journal",
+      "action": "journal",
+      "system": "journal"
+    },
+    {
+      "id": "save",
+      "label": "Save",
+      "action": "save",
+      "system": "save",
+      "unlock_flag": "system.save_unlocked",
+      "locked_behavior": "disable"
+    },
+    {
+      "id": "settings",
+      "label": "Settings",
+      "action": "settings",
+      "system": "settings"
+    }
+  ],
+  "panels": [
+    {
+      "id": "party_status",
+      "title": "Party",
+      "type": "party_summary"
+    },
+    {
+      "id": "progress",
+      "title": "Progress",
+      "type": "progress",
+      "source": "ui/progress.json"
+    }
+  ]
+}
+```
+
+Menu entry fields:
+
+- `action`: built-in submenu or command identifier.
+- `enabled`: optional boolean to disable the entry entirely.
+- `system`: rules `systems` key that must be true.
+- `unlock_flag`: optional flag required to unlock the entry.
+- `locked_behavior`: `hide` (default) or `disable`.
+
+Runtime notes:
+
+- Save is also gated by map `allow_save` and `save_points`; the menu can display
+  a disabled entry even if the save system exists.
 
 ## ui/title.json
 

@@ -1,5 +1,6 @@
 use crate::content::Content;
 use crate::rules::Ruleset;
+use std::collections::HashSet;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum GameState {
@@ -11,12 +12,37 @@ pub enum GameState {
     Event,
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub enum MenuFocus {
+    List,
+    Detail,
+}
+
+#[derive(Clone, Debug)]
+pub struct MenuState {
+    pub focus: MenuFocus,
+    pub selected: usize,
+    pub active_submenu: Option<String>,
+}
+
+impl Default for MenuState {
+    fn default() -> Self {
+        Self {
+            focus: MenuFocus::List,
+            selected: 0,
+            active_submenu: None,
+        }
+    }
+}
+
 pub struct GameRuntime {
     pub content: Content,
     pub state: GameState,
     pub event_queue: Vec<String>,
     pub active_event: Option<String>,
     pub event_step: usize,
+    pub flags: HashSet<String>,
+    pub menu_state: MenuState,
 }
 
 impl GameRuntime {
@@ -27,11 +53,32 @@ impl GameRuntime {
             event_queue: Vec::new(),
             active_event: None,
             event_step: 0,
+            flags: HashSet::new(),
+            menu_state: MenuState::default(),
         }
     }
 
     pub fn transition_to(&mut self, state: GameState) {
         self.state = state;
+    }
+
+    pub fn open_menu(&mut self) {
+        self.state = GameState::Menu;
+        self.menu_state = MenuState::default();
+    }
+
+    pub fn close_menu(&mut self) {
+        self.state = GameState::Overworld;
+        self.menu_state.active_submenu = None;
+        self.menu_state.focus = MenuFocus::List;
+    }
+
+    pub fn set_flag(&mut self, flag: &str) {
+        self.flags.insert(flag.to_string());
+    }
+
+    pub fn has_flag(&self, flag: &str) -> bool {
+        self.flags.contains(flag)
     }
 
     pub fn start_new_game(&mut self, rules: &Ruleset) {

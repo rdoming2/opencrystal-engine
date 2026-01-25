@@ -89,6 +89,7 @@ All runtime data is loaded from JSON. Files are organized into top-level categor
 - `ui/*.json`: menu panels, progress tracking config.
 - `ui/battle.json`: battle layout and panel configuration.
 - `ui/title.json`: title screen layout and menu.
+- `ui/menu.json`: main menu layout, optional entries, and panel templates.
 - `ui/dialog.json`: dialog box layout and behavior.
 - `input.json`: key bindings.
 - `stats.json`: base and derived stat definitions.
@@ -155,6 +156,16 @@ All runtime data is loaded from JSON. Files are organized into top-level categor
 - Tracks crystal progress, cleared dungeons, and other stats.
 - All tracked items are event/flag driven.
 
+### Main menu
+
+- Two-pane layout: left list of entries, right detail pane.
+- Default right pane shows party/status summary until a submenu is confirmed.
+- Confirm moves focus to the right pane (submenu content); Cancel returns to list.
+- Menu is modal and pauses overworld updates.
+- Menu entries are optional and can be gated by rules `systems` toggles and optional
+  unlock flags (e.g., Summons, Materia, Job Change, Journal, Save).
+- Custom status/progress panels are handled via configurable menu panels in `ui/menu.json`.
+
 ### Journal system
 
 - Optional journaling/quest tracking via rules.json.
@@ -202,6 +213,19 @@ All runtime data is loaded from JSON. Files are organized into top-level categor
     "job_change_enabled": false,
     "job_change_flag": "world.job_change_unlocked",
     "currency": {"id": "gil", "name": "G", "symbol": "G"}
+  },
+  "systems": {
+    "items": true,
+    "magic": true,
+    "equipment": true,
+    "status": true,
+    "party": true,
+    "jobs": true,
+    "journal": true,
+    "save": true,
+    "settings": true,
+    "summons": false,
+    "materia": false
   },
   "features": {
     "journal": true,
