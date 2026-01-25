@@ -1,11 +1,11 @@
 use std::io::{self, ErrorKind, Stdout};
 
-use crossterm::ExecutableCommand;
 use crossterm::event::{self, Event, KeyCode};
 use crossterm::terminal::{
-    Clear as TermClear, ClearType, EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode,
-    enable_raw_mode,
+    disable_raw_mode, enable_raw_mode, Clear as TermClear, ClearType, EnterAlternateScreen,
+    LeaveAlternateScreen,
 };
+use crossterm::ExecutableCommand;
 use ratatui::backend::CrosstermBackend;
 use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
@@ -1015,13 +1015,27 @@ fn viewport_origin(
     view_width: u16,
     view_height: u16,
 ) -> (i32, i32) {
-    let half_width = (view_width as i32) / 2;
-    let half_height = (view_height as i32) / 2;
-    let max_x = map.width as i32 - view_width as i32;
-    let max_y = map.height as i32 - view_height as i32;
+    let view_width = view_width as i32;
+    let view_height = view_height as i32;
+    let map_width = map.width as i32;
+    let map_height = map.height as i32;
 
-    let start_x = clamp(player_pos.0 - half_width, 0, max_x.max(0));
-    let start_y = clamp(player_pos.1 - half_height, 0, max_y.max(0));
+    let start_x = if map_width <= view_width {
+        -((view_width - map_width) / 2)
+    } else {
+        let half_width = view_width / 2;
+        let max_x = map_width - view_width;
+        clamp(player_pos.0 - half_width, 0, max_x.max(0))
+    };
+
+    let start_y = if map_height <= view_height {
+        -((view_height - map_height) / 2)
+    } else {
+        let half_height = view_height / 2;
+        let max_y = map_height - view_height;
+        clamp(player_pos.1 - half_height, 0, max_y.max(0))
+    };
+
     (start_x, start_y)
 }
 
