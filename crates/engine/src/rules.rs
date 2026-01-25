@@ -183,6 +183,8 @@ pub struct ExpCurveRules {
     pub table: Vec<i32>,
     #[serde(default)]
     pub formula: Option<String>,
+    #[serde(default = "default_max_level")]
+    pub max_level: u32,
 }
 
 impl Default for ExpCurveRules {
@@ -191,6 +193,11 @@ impl Default for ExpCurveRules {
             mode: "table".to_string(),
             table: vec![0, 10, 30, 60, 100],
             formula: None,
+            max_level: default_max_level(),
         }
     }
+}
+
+fn default_max_level() -> u32 {
+    99
 }

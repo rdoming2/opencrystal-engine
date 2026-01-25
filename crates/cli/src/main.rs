@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use engine::{
     Engine,
     content::Content,
-    party::PartyState,
+    party::{PartyState, exp_for_level},
     rules::{PartyMode, Ruleset},
     runtime::{GameRuntime, GameState, MenuFocus},
     world::WorldState,
@@ -873,18 +873,23 @@ fn run_menu_loop(
             MenuFocus::List => MenuPane::List,
             MenuFocus::Detail => MenuPane::Detail,
         };
+        let selected = entries.get(runtime.menu_state.selected);
+        let label = selected
+            .map(|entry| entry.view.label.as_str())
+            .unwrap_or("Menu");
+        let submenu_action = runtime
+            .menu_state
+            .active_submenu
+            .as_deref()
+            .or_else(|| selected.map(|entry| entry.action.as_str()))
+            .unwrap_or("menu");
         let right_panel = if matches!(focus, MenuPane::Detail) {
-            let selected = entries.get(runtime.menu_state.selected);
-            let label = selected
-                .map(|entry| entry.view.label.as_str())
-                .unwrap_or("Menu");
-            let action = runtime
-                .menu_state
-                .active_submenu
-                .as_deref()
-                .or_else(|| selected.map(|entry| entry.action.as_str()))
-                .unwrap_or("menu");
-            menu_detail_panel(label, action)
+            menu_detail_panel(
+                label,
+                submenu_action,
+                runtime,
+                runtime.menu_state.detail_page,
+            )
         } else {
             menu_default_panel(menu_ui, runtime)
         };
@@ -918,6 +923,7 @@ fn run_menu_loop(
                             if entry.selectable {
                                 runtime.menu_state.focus = MenuFocus::Detail;
                                 runtime.menu_state.active_submenu = Some(entry.action.clone());
+                                runtime.menu_state.detail_page = 0;
                             }
                         }
                     }
@@ -926,9 +932,19 @@ fn run_menu_loop(
                     if matches!(focus, MenuPane::Detail) {
                         runtime.menu_state.focus = MenuFocus::List;
                         runtime.menu_state.active_submenu = None;
+                        runtime.menu_state.detail_page = 0;
                     } else {
                         runtime.close_menu();
                         return Ok(());
+                    }
+                }
+                Action::MoveLeft | Action::MoveRight => {
+                    if matches!(focus, MenuPane::Detail) && submenu_action == "status" {
+                        runtime.menu_state.detail_page = if runtime.menu_state.detail_page == 0 {
+                            1
+                        } else {
+                            0
+                        };
                     }
                 }
                 Action::Quit => {
@@ -1040,7 +1056,18 @@ fn build_party_summary(runtime: &GameRuntime) -> Vec<String> {
     lines
 }
 
-fn menu_detail_panel(label: &str, action: &str) -> MenuPanelView {
+fn menu_detail_panel(
+    label: &str,
+    action: &str,
+    runtime: &GameRuntime,
+    page: usize,
+) -> MenuPanelView {
+    if action == "status" {
+        return MenuPanelView {
+            title: "Status".to_string(),
+            lines: build_status_panel(runtime, page),
+        };
+    }
     MenuPanelView {
         title: label.to_string(),
         lines: vec![
@@ -1048,6 +1075,69 @@ fn menu_detail_panel(label: &str, action: &str) -> MenuPanelView {
             format!("TODO: implement '{}' submenu.", action),
         ],
     }
+}
+
+fn build_status_panel(runtime: &GameRuntime, page: usize) -> Vec<String> {
+    if runtime.party.active.is_empty() {
+        return vec!["No party members.".to_string()];
+    }
+    let mut lines = Vec::new();
+    for member_id in &runtime.party.active {
+        if let Some(actor) = runtime.party.roster.get(member_id) {
+            let job_name = runtime
+                .content
+                .jobs
+                .jobs
+                .iter()
+                .find(|job| job.id == actor.job_id)
+                .map(|job| job.name.as_str())
+                .unwrap_or(actor.job_id.as_str());
+            if page == 0 {
+                let exp_next = exp_for_level(&runtime.content.rules.exp_curve, actor.level + 1)
+                    .unwrap_or(actor.exp);
+                let exp_remaining = exp_next.saturating_sub(actor.exp);
+                let hp = actor.derived_stats.get("hp").copied().unwrap_or(0);
+                let mp = actor.derived_stats.get("mp").copied().unwrap_or(0);
+                lines.push(format!(
+                    "{}  Lv{}  HP {}  MP {}",
+                    actor.name, actor.level, hp, mp
+                ));
+                lines.push(format!("Job: {}", job_name));
+                lines.push(format!("EXP {} (next {})", actor.exp, exp_remaining));
+            } else {
+                lines.push(format!("{}  Lv{}", actor.name, actor.level));
+                lines.push(format!("Job: {}", job_name));
+                lines.push(format!(
+                    "Base: {}",
+                    format_stat_block(&runtime.content.stats.stats.base, &actor.base_stats)
+                ));
+                lines.push(format!(
+                    "Derived: {}",
+                    format_stat_block(&runtime.content.stats.stats.derived, &actor.derived_stats)
+                ));
+            }
+            lines.push("".to_string());
+        }
+    }
+    if page == 0 {
+        lines.push("".to_string());
+        lines.push("Left/Right: details".to_string());
+    } else {
+        lines.push("".to_string());
+        lines.push("Left/Right: summary".to_string());
+    }
+    lines
+}
+
+fn format_stat_block(entries: &[engine::stats::StatEntry], stats: &HashMap<String, i32>) -> String {
+    entries
+        .iter()
+        .map(|entry| {
+            let value = stats.get(&entry.id).copied().unwrap_or(0);
+            format!("{} {}", entry.name, value)
+        })
+        .collect::<Vec<_>>()
+        .join("  ")
 }
 
 fn map_save_allowed(runtime: &GameRuntime, map_id: &str, player_pos: (i32, i32)) -> bool {

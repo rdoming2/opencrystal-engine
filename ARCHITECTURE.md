@@ -133,6 +133,7 @@ All runtime data is loaded from JSON. Files are organized into top-level categor
     the job marked `is_default`. If `systems.jobs` is disabled, job selection is skipped.
   - `predefined`: roster-driven party (FF5/FF6 style) with optional job menu.
 - Experience curves are configurable via `exp_curve` (table or formula).
+- Derived stat formulas can reference `lvl` for level scaling.
 - Job change is disabled by default; unlockable via event flag.
 - Future slot rules (e.g., dual wield constraints) can extend job equipment slots.
 - Renaming is planned as a reusable menu/action for story joins or rename NPCs.
@@ -141,6 +142,12 @@ All runtime data is loaded from JSON. Files are organized into top-level categor
 
 - Jobs are data-driven and can be toggled on/off per rules.json.
 - Job change availability controlled by an event flag.
+
+### Leveling + experience
+
+- Experience thresholds are configured via `exp_curve` in `rules.json` (table or formula).
+- Job growth can use formula or table modes per base stat.
+- Derived stat formulas support `lvl` for level-based scaling.
 
 ### Magic system
 
@@ -222,6 +229,11 @@ All runtime data is loaded from JSON. Files are organized into top-level categor
     "currency": {"id": "gil", "name": "G", "symbol": "G"}
   },
   "party_mode": "predefined",
+  "exp_curve": {
+    "mode": "table",
+    "table": [0, 10, 30, 60, 100],
+    "max_level": 5
+  },
   "systems": {
     "items": true,
     "magic": true,

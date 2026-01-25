@@ -87,6 +87,42 @@ pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
         if rules.game.party_size > 4 {
             errors.push("rules.json: party_size must be <= 4".to_string());
         }
+        match rules.exp_curve.mode.as_str() {
+            "table" => {
+                if rules.exp_curve.table.is_empty() {
+                    errors.push("rules.json: exp_curve.table must not be empty".to_string());
+                }
+                if rules.exp_curve.max_level == 0 {
+                    errors.push("rules.json: exp_curve.max_level must be > 0".to_string());
+                }
+                if rules.exp_curve.table.len() < rules.exp_curve.max_level as usize {
+                    errors.push("rules.json: exp_curve.table must cover max_level".to_string());
+                }
+            }
+            "formula" => {
+                if rules
+                    .exp_curve
+                    .formula
+                    .as_deref()
+                    .unwrap_or("")
+                    .trim()
+                    .is_empty()
+                {
+                    errors.push(
+                        "rules.json: exp_curve.formula required for formula mode".to_string(),
+                    );
+                }
+                if rules.exp_curve.max_level == 0 {
+                    errors.push("rules.json: exp_curve.max_level must be > 0".to_string());
+                }
+            }
+            other => {
+                errors.push(format!(
+                    "rules.json: exp_curve has unknown mode '{}'",
+                    other
+                ));
+            }
+        }
     }
 
     if let Some(stats) = &stats {
@@ -267,11 +303,12 @@ pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
                         ));
                     }
                     for stat in &base_stats {
-                        if !job.growth.tables.contains_key(*stat) {
-                            errors.push(format!(
+                        match job.growth.tables.get(*stat) {
+                            Some(values) if !values.is_empty() => {}
+                            _ => errors.push(format!(
                                 "jobs.json: job '{}' table growth missing stat '{}'",
                                 job.id, stat
-                            ));
+                            )),
                         }
                     }
                 }
@@ -281,6 +318,14 @@ pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
                             "jobs.json: job '{}' formula growth requires per_level",
                             job.id
                         ));
+                    }
+                    for stat in &base_stats {
+                        if !job.growth.per_level.contains_key(*stat) {
+                            errors.push(format!(
+                                "jobs.json: job '{}' formula growth missing stat '{}'",
+                                job.id, stat
+                            ));
+                        }
                     }
                 }
                 other => {

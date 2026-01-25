@@ -4,7 +4,8 @@ use std::path::Path;
 
 use crate::content::Content;
 use crate::entities::{EquipmentDefinition, JobDefinition};
-use crate::rules::{PartyCreateRules, PartyMode, Ruleset};
+use crate::expr::eval_expression;
+use crate::rules::{ExpCurveRules, PartyCreateRules, PartyMode, Ruleset};
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct PartyFile {
@@ -36,6 +37,7 @@ pub struct Actor {
     pub name: String,
     pub job_id: String,
     pub level: u32,
+    pub exp: i32,
     pub base_stats: HashMap<String, i32>,
     pub derived_stats: HashMap<String, i32>,
     pub equipment: HashMap<String, String>,
@@ -90,7 +92,7 @@ fn build_predefined_party(content: &Content, party_size: usize) -> PartyState {
     let mut roster = HashMap::new();
     for actor in &party_file.roster {
         let job = job_lookup.get(actor.job_id.as_str()).copied();
-        let built = build_actor(actor, job, &equipment_lookup);
+        let built = build_actor(content, actor, job, &equipment_lookup);
         roster.insert(built.id.clone(), built);
     }
 
@@ -144,7 +146,7 @@ fn build_created_party(
             starting_equipment: create_rules.starting_equipment.clone(),
             spells: Vec::new(),
         };
-        let built = build_actor(&actor, job, &equipment_lookup);
+        let built = build_actor(content, &actor, job, &equipment_lookup);
         roster.insert(actor_id.clone(), built);
         active.push(actor_id);
     }
@@ -175,6 +177,7 @@ fn build_equipment_lookup(content: &Content) -> HashMap<&str, &EquipmentDefiniti
 }
 
 fn build_actor(
+    content: &Content,
     actor: &ActorDefinition,
     job: Option<&JobDefinition>,
     equipment_lookup: &HashMap<&str, &EquipmentDefinition>,
@@ -195,14 +198,21 @@ fn build_actor(
             }
         }
     }
-    let mut derived_stats = apply_job_modifiers(&base_stats, job);
-    apply_equipment_modifiers(&mut derived_stats, &equipment, equipment_lookup);
+    let derived_stats = build_derived_stats(
+        content,
+        &base_stats,
+        actor.level,
+        &equipment,
+        job,
+        equipment_lookup,
+    );
 
     Actor {
         id: actor.id.clone(),
         name: actor.name.clone(),
         job_id: actor.job_id.clone(),
         level: actor.level,
+        exp: 0,
         base_stats,
         derived_stats,
         equipment,
@@ -260,4 +270,147 @@ fn apply_equipment_modifiers(
             }
         }
     }
+}
+
+pub fn recompute_derived_stats(content: &Content, actor: &mut Actor) {
+    let job = content.jobs.jobs.iter().find(|job| job.id == actor.job_id);
+    let equipment_lookup = build_equipment_lookup(content);
+    actor.derived_stats = build_derived_stats(
+        content,
+        &actor.base_stats,
+        actor.level,
+        &actor.equipment,
+        job,
+        &equipment_lookup,
+    );
+}
+
+pub fn exp_for_level(curve: &ExpCurveRules, level: u32) -> Option<i32> {
+    match curve.mode.as_str() {
+        "table" => {
+            if level == 0 {
+                return Some(0);
+            }
+            let index = level.saturating_sub(1) as usize;
+            curve.table.get(index).copied()
+        }
+        "formula" => curve.formula.as_ref().and_then(|formula| {
+            let mut vars = HashMap::new();
+            vars.insert("lvl".to_string(), level as f64);
+            eval_expression(formula, &vars)
+                .ok()
+                .map(|value| value.floor() as i32)
+        }),
+        _ => None,
+    }
+}
+
+pub fn gain_exp(content: &Content, rules: &Ruleset, actor: &mut Actor, amount: i32) -> u32 {
+    actor.exp = actor.exp.saturating_add(amount);
+    let max_level = rules.exp_curve.max_level.max(1);
+    let mut levels_gained = 0;
+    while actor.level < max_level {
+        let next_level = actor.level + 1;
+        let required = match exp_for_level(&rules.exp_curve, next_level) {
+            Some(required) => required,
+            None => break,
+        };
+        if actor.exp < required {
+            break;
+        }
+        actor.level = next_level;
+        apply_growth(content, actor);
+        levels_gained += 1;
+    }
+    recompute_derived_stats(content, actor);
+    levels_gained
+}
+
+fn apply_growth(content: &Content, actor: &mut Actor) {
+    let job = match content.jobs.jobs.iter().find(|job| job.id == actor.job_id) {
+        Some(job) => job,
+        None => return,
+    };
+    let base_stats = content
+        .stats
+        .stats
+        .base
+        .iter()
+        .map(|stat| stat.id.clone())
+        .collect::<Vec<_>>();
+    match job.growth.mode.as_str() {
+        "formula" => {
+            let mut vars = HashMap::new();
+            for (stat, value) in &actor.base_stats {
+                vars.insert(stat.clone(), *value as f64);
+            }
+            for stat in base_stats {
+                if let Some(formula) = job.growth.per_level.get(&stat) {
+                    if let Ok(result) = eval_expression(formula, &vars) {
+                        let delta = result.floor() as i32;
+                        let entry = actor.base_stats.entry(stat.clone()).or_insert(0);
+                        *entry += delta;
+                    }
+                }
+            }
+        }
+        "table" => {
+            let level_index = actor.level.saturating_sub(1) as usize;
+            for stat in base_stats {
+                if let Some(table) = job.growth.tables.get(&stat) {
+                    if let Some(value) = table.get(level_index) {
+                        actor.base_stats.insert(stat.clone(), *value);
+                    }
+                }
+            }
+        }
+        _ => {}
+    }
+}
+
+fn build_derived_stats(
+    content: &Content,
+    base_stats: &HashMap<String, i32>,
+    level: u32,
+    equipment: &HashMap<String, String>,
+    job: Option<&JobDefinition>,
+    equipment_lookup: &HashMap<&str, &EquipmentDefinition>,
+) -> HashMap<String, i32> {
+    let mut stats = apply_job_modifiers(base_stats, job);
+    apply_equipment_modifiers(&mut stats, equipment, equipment_lookup);
+    let gear_stats = compute_equipment_stats(equipment, equipment_lookup);
+    let mut vars = HashMap::new();
+    for (stat, value) in &stats {
+        vars.insert(stat.clone(), *value as f64);
+    }
+    for (stat, value) in &gear_stats {
+        vars.insert(format!("gear.{stat}"), *value as f64);
+    }
+    vars.insert("lvl".to_string(), level as f64);
+
+    let mut derived = stats.clone();
+    for stat in &content.stats.stats.derived {
+        if let Some(formula) = content.stats.stats.formulas.get(&stat.id) {
+            if let Ok(result) = eval_expression(formula, &vars) {
+                derived.insert(stat.id.clone(), result.floor() as i32);
+            }
+        }
+    }
+    derived
+}
+
+fn compute_equipment_stats(
+    equipment: &HashMap<String, String>,
+    equipment_lookup: &HashMap<&str, &EquipmentDefinition>,
+) -> HashMap<String, i32> {
+    let mut stats = HashMap::new();
+    for item_id in equipment.values() {
+        if let Some(item) = equipment_lookup.get(item_id.as_str()) {
+            for (stat, value) in &item.stats {
+                let entry = stats.entry(stat.clone()).or_insert(0);
+                *entry += value;
+            }
+        }
+    }
+    stats
 }

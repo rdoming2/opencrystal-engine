@@ -45,7 +45,8 @@ starter equipment). When `systems.jobs` is false, job selection is skipped and
 `default_job` is used for all members.
 
 `exp_curve` defines the XP thresholds for leveling. Use `mode: "table"` with
-absolute XP totals per level or `mode: "formula"` with a formula string.
+absolute XP totals per level or `mode: "formula"` with a formula string (use
+`lvl` in the formula). `max_level` caps progression.
 `systems` toggles whether a gameplay system/menu is enabled at all. It should be
 used for global availability (e.g., disabling materia). Menu entries can still
 add `unlock_flag` gating for progression-driven unlocks.
@@ -77,7 +78,8 @@ add `unlock_flag` gating for progression-driven unlocks.
   },
   "exp_curve": {
     "mode": "table",
-    "table": [0, 10, 30, 60, 100]
+    "table": [0, 10, 30, 60, 100],
+    "max_level": 5
   },
   "systems": {
     "items": true,
@@ -377,11 +379,12 @@ Dialog action types:
 ## entities/jobs.json
 
 Growth formulas can reference current base stats (e.g., `vit`, `int`) as inputs.
-Growth expressions follow the same syntax as `stats.json` formulas.
+Growth expressions follow the same syntax as `stats.json` formulas and apply to
+base stats only.
 
 Growth modes:
 
-- `formula`: per-level delta formulas for each base stat.
+- `formula`: per-level delta formulas for each base stat (all base stats required).
 - `table`: absolute per-level values for each base stat (deltas computed at level-up).
 
 ```json
@@ -421,7 +424,7 @@ Growth modes:
       "name": "White Mage",
       "stats": {"hp": 20, "mp": 10, "str": 2, "int": 8},
       "growth": {
-        "type": "formula",
+        "mode": "formula",
         "per_level": {
           "hp": "3 + ROUND(RAND(-1,1))",
           "mp": "2 + ROUND(RAND(0,1) * 3)",
@@ -939,7 +942,7 @@ Defines base stats and derived stats. This allows games to extend or rename stat
 
 Formula expressions are strings. Supported operators: `+ - * /` and parentheses. Supported
 functions: `RAND(min,max)` (inclusive, float), `ROUND(value)` (nearest int), `FLOOR(value)`,
-`CEIL(value)`. Formulas may reference base stats and `gear.*`/`buffs.*` for derived stats.
+`CEIL(value)`. Formulas may reference base stats, `lvl`, and `gear.*`/`buffs.*` for derived stats.
 
 ```json
 {

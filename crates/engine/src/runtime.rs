@@ -24,6 +24,7 @@ pub struct MenuState {
     pub focus: MenuFocus,
     pub selected: usize,
     pub active_submenu: Option<String>,
+    pub detail_page: usize,
 }
 
 impl Default for MenuState {
@@ -32,6 +33,7 @@ impl Default for MenuState {
             focus: MenuFocus::List,
             selected: 0,
             active_submenu: None,
+            detail_page: 0,
         }
     }
 }
@@ -74,6 +76,7 @@ impl GameRuntime {
         self.state = GameState::Overworld;
         self.menu_state.active_submenu = None;
         self.menu_state.focus = MenuFocus::List;
+        self.menu_state.detail_page = 0;
     }
 
     pub fn set_flag(&mut self, flag: &str) {
