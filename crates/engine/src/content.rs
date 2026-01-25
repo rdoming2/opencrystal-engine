@@ -9,7 +9,8 @@ use crate::entities::{
 };
 use crate::events::EventFile;
 use crate::maps::MapFile;
-use crate::rules::RulesFile;
+use crate::party::PartyFile;
+use crate::rules::{PartyMode, RulesFile};
 use crate::stats::StatsFile;
 use crate::world::WorldsFile;
 
@@ -26,6 +27,7 @@ pub struct Content {
     pub vehicles: VehiclesFile,
     pub shops: ShopsFile,
     pub npcs: NpcsFile,
+    pub party: Option<PartyFile>,
     pub maps: Vec<MapFile>,
     pub events: Vec<EventFile>,
     pub dialogs: Vec<DialogFile>,
@@ -40,6 +42,15 @@ impl Content {
         let mut errors = Vec::new();
 
         let rules = load_single(content_dir.join("rules.json"), RulesFile::load, &mut errors);
+        let party = match rules.as_ref().map(|file| &file.party_mode) {
+            Some(PartyMode::Predefined) => {
+                load_single(content_dir.join("party.json"), PartyFile::load, &mut errors)
+            }
+            Some(PartyMode::Create) => {
+                load_optional(content_dir.join("party.json"), PartyFile::load)
+            }
+            None => None,
+        };
         let worlds = load_single(
             content_dir.join("worlds.json"),
             WorldsFile::load,
@@ -152,6 +163,7 @@ impl Content {
             vehicles,
             shops,
             npcs,
+            party,
             maps,
             events,
             dialogs,
@@ -178,6 +190,13 @@ fn load_single<T>(
             None
         }
     }
+}
+
+fn load_optional<T>(path: PathBuf, loader: fn(PathBuf) -> Result<T, String>) -> Option<T> {
+    if !path.exists() {
+        return None;
+    }
+    loader(path).ok()
 }
 
 fn load_dir<T>(

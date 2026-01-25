@@ -28,7 +28,16 @@ pub struct JobDefinition {
     pub stats: HashMap<String, i32>,
     pub growth: GrowthConfig,
     pub equipment: JobEquipment,
-    pub spells: Vec<String>,
+    #[serde(default)]
+    pub equipment_slots: Vec<String>,
+    #[serde(default)]
+    pub accessory_slots: u8,
+    #[serde(default)]
+    pub can_dual_wield: bool,
+    #[serde(default)]
+    pub stat_modifiers: HashMap<String, StatModifier>,
+    #[serde(default)]
+    pub spells: Vec<JobSpell>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -41,6 +50,26 @@ pub struct GrowthConfig {
 pub struct JobEquipment {
     pub weapons: Vec<String>,
     pub armor: Vec<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct JobSpell {
+    pub id: String,
+    pub method: String,
+    #[serde(default)]
+    pub level: Option<u32>,
+    #[serde(default)]
+    pub tier: Option<u32>,
+    #[serde(default)]
+    pub item: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct StatModifier {
+    #[serde(default)]
+    pub add: Option<i32>,
+    #[serde(default)]
+    pub mult: Option<f32>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

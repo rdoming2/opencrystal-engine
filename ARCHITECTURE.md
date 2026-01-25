@@ -83,6 +83,7 @@ All runtime data is loaded from JSON. Files are organized into top-level categor
 - `rules.json`: global rules and toggles.
 - `worlds.json`: world list, world-to-world travel rules, zoom config.
 - `maps/*.json`: map tiles, entities, triggers, encounter zones.
+- `party.json`: predefined party roster (optional in create mode).
 - `entities/*.json`: jobs, spells, items, equipment, enemies, vehicles, shops, encounters, npcs.
 - `events/*.json`: scripted events and cutscenes.
 - `dialog/*.json`: NPC dialog trees.
@@ -127,8 +128,11 @@ All runtime data is loaded from JSON. Files are organized into top-level categor
 
 ### Party creation
 
-- FF1-style startup: name + job selection for each party member.
+- Party creation modes (`party_mode`):
+  - `create`: FF1-style startup; party is built at new game.
+  - `predefined`: roster-driven party (FF5/FF6 style) with optional job menu.
 - Job change is disabled by default; unlockable via event flag.
+- Future slot rules (e.g., dual wield constraints) can extend job equipment slots.
 
 ### Job system
 
@@ -214,6 +218,7 @@ All runtime data is loaded from JSON. Files are organized into top-level categor
     "job_change_flag": "world.job_change_unlocked",
     "currency": {"id": "gil", "name": "G", "symbol": "G"}
   },
+  "party_mode": "predefined",
   "systems": {
     "items": true,
     "magic": true,

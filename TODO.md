@@ -10,7 +10,11 @@
   - [x] Track active submenu and selection.
   - [x] Pause overworld updates while menu open.
 
-  - [x] Event state.
+- [x] Party roster + stats pipeline.
+  - [x] Predefined party loading.
+  - [ ] Create-mode party builder.
+
+- [x] Event state.
 - [ ] Implement event executor.
   - [x] Dialog and narration.
   - [ ] Flag setting/requirements.
@@ -74,6 +78,10 @@
 - [ ] Define elemental affinities and trait interactions.
 - [ ] Define skills/abilities schema (non-spell actions).
 
+## Magic System
+- [ ] Implement job-based spell learnsets (level/tier/item).
+- [ ] Track learned spells per actor.
+
 ## World + Events
 - [x] Map transitions (enter/exit dungeons, overworld zoom).
 - [x] NPC interactions with flag gating.
@@ -88,6 +96,7 @@
 - [x] Extend validation for event step payloads.
 - [ ] Add content authoring guide.
 - [x] Add `ui/menu.json` schema + validation.
+- [x] Add `party.json` schema + validation.
 - [ ] Extend map schema for saving.
   - [ ] `allow_save` flag for main menu saving.
   - [ ] `save_points` coordinates (always valid save spots).

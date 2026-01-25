@@ -761,7 +761,7 @@ fn run_menu_loop(
                 .unwrap_or("menu");
             menu_detail_panel(label, action)
         } else {
-            menu_default_panel(menu_ui)
+            menu_default_panel(menu_ui, runtime)
         };
 
         draw_menu(
@@ -868,7 +868,7 @@ fn build_menu_entries(
         .collect()
 }
 
-fn menu_default_panel(menu_ui: &MenuUiFile) -> MenuPanelView {
+fn menu_default_panel(menu_ui: &MenuUiFile, runtime: &GameRuntime) -> MenuPanelView {
     let panel = menu_ui
         .panels
         .iter()
@@ -880,10 +880,7 @@ fn menu_default_panel(menu_ui: &MenuUiFile) -> MenuPanelView {
     match panel_type {
         "party_summary" => MenuPanelView {
             title,
-            lines: vec![
-                "Party summary (stub).".to_string(),
-                "TODO: render party stats.".to_string(),
-            ],
+            lines: build_party_summary(runtime),
         },
         "progress" => MenuPanelView {
             title,
@@ -897,6 +894,25 @@ fn menu_default_panel(menu_ui: &MenuUiFile) -> MenuPanelView {
             lines: vec!["Menu panel not configured.".to_string()],
         },
     }
+}
+
+fn build_party_summary(runtime: &GameRuntime) -> Vec<String> {
+    if runtime.party.active.is_empty() {
+        return vec!["No party members.".to_string()];
+    }
+    let mut lines = Vec::new();
+    for member_id in &runtime.party.active {
+        if let Some(actor) = runtime.party.roster.get(member_id) {
+            let hp = actor.derived_stats.get("hp").copied().unwrap_or(0);
+            let mp = actor.derived_stats.get("mp").copied().unwrap_or(0);
+            let line = format!("{}  Lv{}  HP {}  MP {}", actor.name, actor.level, hp, mp);
+            lines.push(line);
+        }
+    }
+    if lines.is_empty() {
+        lines.push("No party members.".to_string());
+    }
+    lines
 }
 
 fn menu_detail_panel(label: &str, action: &str) -> MenuPanelView {

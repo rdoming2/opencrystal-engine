@@ -39,6 +39,7 @@ Configurable input bindings.
 
 Global rules and feature flags.
 
+`party_mode` controls party creation mode (`create` or `predefined`).
 `systems` toggles whether a gameplay system/menu is enabled at all. It should be
 used for global availability (e.g., disabling materia). Menu entries can still
 add `unlock_flag` gating for progression-driven unlocks.
@@ -58,6 +59,7 @@ add `unlock_flag` gating for progression-driven unlocks.
     "job_change_flag": "world.job_change_unlocked",
     "currency": {"id": "gil", "name": "G", "symbol": "G"}
   },
+  "party_mode": "predefined",
   "systems": {
     "items": true,
     "magic": true,
@@ -90,6 +92,31 @@ add `unlock_flag` gating for progression-driven unlocks.
       "crystals_collected"
     ]
   }
+}
+```
+
+## party.json
+
+Defines the roster used in `predefined` party mode. For `create` mode, this file
+is optional and can be omitted. `base_stats` keys should match `stats.json` base
+stat IDs.
+
+```json
+{
+  "version": 1,
+  "roster": [
+    {
+      "id": "alric",
+      "name": "Alric",
+      "job_id": "fighter",
+      "level": 1,
+      "base_stats": {"hp": 32, "mp": 0, "str": 8, "int": 2},
+      "starting_equipment": {"weapon": "bronze_sword", "armor": "bronze_armor"},
+      "spells": ["cure"]
+    }
+  ],
+  "starting_party": ["alric"],
+  "reserve": []
 }
 ```
 
@@ -354,6 +381,13 @@ Growth expressions follow the same syntax as `stats.json` formulas.
         }
       },
       "equipment": {"weapons": ["sword"], "armor": ["plate"]},
+      "equipment_slots": ["weapon", "armor"],
+      "accessory_slots": 1,
+      "can_dual_wield": false,
+      "stat_modifiers": {
+        "str": {"add": 2, "mult": 1.05},
+        "int": {"add": -1, "mult": 0.95}
+      },
       "spells": []
     },
     {
@@ -373,11 +407,36 @@ Growth expressions follow the same syntax as `stats.json` formulas.
         }
       },
       "equipment": {"weapons": ["staff"], "armor": ["robe"]},
-      "spells": ["cure", "protect"]
+      "equipment_slots": ["weapon", "armor"],
+      "accessory_slots": 1,
+      "can_dual_wield": false,
+      "stat_modifiers": {
+        "int": {"add": 2, "mult": 1.05},
+        "str": {"add": -1, "mult": 0.9}
+      },
+      "spells": [
+        {"id": "cure", "method": "level", "level": 1},
+        {"id": "protect", "method": "tier", "tier": 1}
+      ]
     }
   ]
 }
 ```
+
+Job spell fields:
+
+- `method`: `level`, `tier`, or `item`.
+- `level`: required when `method` is `level`.
+- `tier`: required when `method` is `tier` (FF1-style learn/buy).
+- `item`: required when `method` is `item` (spellbook).
+
+Equipment slot fields:
+
+- `equipment_slots`: list of non-accessory slot IDs.
+- `accessory_slots`: number of accessory slots (represented as `accessory_1`,
+  `accessory_2`, etc).
+- `can_dual_wield`: whether offhand weapons are allowed.
+- `stat_modifiers`: additive/multiplicative adjustments applied per stat.
 
 ## entities/spells.json
 

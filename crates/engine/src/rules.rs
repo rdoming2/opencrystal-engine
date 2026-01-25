@@ -5,6 +5,8 @@ use std::collections::HashMap;
 pub struct RulesFile {
     pub version: u32,
     pub game: GameRules,
+    #[serde(default = "default_party_mode")]
+    pub party_mode: PartyMode,
     #[serde(default)]
     pub systems: HashMap<String, bool>,
     pub features: FeatureRules,
@@ -61,6 +63,7 @@ pub struct Ruleset {
     pub battle_mode: BattleMode,
     pub magic_system: MagicSystem,
     pub start_event: Option<String>,
+    pub party_mode: PartyMode,
     pub systems: HashMap<String, bool>,
 }
 
@@ -74,6 +77,7 @@ impl Ruleset {
             battle_mode: BattleMode::Turn,
             magic_system: MagicSystem::Mp,
             start_event: Some("intro_cutscene".to_string()),
+            party_mode: PartyMode::Predefined,
             systems: HashMap::new(),
         }
     }
@@ -87,6 +91,7 @@ impl Ruleset {
             battle_mode: file.game.battle_mode,
             magic_system: file.game.magic_system,
             start_event: file.game.start_event,
+            party_mode: file.party_mode,
             systems: file.systems,
         }
     }
@@ -118,4 +123,15 @@ pub enum BattleMode {
 pub enum MagicSystem {
     Mp,
     TierCharges,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum PartyMode {
+    Create,
+    Predefined,
+}
+
+fn default_party_mode() -> PartyMode {
+    PartyMode::Predefined
 }

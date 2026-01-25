@@ -9,7 +9,8 @@ use crate::entities::{
 };
 use crate::events::EventFile;
 use crate::maps::MapFile;
-use crate::rules::RulesFile;
+use crate::party::PartyFile;
+use crate::rules::{PartyMode, RulesFile};
 use crate::stats::StatsFile;
 use crate::world::WorldsFile;
 
@@ -50,6 +51,18 @@ pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
     let shops_path = content_dir.join("entities").join("shops.json");
 
     let rules = load_single(&rules_path, |path| RulesFile::load(path), &mut errors);
+    let party = match rules.as_ref().map(|file| &file.party_mode) {
+        Some(PartyMode::Predefined) => load_single(
+            &content_dir.join("party.json"),
+            |path| PartyFile::load(path),
+            &mut errors,
+        ),
+        Some(PartyMode::Create) => load_optional(&content_dir.join("party.json"), |path| {
+            PartyFile::load(path)
+        }),
+        None => None,
+    };
+
     let worlds = load_single(&worlds_path, |path| WorldsFile::load(path), &mut errors);
     let stats = load_single(&stats_path, |path| StatsFile::load(path), &mut errors);
     let encounters = load_single(
@@ -229,12 +242,94 @@ pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
             .collect();
         for job in &jobs.jobs {
             for spell in &job.spells {
-                if !spell_ids.contains(spell.as_str()) {
+                if !spell_ids.contains(spell.id.as_str()) {
                     errors.push(format!(
                         "jobs.json: job '{}' references unknown spell '{}'",
-                        job.id, spell
+                        job.id, spell.id
                     ));
                 }
+            }
+        }
+    }
+
+    if let Some(party) = &party {
+        let job_ids: HashSet<&str> = jobs
+            .as_ref()
+            .map(|jobs| jobs.jobs.iter().map(|job| job.id.as_str()).collect())
+            .unwrap_or_default();
+        let equipment_ids: HashSet<&str> = equipment
+            .as_ref()
+            .map(|equipment| {
+                equipment
+                    .equipment
+                    .iter()
+                    .map(|entry| entry.id.as_str())
+                    .collect()
+            })
+            .unwrap_or_default();
+        let spell_ids: HashSet<&str> = spells
+            .as_ref()
+            .map(|spells| {
+                spells
+                    .spells
+                    .iter()
+                    .map(|spell| spell.id.as_str())
+                    .collect()
+            })
+            .unwrap_or_default();
+        let stat_ids: HashSet<&str> = stats
+            .as_ref()
+            .map(|stats| {
+                stats
+                    .stats
+                    .base
+                    .iter()
+                    .map(|stat| stat.id.as_str())
+                    .collect()
+            })
+            .unwrap_or_default();
+        let roster_ids: HashSet<&str> =
+            party.roster.iter().map(|actor| actor.id.as_str()).collect();
+
+        for actor in &party.roster {
+            if !job_ids.is_empty() && !job_ids.contains(actor.job_id.as_str()) {
+                errors.push(format!(
+                    "party.json: actor '{}' references unknown job '{}'",
+                    actor.id, actor.job_id
+                ));
+            }
+            for stat in actor.base_stats.keys() {
+                if !stat_ids.is_empty() && !stat_ids.contains(stat.as_str()) {
+                    errors.push(format!(
+                        "party.json: actor '{}' references unknown stat '{}'",
+                        actor.id, stat
+                    ));
+                }
+            }
+            for spell in &actor.spells {
+                if !spell_ids.is_empty() && !spell_ids.contains(spell.as_str()) {
+                    errors.push(format!(
+                        "party.json: actor '{}' references unknown spell '{}'",
+                        actor.id, spell
+                    ));
+                }
+            }
+            for (slot, item_id) in &actor.starting_equipment {
+                if !equipment_ids.is_empty() && !equipment_ids.contains(item_id.as_str()) {
+                    errors.push(format!(
+                        "party.json: actor '{}' slot '{}' references unknown equipment '{}'",
+                        actor.id, slot, item_id
+                    ));
+                }
+            }
+        }
+
+        for actor_id in party.starting_party.iter().chain(party.reserve.iter()) {
+            if !roster_ids.contains(actor_id.as_str()) {
+                errors.push(format!(
+                    "party.json: party member '{}' not found in roster",
+                    actor_id
+                ));
             }
         }
     }
@@ -432,6 +527,16 @@ where
             None
         }
     }
+}
+
+fn load_optional<T, F>(path: &PathBuf, loader: F) -> Option<T>
+where
+    F: FnOnce(&Path) -> Result<T, String>,
+{
+    if !path.exists() {
+        return None;
+    }
+    loader(path).ok()
 }
 
 fn load_map_files(dir: PathBuf, errors: &mut Vec<String>) -> Vec<MapFile> {

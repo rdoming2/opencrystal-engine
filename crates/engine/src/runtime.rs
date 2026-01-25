@@ -1,4 +1,5 @@
 use crate::content::Content;
+use crate::party::PartyState;
 use crate::rules::Ruleset;
 use std::collections::HashSet;
 
@@ -43,6 +44,7 @@ pub struct GameRuntime {
     pub event_step: usize,
     pub flags: HashSet<String>,
     pub menu_state: MenuState,
+    pub party: PartyState,
 }
 
 impl GameRuntime {
@@ -55,6 +57,7 @@ impl GameRuntime {
             event_step: 0,
             flags: HashSet::new(),
             menu_state: MenuState::default(),
+            party: PartyState::empty(),
         }
     }
 
@@ -82,6 +85,7 @@ impl GameRuntime {
     }
 
     pub fn start_new_game(&mut self, rules: &Ruleset) {
+        self.party = PartyState::from_content(&self.content, rules);
         if let Some(event_id) = &rules.start_event {
             self.queue_event(event_id);
             self.state = GameState::Event;
