@@ -514,6 +514,7 @@ Spell costs are flexible. Use `{"type": "mp"}` for MP-based casting or
 Item usage defines where and how items can be used. `context` values: `field`,
 `battle`, or `both`. `target` values: `self`, `ally`, `party`, `enemy`.
 
+`description` is optional text displayed in item menus.
 Common effect types: `heal_hp`, `heal_mp`, `revive`, `warp`.
 
 ```json
@@ -524,6 +525,7 @@ Common effect types: `heal_hp`, `heal_mp`, `revive`, `warp`.
       "id": "potion",
       "name": "Potion",
       "type": "consumable",
+      "description": "Restores a small amount of HP.",
       "usage": {"context": "field", "target": "ally"},
       "effect": {"type": "heal_hp", "power": 50}
     },

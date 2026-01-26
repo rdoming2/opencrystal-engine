@@ -83,7 +83,26 @@ pub struct MenuEntryView {
 #[derive(Clone, Debug)]
 pub struct MenuPanelView {
     pub title: String,
-    pub lines: Vec<String>,
+    pub lines: Vec<MenuPanelLine>,
+}
+
+#[derive(Clone, Debug)]
+pub struct MenuPanelLine {
+    pub spans: Vec<MenuPanelSpan>,
+}
+
+#[derive(Clone, Debug)]
+pub struct MenuPanelSpan {
+    pub text: String,
+    pub style: PanelSpanStyle,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub enum PanelSpanStyle {
+    Normal,
+    Highlight,
+    Muted,
+    Accent,
 }
 
 #[derive(Clone, Debug)]
@@ -465,11 +484,20 @@ pub fn draw_menu(
     selected: usize,
     focus: MenuPane,
     right_panel: &MenuPanelView,
+    footer_text: &str,
 ) -> io::Result<()> {
     session
         .terminal
         .draw(|frame| {
-            draw_menu_frame(frame, menu_ui, entries, selected, focus, right_panel);
+            draw_menu_frame(
+                frame,
+                menu_ui,
+                entries,
+                selected,
+                focus,
+                right_panel,
+                footer_text,
+            );
         })
         .map(|_| ())
 }
@@ -496,6 +524,7 @@ pub fn draw_menu_frame(
     selected: usize,
     focus: MenuPane,
     right_panel: &MenuPanelView,
+    footer_text: &str,
 ) {
     let size = frame.size();
     let layout = Layout::default()
@@ -545,7 +574,7 @@ pub fn draw_menu_frame(
     let detail_lines = right_panel
         .lines
         .iter()
-        .map(|line| Line::from(Span::raw(line.as_str())))
+        .map(render_panel_line)
         .collect::<Vec<_>>();
     let detail_panel = Paragraph::new(detail_lines)
         .block(
@@ -557,10 +586,6 @@ pub fn draw_menu_frame(
         .wrap(Wrap { trim: false });
     frame.render_widget(detail_panel, columns[1]);
 
-    let footer_text = match focus {
-        MenuPane::List => "Confirm: open  Cancel: close",
-        MenuPane::Detail => "Cancel: back",
-    };
     let footer = Paragraph::new(footer_text)
         .alignment(Alignment::Center)
         .block(Block::default().borders(Borders::NONE));
@@ -656,7 +681,7 @@ pub fn draw_inventory_frame(
     let detail_lines = right_panel
         .lines
         .iter()
-        .map(|line| Line::from(Span::raw(line.as_str())))
+        .map(render_panel_line)
         .collect::<Vec<_>>();
     let detail_panel = Paragraph::new(detail_lines)
         .block(
@@ -672,6 +697,26 @@ pub fn draw_inventory_frame(
         .alignment(Alignment::Center)
         .block(Block::default().borders(Borders::NONE));
     frame.render_widget(footer, layout[1]);
+}
+
+fn render_panel_line(line: &MenuPanelLine) -> Line<'_> {
+    let spans = line
+        .spans
+        .iter()
+        .map(|span| Span::styled(span.text.as_str(), panel_span_style(span.style)))
+        .collect::<Vec<_>>();
+    Line::from(spans)
+}
+
+fn panel_span_style(style: PanelSpanStyle) -> Style {
+    match style {
+        PanelSpanStyle::Normal => Style::default().fg(Color::White),
+        PanelSpanStyle::Highlight => Style::default()
+            .fg(Color::Yellow)
+            .add_modifier(Modifier::BOLD),
+        PanelSpanStyle::Muted => Style::default().fg(Color::DarkGray),
+        PanelSpanStyle::Accent => Style::default().fg(Color::Cyan),
+    }
 }
 
 const DEFAULT_PLAYER_PALETTE: &str = "bright_white";

@@ -26,6 +26,11 @@ pub struct MenuState {
     pub selected: usize,
     pub active_submenu: Option<String>,
     pub detail_page: usize,
+    pub detail_selection: usize,
+    pub detail_filter: usize,
+    pub detail_sort: usize,
+    pub detail_actor: usize,
+    pub detail_slot: usize,
 }
 
 impl Default for MenuState {
@@ -35,6 +40,11 @@ impl Default for MenuState {
             selected: 0,
             active_submenu: None,
             detail_page: 0,
+            detail_selection: 0,
+            detail_filter: 0,
+            detail_sort: 0,
+            detail_actor: 0,
+            detail_slot: 0,
         }
     }
 }
@@ -80,6 +90,11 @@ impl GameRuntime {
         self.menu_state.active_submenu = None;
         self.menu_state.focus = MenuFocus::List;
         self.menu_state.detail_page = 0;
+        self.menu_state.detail_selection = 0;
+        self.menu_state.detail_filter = 0;
+        self.menu_state.detail_sort = 0;
+        self.menu_state.detail_actor = 0;
+        self.menu_state.detail_slot = 0;
     }
 
     pub fn set_flag(&mut self, flag: &str) {

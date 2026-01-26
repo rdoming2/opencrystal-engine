@@ -11,12 +11,11 @@ use engine::{
     world::WorldState,
 };
 use tui::app::{
-    ChoiceView, InventoryHeader, InventoryLine, MapView, MenuEntryView, MenuPane, MenuPanelView,
-    NpcView, ShopItem, ShopView, TileRender, TitleAction, TransitionView, TuiSession,
-    draw_inventory, draw_inventory_frame, draw_menu, draw_menu_frame, draw_overworld,
-    draw_overworld_with_tooltip, prompt_choice, prompt_text, run_title,
-    show_centered_dialog_on_map, show_dialog, show_dialog_on_map, show_dialog_with_choices,
-    show_dialog_with_choices_on_map, show_shop,
+    ChoiceView, MapView, MenuEntryView, MenuPane, MenuPanelLine, MenuPanelSpan, MenuPanelView,
+    NpcView, PanelSpanStyle, ShopItem, ShopView, TileRender, TitleAction, TransitionView,
+    TuiSession, draw_menu, draw_menu_frame, draw_overworld, draw_overworld_with_tooltip,
+    prompt_choice, prompt_text, run_title, show_centered_dialog_on_map, show_dialog,
+    show_dialog_on_map, show_dialog_with_choices, show_dialog_with_choices_on_map, show_shop,
 };
 use tui::input::{Action, InputBindings, InputFile};
 use tui::renderer::RenderMode;
@@ -927,6 +926,7 @@ fn run_menu_loop(
             menu_default_panel(menu_ui, runtime)
         };
 
+        let footer_text = menu_footer_text(focus, submenu_action, runtime.menu_state.detail_page);
         draw_menu(
             session,
             menu_ui,
@@ -934,20 +934,49 @@ fn run_menu_loop(
             runtime.menu_state.selected,
             focus,
             &right_panel,
+            footer_text,
         )?;
 
         if let Some(action) = read_action(bindings) {
             match action {
                 Action::MoveUp => {
-                    if matches!(focus, MenuPane::List) && runtime.menu_state.selected > 0 {
-                        runtime.menu_state.selected -= 1;
+                    if matches!(focus, MenuPane::List) {
+                        if runtime.menu_state.selected > 0 {
+                            runtime.menu_state.selected -= 1;
+                        }
+                    } else if submenu_action == "items" {
+                        if runtime.menu_state.detail_selection > 0 {
+                            runtime.menu_state.detail_selection -= 1;
+                        }
+                    } else if submenu_action == "equipment" {
+                        if runtime.menu_state.detail_selection > 0 {
+                            runtime.menu_state.detail_selection -= 1;
+                        }
                     }
                 }
                 Action::MoveDown => {
-                    if matches!(focus, MenuPane::List)
-                        && runtime.menu_state.selected + 1 < entry_views.len()
-                    {
-                        runtime.menu_state.selected += 1;
+                    if matches!(focus, MenuPane::List) {
+                        if runtime.menu_state.selected + 1 < entry_views.len() {
+                            runtime.menu_state.selected += 1;
+                        }
+                    } else if submenu_action == "items" {
+                        let entries = build_inventory_entries(
+                            runtime,
+                            &filter_from_index(runtime.menu_state.detail_filter),
+                            &sort_from_index(runtime.menu_state.detail_sort),
+                        );
+                        if runtime.menu_state.detail_selection + 1 < entries.len() {
+                            runtime.menu_state.detail_selection += 1;
+                        }
+                    } else if submenu_action == "equipment" {
+                        let limit = if runtime.menu_state.detail_page == 0 {
+                            equipment_slots_for_menu(runtime).len()
+                        } else {
+                            equipment_entries_for_menu(runtime).len()
+                        };
+                        if runtime.menu_state.detail_selection + 1 < limit {
+                            runtime.menu_state.detail_selection += 1;
+                        }
                     }
                 }
                 Action::Confirm => {
@@ -956,22 +985,22 @@ fn run_menu_loop(
                             if entry.selectable {
                                 match entry.action.as_str() {
                                     "items" => {
-                                        if let Err(err) =
-                                            run_inventory_menu(session, runtime, bindings)
-                                        {
-                                            if err.kind() == std::io::ErrorKind::Interrupted {
-                                                return Err(err);
-                                            }
-                                        }
+                                        runtime.menu_state.focus = MenuFocus::Detail;
+                                        runtime.menu_state.active_submenu =
+                                            Some(entry.action.clone());
+                                        runtime.menu_state.detail_page = 0;
+                                        runtime.menu_state.detail_selection = 0;
+                                        runtime.menu_state.detail_filter = 0;
+                                        runtime.menu_state.detail_sort = 0;
                                     }
                                     "equipment" => {
-                                        if let Err(err) =
-                                            run_equipment_menu(session, runtime, bindings)
-                                        {
-                                            if err.kind() == std::io::ErrorKind::Interrupted {
-                                                return Err(err);
-                                            }
-                                        }
+                                        runtime.menu_state.focus = MenuFocus::Detail;
+                                        runtime.menu_state.active_submenu =
+                                            Some(entry.action.clone());
+                                        runtime.menu_state.detail_page = 0;
+                                        runtime.menu_state.detail_selection = 0;
+                                        runtime.menu_state.detail_actor = 0;
+                                        runtime.menu_state.detail_slot = 0;
                                     }
                                     _ => {
                                         runtime.menu_state.focus = MenuFocus::Detail;
@@ -982,13 +1011,56 @@ fn run_menu_loop(
                                 }
                             }
                         }
+                    } else if submenu_action == "items" {
+                        let entries = build_inventory_entries(
+                            runtime,
+                            &filter_from_index(runtime.menu_state.detail_filter),
+                            &sort_from_index(runtime.menu_state.detail_sort),
+                        );
+                        if let Some(entry) = entries.get(runtime.menu_state.detail_selection) {
+                            if entry.kind == InventoryKind::Item && entry.usable {
+                                if use_item(session, runtime, bindings, entry)? {
+                                    runtime.menu_state.detail_selection = runtime
+                                        .menu_state
+                                        .detail_selection
+                                        .min(entries.len().saturating_sub(1));
+                                }
+                            }
+                        }
+                    } else if submenu_action == "equipment" {
+                        if runtime.menu_state.detail_page == 0 {
+                            runtime.menu_state.detail_slot = runtime.menu_state.detail_selection;
+                            runtime.menu_state.detail_page = 1;
+                            runtime.menu_state.detail_selection = 0;
+                        } else {
+                            let entries = equipment_entries_for_menu(runtime);
+                            if let Some(entry) = entries.get(runtime.menu_state.detail_selection) {
+                                if entry.usable {
+                                    let slot = equipment_slot_for_menu(runtime);
+                                    if let Some(slot) = slot {
+                                        let actor_id = detail_actor_id(runtime);
+                                        if let Some(actor_id) = actor_id {
+                                            equip_item(runtime, &actor_id, &slot, entry);
+                                        }
+                                    }
+                                }
+                            }
+                            runtime.menu_state.detail_page = 0;
+                            runtime.menu_state.detail_selection = runtime.menu_state.detail_slot;
+                        }
                     }
                 }
                 Action::Cancel | Action::Menu => {
                     if matches!(focus, MenuPane::Detail) {
-                        runtime.menu_state.focus = MenuFocus::List;
-                        runtime.menu_state.active_submenu = None;
-                        runtime.menu_state.detail_page = 0;
+                        if submenu_action == "equipment" && runtime.menu_state.detail_page == 1 {
+                            runtime.menu_state.detail_page = 0;
+                            runtime.menu_state.detail_selection = runtime.menu_state.detail_slot;
+                        } else {
+                            runtime.menu_state.focus = MenuFocus::List;
+                            runtime.menu_state.active_submenu = None;
+                            runtime.menu_state.detail_page = 0;
+                            runtime.menu_state.detail_selection = 0;
+                        }
                     } else {
                         runtime.close_menu();
                         return Ok(());
@@ -1001,6 +1073,33 @@ fn run_menu_loop(
                         } else {
                             0
                         };
+                    } else if matches!(focus, MenuPane::Detail) && submenu_action == "items" {
+                        runtime.menu_state.detail_filter = if matches!(action, Action::MoveRight) {
+                            next_filter_index(runtime.menu_state.detail_filter)
+                        } else {
+                            prev_filter_index(runtime.menu_state.detail_filter)
+                        };
+                        runtime.menu_state.detail_selection = 0;
+                    } else if matches!(focus, MenuPane::Detail) && submenu_action == "equipment" {
+                        let actor_count = runtime.party.active.len();
+                        if actor_count > 0 {
+                            runtime.menu_state.detail_actor = if matches!(action, Action::MoveRight)
+                            {
+                                (runtime.menu_state.detail_actor + 1) % actor_count
+                            } else if runtime.menu_state.detail_actor == 0 {
+                                actor_count - 1
+                            } else {
+                                runtime.menu_state.detail_actor - 1
+                            };
+                            runtime.menu_state.detail_page = 0;
+                            runtime.menu_state.detail_selection = 0;
+                        }
+                    }
+                }
+                Action::Pause => {
+                    if matches!(focus, MenuPane::Detail) && submenu_action == "items" {
+                        runtime.menu_state.detail_sort =
+                            toggle_sort_index(runtime.menu_state.detail_sort);
                     }
                 }
                 Action::Quit => {
@@ -1012,277 +1111,106 @@ fn run_menu_loop(
                             runtime.menu_state.selected,
                             focus,
                             &right_panel,
+                            footer_text,
                         );
                     })? {
                         return Err(std::io::Error::new(std::io::ErrorKind::Interrupted, "quit"));
                     }
                 }
-                _ => {}
             }
         }
     }
 }
-
-fn run_inventory_menu(
-    session: &mut TuiSession,
-    runtime: &mut GameRuntime,
-    bindings: &tui::input::InputBindings,
-) -> std::io::Result<()> {
-    let mut filter = InventoryFilter::Items;
-    let mut sort_mode = InventorySort::Name;
-    let mut selected = 0usize;
-
-    loop {
-        let entries = build_inventory_entries(runtime, &filter, &sort_mode);
-        if entries.is_empty() {
-            let panel = MenuPanelView {
-                title: "Inventory".to_string(),
-                lines: vec!["No items available.".to_string()],
-            };
-            let header = inventory_header(&filter, &sort_mode, "Inventory");
-            draw_inventory(session, &header, &[], 0, &panel)?;
-        } else {
-            if selected >= entries.len() {
-                selected = 0;
-            }
-            let header = inventory_header(&filter, &sort_mode, "Inventory");
-            let lines = entries
-                .iter()
-                .map(|entry| InventoryLine {
-                    label: entry.label.clone(),
-                    count: entry.qty,
-                    enabled: entry.usable,
-                    equipped_by: equipped_label(entry),
-                })
-                .collect::<Vec<_>>();
-            let detail = build_inventory_detail(runtime, &entries[selected]);
-            draw_inventory(session, &header, &lines, selected, &detail)?;
-        }
-
-        if let Some(action) = read_action(bindings) {
-            match action {
-                Action::MoveUp => {
-                    if selected > 0 {
-                        selected -= 1;
-                    }
-                }
-                Action::MoveDown => {
-                    if selected + 1 < entries.len() {
-                        selected += 1;
-                    }
-                }
-                Action::MoveLeft => {
-                    filter = prev_inventory_filter(&filter);
-                    selected = 0;
-                }
-                Action::MoveRight => {
-                    filter = next_inventory_filter(&filter);
-                    selected = 0;
-                }
-                Action::Pause => {
-                    sort_mode = toggle_sort(sort_mode);
-                }
-                Action::Confirm => {
-                    if let Some(entry) = entries.get(selected) {
-                        if entry.kind == InventoryKind::Item && entry.usable {
-                            if use_item(session, runtime, bindings, entry)? {
-                                selected = selected.min(entries.len().saturating_sub(1));
-                            }
-                        }
-                    }
-                }
-                Action::Cancel | Action::Menu => return Ok(()),
-                Action::Quit => {
-                    if tui::app::confirm_quit(session, |frame| {
-                        let header = inventory_header(&filter, &sort_mode, "Inventory");
-                        let lines = entries
-                            .iter()
-                            .map(|entry| InventoryLine {
-                                label: entry.label.clone(),
-                                count: entry.qty,
-                                enabled: entry.usable,
-                                equipped_by: equipped_label(entry),
-                            })
-                            .collect::<Vec<_>>();
-                        let detail = entries
-                            .get(selected)
-                            .map(|entry| build_inventory_detail(runtime, entry))
-                            .unwrap_or(MenuPanelView {
-                                title: "Inventory".to_string(),
-                                lines: Vec::new(),
-                            });
-                        draw_inventory_frame(frame, &header, &lines, selected, &detail);
-                    })? {
-                        return Err(std::io::Error::new(std::io::ErrorKind::Interrupted, "quit"));
-                    }
+fn menu_footer_text(focus: MenuPane, submenu: &str, page: usize) -> &'static str {
+    match focus {
+        MenuPane::List => "Confirm: open  Cancel: close",
+        MenuPane::Detail => match submenu {
+            "status" => {
+                if page == 0 {
+                    "Left/Right: details  Cancel: back"
+                } else {
+                    "Left/Right: summary  Cancel: back"
                 }
             }
-        }
+            "items" => "Confirm: use  Left/Right: filter  Pause: sort  Cancel: back",
+            "equipment" => {
+                if page == 0 {
+                    "Confirm: pick slot  Left/Right: actor  Cancel: back"
+                } else {
+                    "Confirm: equip  Left/Right: actor  Cancel: back"
+                }
+            }
+            _ => "Cancel: back",
+        },
     }
 }
 
-fn run_equipment_menu(
-    session: &mut TuiSession,
-    runtime: &mut GameRuntime,
-    bindings: &tui::input::InputBindings,
-) -> std::io::Result<()> {
-    if runtime.party.active.is_empty() {
-        return Ok(());
+fn filter_from_index(index: usize) -> InventoryFilter {
+    match index % 5 {
+        0 => InventoryFilter::Items,
+        1 => InventoryFilter::Equipment,
+        2 => InventoryFilter::Weapons,
+        3 => InventoryFilter::Armor,
+        _ => InventoryFilter::Accessory,
     }
-    let party_names = runtime
+}
+
+fn sort_from_index(index: usize) -> InventorySort {
+    if index % 2 == 0 {
+        InventorySort::Name
+    } else {
+        InventorySort::Type
+    }
+}
+
+fn next_filter_index(index: usize) -> usize {
+    (index + 1) % 5
+}
+
+fn prev_filter_index(index: usize) -> usize {
+    if index == 0 { 4 } else { index - 1 }
+}
+
+fn toggle_sort_index(index: usize) -> usize {
+    if index == 0 { 1 } else { 0 }
+}
+
+fn detail_actor_id(runtime: &GameRuntime) -> Option<String> {
+    runtime
         .party
         .active
-        .iter()
-        .filter_map(|id| runtime.party.roster.get(id))
-        .map(|actor| actor.name.clone())
-        .collect::<Vec<_>>();
-    let selected = match prompt_choice(
-        session,
-        bindings,
-        "Equipment",
-        "Choose a party member:",
-        &party_names,
-        0,
-    )? {
-        Some(index) => index,
-        None => return Ok(()),
-    };
-    let actor_id = runtime.party.active[selected].clone();
-    let slots = if let Some(actor) = runtime.party.roster.get(&actor_id) {
-        actor_slots(&runtime.content, actor)
-    } else {
-        Vec::new()
-    };
-    if slots.is_empty() {
-        return Ok(());
-    }
-    let slot_label = slots
-        .iter()
-        .map(|slot| {
-            let equipped = runtime
-                .party
-                .roster
-                .get(&actor_id)
-                .and_then(|actor| actor.equipment.get(slot))
-                .and_then(|item_id| {
-                    runtime
-                        .content
-                        .equipment
-                        .equipment
-                        .iter()
-                        .find(|item| item.id == *item_id)
-                        .map(|item| item.name.as_str())
-                })
-                .unwrap_or("Empty");
-            format!("{}: {}", slot, equipped)
-        })
-        .collect::<Vec<_>>();
-    let slot_index = match prompt_choice(
-        session,
-        bindings,
-        "Equipment",
-        "Choose a slot:",
-        &slot_label,
-        0,
-    )? {
-        Some(index) => index,
-        None => return Ok(()),
-    };
-    let slot = slots[slot_index].clone();
-    run_equipment_slot_menu(session, runtime, bindings, &actor_id, &slot)
+        .get(runtime.menu_state.detail_actor)
+        .cloned()
 }
 
-fn run_equipment_slot_menu(
-    session: &mut TuiSession,
-    runtime: &mut GameRuntime,
-    bindings: &tui::input::InputBindings,
-    actor_id: &str,
-    slot: &str,
-) -> std::io::Result<()> {
-    let mut selected = 0usize;
-    loop {
-        let entries = build_equipment_entries(runtime, actor_id, slot);
-        if entries.is_empty() {
-            return Ok(());
-        }
-        if selected >= entries.len() {
-            selected = 0;
-        }
-        let header = inventory_header(
-            &InventoryFilter::Equipment,
-            &InventorySort::Name,
-            &format!("Equip: {}", slot),
-        );
-        let lines = entries
-            .iter()
-            .map(|entry| InventoryLine {
-                label: entry.label.clone(),
-                count: entry.qty,
-                enabled: entry.usable,
-                equipped_by: equipped_label(entry),
-            })
-            .collect::<Vec<_>>();
-        let detail = build_equipment_detail(runtime, actor_id, slot, &entries[selected]);
-        draw_inventory(session, &header, &lines, selected, &detail)?;
-
-        if let Some(action) = read_action(bindings) {
-            match action {
-                Action::MoveUp => {
-                    if selected > 0 {
-                        selected -= 1;
-                    }
-                }
-                Action::MoveDown => {
-                    if selected + 1 < entries.len() {
-                        selected += 1;
-                    }
-                }
-                Action::Confirm => {
-                    if let Some(entry) = entries.get(selected) {
-                        if entry.usable {
-                            equip_item(runtime, actor_id, slot, entry);
-                            return Ok(());
-                        }
-                    }
-                }
-                Action::Cancel | Action::Menu => return Ok(()),
-                Action::Quit => {
-                    if tui::app::confirm_quit(session, |frame| {
-                        let detail = entries
-                            .get(selected)
-                            .map(|entry| build_equipment_detail(runtime, actor_id, slot, entry))
-                            .unwrap_or(MenuPanelView {
-                                title: "Equipment".to_string(),
-                                lines: Vec::new(),
-                            });
-                        draw_inventory_frame(frame, &header, &lines, selected, &detail);
-                    })? {
-                        return Err(std::io::Error::new(std::io::ErrorKind::Interrupted, "quit"));
-                    }
-                }
-                _ => {}
-            }
-        }
+fn equipment_slots_for_menu(runtime: &GameRuntime) -> Vec<String> {
+    let actor_id = match detail_actor_id(runtime) {
+        Some(actor_id) => actor_id,
+        None => return Vec::new(),
+    };
+    match runtime.party.roster.get(&actor_id) {
+        Some(actor) => actor_slots(&runtime.content, actor),
+        None => Vec::new(),
     }
 }
 
-fn inventory_header(
-    filter: &InventoryFilter,
-    sort: &InventorySort,
-    title: &str,
-) -> InventoryHeader {
-    let filters = inventory_filters()
-        .into_iter()
-        .map(|entry| {
-            let active = filter_label(filter) == entry;
-            (entry, active)
-        })
-        .collect::<Vec<_>>();
-    InventoryHeader {
-        title: title.to_string(),
-        filters,
-        sort_label: sort_label(sort).to_string(),
-    }
+fn equipment_slot_for_menu(runtime: &GameRuntime) -> Option<String> {
+    let slots = equipment_slots_for_menu(runtime);
+    slots.get(runtime.menu_state.detail_slot).cloned()
+}
+
+fn equipment_entries_for_menu(runtime: &GameRuntime) -> Vec<InventoryEntry> {
+    let actor_id = match detail_actor_id(runtime) {
+        Some(actor_id) => actor_id,
+        None => return Vec::new(),
+    };
+    let slots = equipment_slots_for_menu(runtime);
+    let slot_index = runtime
+        .menu_state
+        .detail_slot
+        .min(slots.len().saturating_sub(1));
+    let slot = slots.get(slot_index).cloned().unwrap_or_default();
+    build_equipment_entries(runtime, &actor_id, &slot)
 }
 
 fn inventory_filters() -> Vec<String> {
@@ -1306,26 +1234,6 @@ fn filter_label(filter: &InventoryFilter) -> String {
     .to_string()
 }
 
-fn next_inventory_filter(current: &InventoryFilter) -> InventoryFilter {
-    match current {
-        InventoryFilter::Items => InventoryFilter::Equipment,
-        InventoryFilter::Equipment => InventoryFilter::Weapons,
-        InventoryFilter::Weapons => InventoryFilter::Armor,
-        InventoryFilter::Armor => InventoryFilter::Accessory,
-        InventoryFilter::Accessory => InventoryFilter::Items,
-    }
-}
-
-fn prev_inventory_filter(current: &InventoryFilter) -> InventoryFilter {
-    match current {
-        InventoryFilter::Items => InventoryFilter::Accessory,
-        InventoryFilter::Equipment => InventoryFilter::Items,
-        InventoryFilter::Weapons => InventoryFilter::Equipment,
-        InventoryFilter::Armor => InventoryFilter::Weapons,
-        InventoryFilter::Accessory => InventoryFilter::Armor,
-    }
-}
-
 fn sort_label(sort: &InventorySort) -> &'static str {
     match sort {
         InventorySort::Name => "Name",
@@ -1333,10 +1241,23 @@ fn sort_label(sort: &InventorySort) -> &'static str {
     }
 }
 
-fn toggle_sort(current: InventorySort) -> InventorySort {
-    match current {
-        InventorySort::Name => InventorySort::Type,
-        InventorySort::Type => InventorySort::Name,
+fn panel_line(text: impl Into<String>) -> MenuPanelLine {
+    MenuPanelLine {
+        spans: vec![MenuPanelSpan {
+            text: text.into(),
+            style: PanelSpanStyle::Normal,
+        }],
+    }
+}
+
+fn panel_line_spans(spans: Vec<MenuPanelSpan>) -> MenuPanelLine {
+    MenuPanelLine { spans }
+}
+
+fn panel_span(text: impl Into<String>, style: PanelSpanStyle) -> MenuPanelSpan {
+    MenuPanelSpan {
+        text: text.into(),
+        style,
     }
 }
 
@@ -1383,7 +1304,7 @@ fn build_inventory_entries(
                 kind: InventoryKind::Equipment,
                 slot: Some(equipment.slot.clone()),
                 category: Some(equipment.category.clone()),
-                usable: true,
+                usable: false,
                 equipped_by,
             });
         }
@@ -1439,43 +1360,6 @@ fn equipped_label(entry: &InventoryEntry) -> Option<String> {
     }
 }
 
-fn build_inventory_detail(runtime: &GameRuntime, entry: &InventoryEntry) -> MenuPanelView {
-    match entry.kind {
-        InventoryKind::Item => {
-            let item = runtime
-                .content
-                .items
-                .items
-                .iter()
-                .find(|item| item.id == entry.id);
-            if let Some(item) = item {
-                let mut lines = Vec::new();
-                lines.push(format!("Qty: {}", entry.qty));
-                lines.push(format!("Usage: {}", item.usage.context));
-                lines.push(format!("Target: {}", item.usage.target));
-                lines.push(format!("Effect: {}", item.effect.r#type));
-                if let Some(power) = item.effect.power {
-                    lines.push(format!("Power: {}", power));
-                }
-                if !entry.usable {
-                    lines.push("".to_string());
-                    lines.push("Cannot use in field.".to_string());
-                }
-                MenuPanelView {
-                    title: item.name.clone(),
-                    lines,
-                }
-            } else {
-                MenuPanelView {
-                    title: "Item".to_string(),
-                    lines: vec!["Item not found.".to_string()],
-                }
-            }
-        }
-        InventoryKind::Equipment => build_equipment_detail(runtime, "", "", entry),
-    }
-}
-
 fn build_equipment_detail(
     runtime: &GameRuntime,
     actor_id: &str,
@@ -1485,7 +1369,7 @@ fn build_equipment_detail(
     if entry.id.is_empty() {
         return MenuPanelView {
             title: "Unequip".to_string(),
-            lines: vec!["Remove equipment from slot.".to_string()],
+            lines: vec![panel_line("Remove equipment from slot.")],
         };
     }
     let equipment = runtime
@@ -1496,10 +1380,13 @@ fn build_equipment_detail(
         .find(|item| item.id == entry.id);
     let mut lines = Vec::new();
     if let Some(equipment) = equipment {
-        lines.push(format!("Slot: {}", equipment.slot));
-        lines.push(format!("Category: {}", equipment.category));
+        lines.push(panel_line(format!("Slot: {}", equipment.slot)));
+        lines.push(panel_line(format!("Category: {}", equipment.category)));
         if let Some(owner) = equipped_label(entry) {
-            lines.push(owner);
+            lines.push(panel_line_spans(vec![panel_span(
+                owner,
+                PanelSpanStyle::Accent,
+            )]));
         }
         if !actor_id.is_empty() {
             if let Some(actor) = runtime.party.roster.get(actor_id) {
@@ -1507,10 +1394,10 @@ fn build_equipment_detail(
                 lines.extend(preview);
             }
         } else {
-            lines.push("".to_string());
-            lines.push("Stats: ".to_string());
+            lines.push(panel_line(""));
+            lines.push(panel_line("Stats:"));
             for (stat, value) in &equipment.stats {
-                lines.push(format!("{} +{}", stat, value));
+                lines.push(panel_line(format!("{} +{}", stat, value)));
             }
         }
         MenuPanelView {
@@ -1520,7 +1407,7 @@ fn build_equipment_detail(
     } else {
         MenuPanelView {
             title: "Equipment".to_string(),
-            lines: vec!["Equipment not found.".to_string()],
+            lines: vec![panel_line("Equipment not found.")],
         }
     }
 }
@@ -1530,15 +1417,15 @@ fn preview_equipment_delta(
     actor: &engine::party::Actor,
     slot: &str,
     equipment: &engine::entities::EquipmentDefinition,
-) -> Vec<String> {
+) -> Vec<MenuPanelLine> {
     let mut lines = Vec::new();
     let mut clone = actor.clone();
     clone
         .equipment
         .insert(slot.to_string(), equipment.id.clone());
     recompute_derived_stats(&runtime.content, &mut clone);
-    lines.push("".to_string());
-    lines.push("Stat changes:".to_string());
+    lines.push(panel_line(""));
+    lines.push(panel_line("Stat changes:"));
     for stat in runtime
         .content
         .stats
@@ -1551,11 +1438,14 @@ fn preview_equipment_delta(
         let next = clone.derived_stats.get(&stat.id).copied().unwrap_or(0);
         if current != next {
             let diff = next - current;
-            lines.push(format!("{} {} ({} {:+})", stat.name, next, current, diff));
+            lines.push(panel_line(format!(
+                "{} {} ({} {:+})",
+                stat.name, next, current, diff
+            )));
         }
     }
     if lines.len() == 2 {
-        lines.push("No stat changes.".to_string());
+        lines.push(panel_line("No stat changes."));
     }
     lines
 }
@@ -1870,18 +1760,24 @@ fn menu_detail_panel(
             lines: build_status_panel(runtime, page),
         };
     }
+    if action == "items" {
+        return build_items_panel(runtime);
+    }
+    if action == "equipment" {
+        return build_equipment_panel(runtime);
+    }
     MenuPanelView {
         title: label.to_string(),
         lines: vec![
-            format!("{} menu not implemented.", label),
-            format!("TODO: implement '{}' submenu.", action),
+            panel_line(format!("{} menu not implemented.", label)),
+            panel_line(format!("TODO: implement '{}' submenu.", action)),
         ],
     }
 }
 
-fn build_status_panel(runtime: &GameRuntime, page: usize) -> Vec<String> {
+fn build_status_panel(runtime: &GameRuntime, page: usize) -> Vec<MenuPanelLine> {
     if runtime.party.active.is_empty() {
-        return vec!["No party members.".to_string()];
+        return vec![panel_line("No party members.")];
     }
     let mut lines = Vec::new();
     for member_id in &runtime.party.active {
@@ -1900,34 +1796,322 @@ fn build_status_panel(runtime: &GameRuntime, page: usize) -> Vec<String> {
                 let exp_next = exp_for_level(&runtime.content.rules.exp_curve, actor.level + 1)
                     .unwrap_or(actor.exp);
                 let exp_remaining = exp_next.saturating_sub(actor.exp);
-                lines.push(format!(
+                lines.push(panel_line(format!(
                     "{}  Lv{}  HP {}/{}  MP {}/{}",
                     actor.name, actor.level, actor.current_hp, max_hp, actor.current_mp, max_mp
-                ));
-                lines.push(format!("Job: {}", job_name));
-                lines.push(format!("EXP {} (next {})", actor.exp, exp_remaining));
+                )));
+                lines.push(panel_line(format!("Job: {}", job_name)));
+                lines.push(panel_line(format!(
+                    "EXP {} (next {})",
+                    actor.exp, exp_remaining
+                )));
             } else {
-                lines.push(format!("{}  Lv{}", actor.name, actor.level));
-                lines.push(format!("Job: {}", job_name));
-                lines.push(format!(
+                lines.push(panel_line(format!("{}  Lv{}", actor.name, actor.level)));
+                lines.push(panel_line(format!("Job: {}", job_name)));
+                lines.push(panel_line(format!(
                     "Base: {}",
                     format_stat_block(&runtime.content.stats.stats.base, &actor.base_stats)
-                ));
-                lines.push(format!(
+                )));
+                lines.push(panel_line(format!(
                     "Derived: {}",
                     format_stat_block(&runtime.content.stats.stats.derived, &actor.derived_stats)
-                ));
+                )));
             }
-            lines.push("".to_string());
+            lines.push(panel_line(""));
         }
     }
-    lines.push("".to_string());
-    lines.push(if page == 0 {
-        "Left/Right: details".to_string()
-    } else {
-        "Left/Right: summary".to_string()
-    });
     lines
+}
+
+fn build_items_panel(runtime: &GameRuntime) -> MenuPanelView {
+    let filter = filter_from_index(runtime.menu_state.detail_filter);
+    let sort = sort_from_index(runtime.menu_state.detail_sort);
+    let entries = build_inventory_entries(runtime, &filter, &sort);
+    if entries.is_empty() {
+        return MenuPanelView {
+            title: "Items".to_string(),
+            lines: vec![panel_line("No items available.")],
+        };
+    }
+    let selection = runtime
+        .menu_state
+        .detail_selection
+        .min(entries.len().saturating_sub(1));
+    let header = inventory_filter_line(&filter, &sort);
+    let mut lines = Vec::new();
+    lines.push(header);
+    for (index, entry) in entries.iter().enumerate() {
+        let is_selected = index == selection;
+        let mut spans = Vec::new();
+        spans.push(panel_span(
+            if is_selected { "> " } else { "  " },
+            if is_selected {
+                PanelSpanStyle::Highlight
+            } else {
+                PanelSpanStyle::Normal
+            },
+        ));
+        spans.push(panel_span(
+            format!("{} x{}", entry.label, entry.qty),
+            if is_selected {
+                PanelSpanStyle::Highlight
+            } else if entry.usable {
+                PanelSpanStyle::Normal
+            } else {
+                PanelSpanStyle::Muted
+            },
+        ));
+        if let Some(owner) = equipped_label(entry) {
+            spans.push(panel_span(format!(" {}", owner), PanelSpanStyle::Accent));
+        }
+        lines.push(panel_line_spans(spans));
+    }
+    lines.push(panel_line("------------------------------"));
+    lines.extend(build_item_description(runtime, entries.get(selection)));
+
+    MenuPanelView {
+        title: "Items".to_string(),
+        lines,
+    }
+}
+
+fn build_equipment_panel(runtime: &GameRuntime) -> MenuPanelView {
+    let actor_id = detail_actor_id(runtime);
+    let Some(actor_id) = actor_id else {
+        return MenuPanelView {
+            title: "Equipment".to_string(),
+            lines: vec![panel_line("No party members.")],
+        };
+    };
+    let actor = match runtime.party.roster.get(&actor_id) {
+        Some(actor) => actor,
+        None => {
+            return MenuPanelView {
+                title: "Equipment".to_string(),
+                lines: vec![panel_line("No party members.")],
+            };
+        }
+    };
+    let header = equipment_header_line(actor.name.as_str());
+    let slots = equipment_slots_for_menu(runtime);
+    if slots.is_empty() {
+        return MenuPanelView {
+            title: "Equipment".to_string(),
+            lines: vec![panel_line("No equipment slots.")],
+        };
+    }
+    let mut lines = Vec::new();
+    lines.push(header);
+    if runtime.menu_state.detail_page == 0 {
+        let selection = runtime
+            .menu_state
+            .detail_selection
+            .min(slots.len().saturating_sub(1));
+        for (index, slot) in slots.iter().enumerate() {
+            let equipped = actor
+                .equipment
+                .get(slot)
+                .and_then(|item_id| {
+                    runtime
+                        .content
+                        .equipment
+                        .equipment
+                        .iter()
+                        .find(|item| item.id == *item_id)
+                        .map(|item| item.name.as_str())
+                })
+                .unwrap_or("Empty");
+            let is_selected = index == selection;
+            let mut spans = Vec::new();
+            spans.push(panel_span(
+                if is_selected { "> " } else { "  " },
+                if is_selected {
+                    PanelSpanStyle::Highlight
+                } else {
+                    PanelSpanStyle::Normal
+                },
+            ));
+            spans.push(panel_span(
+                format!("{}: {}", slot, equipped),
+                if is_selected {
+                    PanelSpanStyle::Highlight
+                } else {
+                    PanelSpanStyle::Normal
+                },
+            ));
+            lines.push(panel_line_spans(spans));
+        }
+        lines.push(panel_line("------------------------------"));
+        let detail_slot = slots.get(selection).cloned().unwrap_or_default();
+        lines.extend(build_equipped_slot_detail(runtime, actor, &detail_slot));
+    } else {
+        let entries = equipment_entries_for_menu(runtime);
+        if entries.is_empty() {
+            return MenuPanelView {
+                title: "Equipment".to_string(),
+                lines: vec![panel_line("No equipment available.")],
+            };
+        }
+        let selection = runtime
+            .menu_state
+            .detail_selection
+            .min(entries.len().saturating_sub(1));
+        for (index, entry) in entries.iter().enumerate() {
+            let is_selected = index == selection;
+            let mut spans = Vec::new();
+            spans.push(panel_span(
+                if is_selected { "> " } else { "  " },
+                if is_selected {
+                    PanelSpanStyle::Highlight
+                } else {
+                    PanelSpanStyle::Normal
+                },
+            ));
+            spans.push(panel_span(
+                format!("{} x{}", entry.label, entry.qty.max(0)),
+                if is_selected {
+                    PanelSpanStyle::Highlight
+                } else if entry.usable {
+                    PanelSpanStyle::Normal
+                } else {
+                    PanelSpanStyle::Muted
+                },
+            ));
+            if let Some(owner) = equipped_label(entry) {
+                spans.push(panel_span(format!(" {}", owner), PanelSpanStyle::Accent));
+            }
+            lines.push(panel_line_spans(spans));
+        }
+        lines.push(panel_line("------------------------------"));
+        if let Some(entry) = entries.get(selection) {
+            let slot = equipment_slot_for_menu(runtime).unwrap_or_default();
+            lines.extend(build_equipment_detail(runtime, &actor_id, &slot, entry).lines);
+        }
+    }
+
+    MenuPanelView {
+        title: "Equipment".to_string(),
+        lines,
+    }
+}
+
+fn equipment_header_line(name: &str) -> MenuPanelLine {
+    panel_line_spans(vec![
+        panel_span("Actor: ", PanelSpanStyle::Normal),
+        panel_span(name, PanelSpanStyle::Highlight),
+        panel_span("  (Left/Right)", PanelSpanStyle::Muted),
+    ])
+}
+
+fn build_equipped_slot_detail(
+    runtime: &GameRuntime,
+    actor: &engine::party::Actor,
+    slot: &str,
+) -> Vec<MenuPanelLine> {
+    let Some(item_id) = actor.equipment.get(slot) else {
+        return vec![panel_line("Empty slot."), panel_line("Confirm to equip.")];
+    };
+    let entry = runtime
+        .content
+        .equipment
+        .equipment
+        .iter()
+        .find(|item| item.id == *item_id);
+    if let Some(item) = entry {
+        let mut lines = Vec::new();
+        lines.push(panel_line_spans(vec![
+            panel_span("Equipped: ", PanelSpanStyle::Normal),
+            panel_span(item.name.clone(), PanelSpanStyle::Accent),
+        ]));
+        lines.push(panel_line_spans(vec![
+            panel_span("Slot: ", PanelSpanStyle::Normal),
+            panel_span(item.slot.clone(), PanelSpanStyle::Accent),
+        ]));
+        lines.push(panel_line_spans(vec![
+            panel_span("Category: ", PanelSpanStyle::Normal),
+            panel_span(item.category.clone(), PanelSpanStyle::Accent),
+        ]));
+        lines.push(panel_line(""));
+        for (stat, value) in &item.stats {
+            lines.push(panel_line(format!("{} +{}", stat, value)));
+        }
+        lines
+    } else {
+        vec![panel_line("Item not found.")]
+    }
+}
+
+fn inventory_filter_line(filter: &InventoryFilter, sort: &InventorySort) -> MenuPanelLine {
+    let mut spans = Vec::new();
+    spans.push(panel_span("Filter: ", PanelSpanStyle::Normal));
+    for (index, entry) in inventory_filters().into_iter().enumerate() {
+        if index > 0 {
+            spans.push(panel_span(" | ", PanelSpanStyle::Muted));
+        }
+        let style = if entry == filter_label(filter) {
+            PanelSpanStyle::Highlight
+        } else {
+            PanelSpanStyle::Muted
+        };
+        spans.push(panel_span(entry, style));
+    }
+    spans.push(panel_span("  Sort: ", PanelSpanStyle::Normal));
+    spans.push(panel_span(sort_label(sort), PanelSpanStyle::Accent));
+    panel_line_spans(spans)
+}
+
+fn build_item_description(
+    runtime: &GameRuntime,
+    entry: Option<&InventoryEntry>,
+) -> Vec<MenuPanelLine> {
+    let Some(entry) = entry else {
+        return vec![panel_line("No selection.")];
+    };
+    match entry.kind {
+        InventoryKind::Item => {
+            let item = runtime
+                .content
+                .items
+                .items
+                .iter()
+                .find(|item| item.id == entry.id);
+            if let Some(item) = item {
+                let mut lines = Vec::new();
+                let description = item
+                    .description
+                    .clone()
+                    .unwrap_or_else(|| "No description.".to_string());
+                lines.push(panel_line_spans(vec![
+                    panel_span("Description: ", PanelSpanStyle::Accent),
+                    panel_span(description, PanelSpanStyle::Normal),
+                ]));
+                lines.push(panel_line_spans(vec![
+                    panel_span("Usage: ", PanelSpanStyle::Normal),
+                    panel_span(item.usage.context.clone(), PanelSpanStyle::Accent),
+                    panel_span("  Target: ", PanelSpanStyle::Normal),
+                    panel_span(item.usage.target.clone(), PanelSpanStyle::Accent),
+                ]));
+                let power_text = item
+                    .effect
+                    .power
+                    .map(|value| value.to_string())
+                    .unwrap_or_else(|| "-".to_string());
+                lines.push(panel_line_spans(vec![
+                    panel_span("Effect: ", PanelSpanStyle::Normal),
+                    panel_span(item.effect.r#type.clone(), PanelSpanStyle::Accent),
+                    panel_span("  Power: ", PanelSpanStyle::Normal),
+                    panel_span(power_text, PanelSpanStyle::Accent),
+                ]));
+                if !entry.usable {
+                    lines.push(panel_line("Cannot use in field."));
+                }
+                lines
+            } else {
+                vec![panel_line("Item not found.")]
+            }
+        }
+        InventoryKind::Equipment => vec![panel_line("Select equipment in Equipment menu.")],
+    }
 }
 
 fn menu_default_panel(menu_ui: &MenuUiFile, runtime: &GameRuntime) -> MenuPanelView {
@@ -1947,20 +2131,20 @@ fn menu_default_panel(menu_ui: &MenuUiFile, runtime: &GameRuntime) -> MenuPanelV
         "progress" => MenuPanelView {
             title,
             lines: vec![
-                "Progress panel (stub).".to_string(),
-                "TODO: render ui/progress.json.".to_string(),
+                panel_line("Progress panel (stub)."),
+                panel_line("TODO: render ui/progress.json."),
             ],
         },
         _ => MenuPanelView {
             title,
-            lines: vec!["Menu panel not configured.".to_string()],
+            lines: vec![panel_line("Menu panel not configured.")],
         },
     }
 }
 
-fn build_party_summary(runtime: &GameRuntime) -> Vec<String> {
+fn build_party_summary(runtime: &GameRuntime) -> Vec<MenuPanelLine> {
     if runtime.party.active.is_empty() {
-        return vec!["No party members.".to_string()];
+        return vec![panel_line("No party members.")];
     }
     let mut lines = Vec::new();
     for member_id in &runtime.party.active {
@@ -1975,12 +2159,12 @@ fn build_party_summary(runtime: &GameRuntime) -> Vec<String> {
                 .find(|job| job.id == actor.job_id)
                 .map(|job| job.name.as_str())
                 .unwrap_or(actor.job_id.as_str());
-            lines.push(format!(
+            lines.push(panel_line(format!(
                 "{}  Lv{}  HP {}/{}  MP {}/{}",
                 actor.name, actor.level, actor.current_hp, max_hp, actor.current_mp, max_mp
-            ));
-            lines.push(format!("Job: {}", job_name));
-            lines.push("".to_string());
+            )));
+            lines.push(panel_line(format!("Job: {}", job_name)));
+            lines.push(panel_line(""));
         }
     }
     lines
