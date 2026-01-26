@@ -123,6 +123,22 @@ pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
                 ));
             }
         }
+
+        let mut magic_tiers = HashSet::new();
+        for tier in &rules.magic_tiers {
+            if tier.tier == 0 {
+                errors.push("rules.json: magic_tiers tier must be > 0".to_string());
+            }
+            if tier.max_charges < 0 {
+                errors.push("rules.json: magic_tiers max_charges must be >= 0".to_string());
+            }
+            if !magic_tiers.insert(tier.tier) {
+                errors.push(format!(
+                    "rules.json: magic_tiers tier '{}' is duplicated",
+                    tier.tier
+                ));
+            }
+        }
     }
 
     if let Some(stats) = &stats {

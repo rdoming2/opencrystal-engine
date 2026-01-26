@@ -1,11 +1,11 @@
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
 use crate::content::Content;
 use crate::entities::{EquipmentDefinition, JobDefinition};
 use crate::expr::eval_expression;
-use crate::rules::{ExpCurveRules, PartyCreateRules, PartyMode, Ruleset};
+use crate::rules::{ExpCurveRules, MagicSystem, PartyCreateRules, PartyMode, Ruleset};
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct PartyFile {
@@ -44,6 +44,7 @@ pub struct Actor {
     pub derived_stats: HashMap<String, i32>,
     pub equipment: HashMap<String, String>,
     pub spells: Vec<String>,
+    pub magic_tier_charges: HashMap<u32, i32>,
 }
 
 #[derive(Clone, Debug)]
@@ -75,6 +76,19 @@ impl PartyState {
         members: Vec<(String, String)>,
     ) -> Self {
         build_created_party(content, &rules.party_create, rules.party_size, members)
+    }
+}
+
+pub fn reset_magic_tier_charges(party: &mut PartyState, rules: &Ruleset) {
+    if rules.magic_system != MagicSystem::TierCharges {
+        return;
+    }
+    for actor in party.roster.values_mut() {
+        let mut charges = HashMap::new();
+        for tier in &rules.magic_tiers {
+            charges.insert(tier.tier, tier.max_charges.max(0));
+        }
+        actor.magic_tier_charges = charges;
     }
 }
 
@@ -212,7 +226,7 @@ fn build_actor(
     let max_hp = derived_stats.get("hp").copied().unwrap_or(0);
     let max_mp = derived_stats.get("mp").copied().unwrap_or(0);
 
-    Actor {
+    let mut built = Actor {
         id: actor.id.clone(),
         name: actor.name.clone(),
         job_id: actor.job_id.clone(),
@@ -224,7 +238,30 @@ fn build_actor(
         derived_stats,
         equipment,
         spells: actor.spells.clone(),
+        magic_tier_charges: HashMap::new(),
+    };
+    learn_job_spells(content, &mut built);
+    built
+}
+
+fn learn_job_spells(content: &Content, actor: &mut Actor) {
+    let Some(job) = content.jobs.jobs.iter().find(|job| job.id == actor.job_id) else {
+        return;
+    };
+    let mut learned: HashSet<String> = actor.spells.iter().cloned().collect();
+    for spell in &job.spells {
+        let unlocks = match spell.method.as_str() {
+            "level" => spell.level.unwrap_or(0) <= actor.level,
+            "tier" => spell.tier.unwrap_or(0) <= actor.level,
+            _ => false,
+        };
+        if unlocks {
+            learned.insert(spell.id.clone());
+        }
     }
+    let mut spells = learned.into_iter().collect::<Vec<_>>();
+    spells.sort_unstable();
+    actor.spells = spells;
 }
 
 fn job_slots(job: &JobDefinition) -> Vec<String> {
@@ -340,6 +377,7 @@ pub fn gain_exp(content: &Content, rules: &Ruleset, actor: &mut Actor, amount: i
         apply_growth(content, actor);
         levels_gained += 1;
     }
+    learn_job_spells(content, actor);
     recompute_derived_stats(content, actor);
     levels_gained
 }

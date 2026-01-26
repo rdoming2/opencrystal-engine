@@ -17,6 +17,8 @@ pub struct RulesFile {
     pub inventory: InventoryRules,
     #[serde(default)]
     pub systems: HashMap<String, bool>,
+    #[serde(default)]
+    pub magic_tiers: Vec<MagicTierRules>,
     pub features: FeatureRules,
     pub render: RenderRules,
     pub stats: StatsRules,
@@ -51,6 +53,12 @@ pub struct FeatureRules {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct MagicTierRules {
+    pub tier: u32,
+    pub max_charges: i32,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct RenderRules {
     pub min_art_width: u16,
     pub min_art_height: u16,
@@ -76,6 +84,7 @@ pub struct Ruleset {
     pub exp_curve: ExpCurveRules,
     pub inventory: InventoryRules,
     pub systems: HashMap<String, bool>,
+    pub magic_tiers: Vec<MagicTierRules>,
 }
 
 impl Ruleset {
@@ -93,6 +102,7 @@ impl Ruleset {
             exp_curve: ExpCurveRules::default(),
             inventory: InventoryRules::default(),
             systems: HashMap::new(),
+            magic_tiers: Vec::new(),
         }
     }
 
@@ -110,6 +120,7 @@ impl Ruleset {
             exp_curve: file.exp_curve,
             inventory: file.inventory,
             systems: file.systems,
+            magic_tiers: file.magic_tiers,
         }
     }
 }
@@ -135,7 +146,7 @@ pub enum BattleMode {
     AtbActive,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum MagicSystem {
     Mp,

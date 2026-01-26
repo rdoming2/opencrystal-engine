@@ -52,6 +52,8 @@ absolute XP totals per level or `mode: "formula"` with a formula string (use
 `systems` toggles whether a gameplay system/menu is enabled at all. It should be
 used for global availability (e.g., disabling materia). Menu entries can still
 add `unlock_flag` gating for progression-driven unlocks.
+`magic_tiers` defines per-tier charge limits when `magic_system` is
+`tier_charges`.
 
 ```json
 {
@@ -101,6 +103,11 @@ add `unlock_flag` gating for progression-driven unlocks.
     "summons": false,
     "materia": false
   },
+  "magic_tiers": [
+    {"tier": 1, "max_charges": 3},
+    {"tier": 2, "max_charges": 2},
+    {"tier": 3, "max_charges": 1}
+  ],
   "features": {
     "journal": true,
     "fast_travel": true,

@@ -1,6 +1,6 @@
 use crate::content::Content;
 use crate::inventory::InventoryState;
-use crate::party::PartyState;
+use crate::party::{PartyState, reset_magic_tier_charges};
 use crate::rules::Ruleset;
 use std::collections::HashSet;
 
@@ -112,6 +112,7 @@ impl GameRuntime {
         if rules.party_mode == crate::rules::PartyMode::Predefined || self.party.roster.is_empty() {
             self.party = PartyState::from_content(&self.content, rules);
         }
+        reset_magic_tier_charges(&mut self.party, rules);
         if self.inventory.is_empty() {
             for item in &rules.inventory.items {
                 self.inventory

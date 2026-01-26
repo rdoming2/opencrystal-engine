@@ -85,8 +85,9 @@
 - [ ] Define skills/abilities schema (non-spell actions).
 
 ## Magic System
-- [ ] Implement job-based spell learnsets (level/tier/item).
-- [ ] Track learned spells per actor.
+- [x] Implement job-based spell learnsets (level/tier/item).
+- [x] Track learned spells per actor.
+- [x] Enable menu casting for field magic.
 
 ## Progression
 - [ ] Implement experience + level-up pipeline.

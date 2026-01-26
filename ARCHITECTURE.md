@@ -159,6 +159,8 @@ All runtime data is loaded from JSON. Files are organized into top-level categor
 
 - Magic schools are data-driven (white/black in demo; expandable to blue/time/etc).
 - Spells reference a school, tier, cost type (MP or tier charges), target rules, and effect.
+- Tier charge caps live in `rules.json` `magic_tiers` when using `tier_charges`.
+- Menu casting supports field-friendly spells (heal/revive); damage stays battle-only.
 - Enemies can include traits (e.g., undead) that drive effect resolution.
 
 ### Battle system
@@ -258,6 +260,11 @@ All runtime data is loaded from JSON. Files are organized into top-level categor
     "summons": false,
     "materia": false
   },
+  "magic_tiers": [
+    {"tier": 1, "max_charges": 3},
+    {"tier": 2, "max_charges": 2},
+    {"tier": 3, "max_charges": 1}
+  ],
   "features": {
     "journal": true,
     "fast_travel": true,
