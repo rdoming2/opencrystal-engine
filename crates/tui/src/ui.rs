@@ -95,6 +95,8 @@ pub struct BattleUiFile {
     pub breakpoints: Vec<Breakpoint>,
     pub layout: BattleLayout,
     pub log: Option<BattleLog>,
+    pub dialog: Option<BattleDialog>,
+    pub animation: Option<BattleAnimation>,
     pub panels: BattlePanels,
     pub menus: BattleMenus,
     pub selection: SelectionRules,
@@ -104,6 +106,24 @@ pub struct BattleUiFile {
 pub struct BattleLog {
     pub position: String,
     pub height: u16,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct BattleDialog {
+    pub position: String,
+    pub height: u16,
+    #[serde(default = "default_battle_dialog_auto_advance_ms")]
+    pub auto_advance_ms: u64,
+    #[serde(default = "default_battle_dialog_allow_skip")]
+    pub allow_skip: bool,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct BattleAnimation {
+    #[serde(default = "default_battle_flash_ms")]
+    pub flash_ms: u64,
+    #[serde(default = "default_battle_flash_cycles")]
+    pub flash_cycles: u16,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -181,6 +201,7 @@ pub struct HighlightRules {
 pub struct BattleMenus {
     pub attack: AttackMenu,
     pub magic: MagicMenu,
+    pub abilities: AbilitiesMenu,
     pub items: ItemsMenu,
 }
 
@@ -195,6 +216,13 @@ pub struct MagicMenu {
     pub group_by: String,
     pub columns: Vec<MenuColumn>,
     pub target_from_spell: bool,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct AbilitiesMenu {
+    pub list: String,
+    pub columns: Vec<MenuColumn>,
+    pub target_from_ability: bool,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -262,6 +290,22 @@ fn default_menu_left_ratio() -> f32 {
 
 fn default_menu_right_ratio() -> f32 {
     0.6
+}
+
+fn default_battle_dialog_auto_advance_ms() -> u64 {
+    700
+}
+
+fn default_battle_dialog_allow_skip() -> bool {
+    true
+}
+
+fn default_battle_flash_ms() -> u64 {
+    150
+}
+
+fn default_battle_flash_cycles() -> u16 {
+    2
 }
 
 fn default_menu_enabled() -> bool {

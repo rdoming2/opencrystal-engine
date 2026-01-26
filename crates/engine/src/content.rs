@@ -5,7 +5,8 @@ use std::path::{Path, PathBuf};
 use crate::dialog::DialogFile;
 use crate::encounters::EncountersFile;
 use crate::entities::{
-    EnemiesFile, EquipmentFile, ItemsFile, JobsFile, NpcsFile, ShopsFile, SpellsFile, VehiclesFile,
+    AbilitiesFile, EnemiesFile, EquipmentFile, ItemsFile, JobsFile, NpcsFile, ShopsFile,
+    SpellsFile, VehiclesFile,
 };
 use crate::events::EventFile;
 use crate::maps::MapFile;
@@ -21,6 +22,7 @@ pub struct Content {
     pub encounters: EncountersFile,
     pub jobs: JobsFile,
     pub spells: SpellsFile,
+    pub abilities: AbilitiesFile,
     pub items: ItemsFile,
     pub equipment: EquipmentFile,
     pub enemies: EnemiesFile,
@@ -70,6 +72,11 @@ impl Content {
         let spells = load_single(
             content_dir.join("entities").join("spells.json"),
             SpellsFile::load,
+            &mut errors,
+        );
+        let abilities = load_single(
+            content_dir.join("entities").join("abilities.json"),
+            AbilitiesFile::load,
             &mut errors,
         );
         let items = load_single(
@@ -127,6 +134,7 @@ impl Content {
         let encounters = encounters.unwrap();
         let jobs = jobs.unwrap();
         let spells = spells.unwrap();
+        let abilities = abilities.unwrap();
         let items = items.unwrap();
         let equipment = equipment.unwrap();
         let enemies = enemies.unwrap();
@@ -157,6 +165,7 @@ impl Content {
             encounters,
             jobs,
             spells,
+            abilities,
             items,
             equipment,
             enemies,

@@ -57,8 +57,9 @@ It is a design reference meant to guide initial implementation.
 - Top: battlefield (enemy visuals + player sprites).
 - Bottom: command region, split into three columns:
   - Left: enemy list with target highlighting.
-  - Center: command menu (Attack, Magic, Items, Run, etc.).
+  - Center: command menu (Attack, Magic, Abilities, Items, Run, etc.).
   - Right: party list with HP/MP/ATB/status.
+- Battle dialog can float at the top as a log overlay.
 
 ### Overworld map zoom
 
@@ -82,9 +83,9 @@ All runtime data is loaded from JSON. Files are organized into top-level categor
 
 - `rules.json`: global rules and toggles.
 - `worlds.json`: world list, world-to-world travel rules, zoom config.
-- `maps/*.json`: map tiles, entities, triggers, encounter zones.
+- `maps/*.json`: map tiles, entities, triggers, encounter zones, per-map encounter rate.
 - `party.json`: predefined party roster (optional in create mode).
-- `entities/*.json`: jobs, spells, items, equipment, enemies, vehicles, shops, encounters, npcs.
+- `entities/*.json`: jobs, spells, abilities, items, equipment, enemies, vehicles, shops, encounters, npcs.
 - `events/*.json`: scripted events and cutscenes.
 - `dialog/*.json`: NPC dialog trees.
 - `ui/*.json`: menu panels, progress tracking config.
@@ -158,9 +159,15 @@ All runtime data is loaded from JSON. Files are organized into top-level categor
 ### Magic system
 
 - Magic schools are data-driven (white/black in demo; expandable to blue/time/etc).
-- Spells reference a school, tier, cost type (MP or tier charges), target rules, and effect.
-- Tier charge caps live in `rules.json` `magic_tiers` when using `tier_charges`.
+- Spell unlocks are configured per job.
+- Magic system mode can switch between MP and tier charges.
 - Menu casting supports field-friendly spells (heal/revive); damage stays battle-only.
+
+### Ability system
+
+- Abilities are data-driven and unlocked through job progression.
+- Abilities are battle-only and do not consume MP.
+
 - Enemies can include traits (e.g., undead) that drive effect resolution.
 
 ### Battle system
@@ -171,6 +178,7 @@ All runtime data is loaded from JSON. Files are organized into top-level categor
   - ATB active (continues during menus)
 - Enemy selection tied to list on the left column.
 - Visual feedback highlights enemy in battlefield and list simultaneously.
+- Victory flow grants EXP/loot/currency summed from enemies.
 
 ### Progress tracking
 

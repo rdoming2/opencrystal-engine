@@ -5,11 +5,12 @@ use std::collections::HashMap;
 pub struct InventoryState {
     pub items: HashMap<String, i32>,
     pub equipment: HashMap<String, i32>,
+    pub currency: HashMap<String, i32>,
 }
 
 impl InventoryState {
     pub fn is_empty(&self) -> bool {
-        self.items.is_empty() && self.equipment.is_empty()
+        self.items.is_empty() && self.equipment.is_empty() && self.currency.is_empty()
     }
 
     pub fn add_item(&mut self, item_id: &str, qty: i32, max_stack: i32) {
@@ -26,6 +27,18 @@ impl InventoryState {
         }
         let entry = self.equipment.entry(item_id.to_string()).or_insert(0);
         *entry = (*entry + qty).min(max_stack);
+    }
+
+    pub fn add_currency(&mut self, currency_id: &str, amount: i32) {
+        if amount <= 0 {
+            return;
+        }
+        let entry = self.currency.entry(currency_id.to_string()).or_insert(0);
+        *entry = entry.saturating_add(amount);
+    }
+
+    pub fn currency_amount(&self, currency_id: &str) -> i32 {
+        self.currency.get(currency_id).copied().unwrap_or(0)
     }
 
     pub fn remove_item(&mut self, item_id: &str, qty: i32) -> bool {

@@ -4,7 +4,7 @@
 - [x] Create runtime state machine.
   - [x] Title state.
   - [x] Overworld state.
-- [ ] Battle state.
+- [x] Battle state.
 - [x] Menu state.
   - [x] Store menu focus (left list vs right pane).
   - [x] Track active submenu and selection.
@@ -21,7 +21,8 @@
   - [x] Dialog and narration.
   - [ ] Flag setting/requirements.
   - [ ] Item/equipment grants.
-  - [ ] Warp and battle starts.
+  - [ ] Warp actions.
+  - [x] Battle starts.
   - [ ] NPC show/hide/move/sprite.
 - [x] Add content registry.
   - [x] Load all content into indexed registries.
@@ -52,10 +53,11 @@
   - [x] NPC rendering + gating.
   - [x] Transition markers (glyph + palette highlight).
   - [x] Terminal palette tile coloring (theme-aware).
-- [ ] Battle renderer.
-  - [ ] Battlefield + enemy art/glyph modes.
-  - [ ] Command row (enemy list, commands, party list).
-  - [ ] Selection highlights.
+- [x] Battle renderer.
+  - [x] Battlefield + enemy art/glyph modes.
+  - [x] Command row (enemy list, commands, party list).
+  - [x] Selection highlights.
+  - [x] Battle dialog overlay.
 - [ ] Menu + progress UI.
   - [ ] Status menu panels from `ui/progress.json`.
   - [ ] Journal/quest display.
@@ -65,7 +67,7 @@
   - [x] Default party summary panel.
   - [x] Focus switching (confirm enters right pane, cancel returns).
   - [x] Optional menu entries (rules systems + unlock flag gating).
-  - [x] Items/equipment/magic/status submenus (stub views).
+  - [x] Items/equipment/magic/abilities/status submenus (stub views).
   - [x] Party/journal/save/settings/exit submenus (stub views).
   - [x] Save entry enable/disable based on map rules.
   - [x] Save-point glyph rendering (use `S`).
@@ -75,14 +77,15 @@
   - [x] Equipment swap flow with stat preview.
 
 ## Battle System
-- [ ] Turn-based flow (command selection, targeting, resolve action).
+- [x] Turn-based flow (command selection, targeting, resolve action).
 - [ ] ATB timers (wait + active modes).
 - [ ] Status effects and damage formulas (derived stats).
-- [ ] Victory/defeat flow and rewards.
+- [x] Victory/defeat flow and rewards.
+- [x] Scan reveals enemy HP.
 - [ ] Define battle rules schema (damage, hit, crit, ATB speed).
 - [ ] Define status effects schema (buffs/debuffs, durations).
 - [ ] Define elemental affinities and trait interactions.
-- [ ] Define skills/abilities schema (non-spell actions).
+- [x] Define skills/abilities schema (non-spell actions).
 
 ## Magic System
 - [x] Implement job-based spell learnsets (level/tier/item).
@@ -112,5 +115,5 @@
 - [ ] Extend map schema for saving.
   - [ ] `allow_save` flag for main menu saving.
   - [ ] `save_points` coordinates (always valid save spots).
-- [ ] Define encounter rate rules schema.
+- [x] Add encounter_rate to maps schema.
 - [ ] Finalize save schema requirements and versioning rules.

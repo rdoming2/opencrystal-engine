@@ -5,7 +5,8 @@ use std::path::{Path, PathBuf};
 use crate::dialog::DialogFile;
 use crate::encounters::EncountersFile;
 use crate::entities::{
-    EnemiesFile, EquipmentFile, ItemsFile, JobsFile, NpcsFile, ShopsFile, SpellsFile, VehiclesFile,
+    AbilitiesFile, EnemiesFile, EquipmentFile, ItemsFile, JobsFile, NpcsFile, ShopsFile,
+    SpellsFile, VehiclesFile,
 };
 use crate::events::EventFile;
 use crate::maps::MapFile;
@@ -44,6 +45,7 @@ pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
     let npcs_path = content_dir.join("entities").join("npcs.json");
     let jobs_path = content_dir.join("entities").join("jobs.json");
     let spells_path = content_dir.join("entities").join("spells.json");
+    let abilities_path = content_dir.join("entities").join("abilities.json");
     let items_path = content_dir.join("entities").join("items.json");
     let equipment_path = content_dir.join("entities").join("equipment.json");
     let enemies_path = content_dir.join("entities").join("enemies.json");
@@ -72,6 +74,11 @@ pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
     );
     let jobs = load_single(&jobs_path, |path| JobsFile::load(path), &mut errors);
     let spells = load_single(&spells_path, |path| SpellsFile::load(path), &mut errors);
+    let abilities = load_single(
+        &abilities_path,
+        |path| AbilitiesFile::load(path),
+        &mut errors,
+    );
     let items = load_single(&items_path, |path| ItemsFile::load(path), &mut errors);
     let equipment = load_single(
         &equipment_path,
@@ -207,6 +214,12 @@ pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
 
     let event_ids: HashSet<String> = events.iter().map(|event| event.id.clone()).collect();
     for map in &maps {
+        if !(0.0..=1.0).contains(&map.encounter_rate) {
+            errors.push(format!(
+                "maps/{}: encounter_rate {} must be between 0.0 and 1.0",
+                map.id, map.encounter_rate
+            ));
+        }
         for event in &map.events {
             if !event_ids.contains(&event.script) {
                 errors.push(format!(
@@ -286,11 +299,16 @@ pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
         }
     }
 
-    if let (Some(spells), Some(jobs)) = (&spells, &jobs) {
+    if let (Some(spells), Some(abilities), Some(jobs)) = (&spells, &abilities, &jobs) {
         let spell_ids: HashSet<&str> = spells
             .spells
             .iter()
             .map(|spell| spell.id.as_str())
+            .collect();
+        let ability_ids: HashSet<&str> = abilities
+            .abilities
+            .iter()
+            .map(|ability| ability.id.as_str())
             .collect();
         let base_stats: HashSet<&str> = stats
             .as_ref()
@@ -356,6 +374,14 @@ pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
                     errors.push(format!(
                         "jobs.json: job '{}' references unknown spell '{}'",
                         job.id, spell.id
+                    ));
+                }
+            }
+            for ability in &job.abilities {
+                if !ability_ids.contains(ability.id.as_str()) {
+                    errors.push(format!(
+                        "jobs.json: job '{}' references unknown ability '{}'",
+                        job.id, ability.id
                     ));
                 }
             }

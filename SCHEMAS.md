@@ -197,6 +197,8 @@ uses its dialog tree.
 
 `hide_name` controls whether the map name tooltip is shown on entry. Defaults to false.
 
+`encounter_rate` is the per-step chance (0.0-1.0) of starting a random battle in encounter zones.
+
 `signs` are inline interactive objects that display a centered dialog with no speaker.
 
 ```json
@@ -225,6 +227,7 @@ uses its dialog tree.
       "table": "gaia_grasslands"
     }
   ],
+  "encounter_rate": 0.08,
   "events": [
     {
       "id": "intro",
@@ -431,7 +434,8 @@ Growth modes:
       },
       "is_default": true,
       "sort_order": 10,
-      "spells": []
+      "spells": [],
+      "abilities": [{"id": "power_strike", "method": "level", "level": 2}]
     },
     {
       "id": "white_mage",
@@ -473,6 +477,11 @@ Job spell fields:
 - `tier`: required when `method` is `tier` (FF1-style learn/buy).
 - `item`: required when `method` is `item` (spellbook).
 
+Job ability fields:
+
+- `method`: `level` (other methods TBD).
+- `level`: required when `method` is `level`.
+
 Job gating fields:
 
 - `unlock_flag`: optional flag required to choose the job.
@@ -511,6 +520,26 @@ Spell costs are flexible. Use `{"type": "mp"}` for MP-based casting or
       "default_target": "ally",
       "allowed_targets": ["ally", "enemy"],
       "effect": {"type": "heal", "power": 20}
+    }
+  ]
+}
+```
+
+## entities/abilities.json
+
+Abilities define non-MP combat techniques unlocked by jobs.
+
+```json
+{
+  "version": 1,
+  "abilities": [
+    {
+      "id": "power_strike",
+      "name": "Power Strike",
+      "description": "A heavy blow that hits harder than a basic attack.",
+      "default_target": "enemy",
+      "allowed_targets": ["enemy"],
+      "effect": {"type": "damage", "power": 6}
     }
   ]
 }
@@ -615,6 +644,8 @@ Use `allowed_jobs` only for item-specific overrides (e.g., a katana requiring Sa
         ],
         "palette": "enemy"
       },
+      "exp": 6,
+      "currency": 8,
       "loot": [{"item": "potion", "chance": 0.1}]
     }
   ]
@@ -622,6 +653,8 @@ Use `allowed_jobs` only for item-specific overrides (e.g., a katana requiring Sa
 ```
 
 Traits are used by effects (e.g., `undead` can invert healing).
+
+`exp` and `currency` are rewarded per enemy and summed at victory.
 
 ## entities/vehicles.json
 
@@ -862,6 +895,21 @@ Battle log positions:
 - `top`: top of the screen.
 - `pane_top`: single row above the command row panels.
 
+Battle dialog positions:
+
+- `top`: overlays the top of the screen.
+- `bottom`: overlays the bottom of the screen.
+
+Battle dialog timing fields:
+
+- `auto_advance_ms`: delay before auto-advance (0 disables auto-advance).
+- `allow_skip`: allow Confirm/Cancel to skip wait.
+
+Battle animation fields:
+
+- `flash_ms`: delay per flash frame.
+- `flash_cycles`: number of flash cycles per action.
+
 ```json
 {
   "version": 1,
@@ -901,6 +949,16 @@ Battle log positions:
     "position": "top",
     "height": 2
   },
+  "dialog": {
+    "position": "top",
+    "height": 3,
+    "auto_advance_ms": 700,
+    "allow_skip": true
+  },
+  "animation": {
+    "flash_ms": 150,
+    "flash_cycles": 2
+  },
   "panels": {
     "enemies": {
       "title": "Enemies",
@@ -908,7 +966,7 @@ Battle log positions:
     },
     "commands": {
       "title": "Commands",
-      "items": ["Attack", "Magic", "Items", "Run"]
+      "items": ["Attack", "Magic", "Abilities", "Items", "Run"]
     },
     "party": {
       "title": "Party",
@@ -926,6 +984,13 @@ Battle log positions:
         {"id": "cost", "label": "MP"}
       ],
       "target_from_spell": true
+    },
+    "abilities": {
+      "list": "abilities",
+      "columns": [
+        {"id": "name", "label": "Ability"}
+      ],
+      "target_from_ability": true
     },
     "items": {
       "list": "inventory",

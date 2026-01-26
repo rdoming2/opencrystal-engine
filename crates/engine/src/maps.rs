@@ -15,6 +15,8 @@ pub struct MapFile {
     pub tiles: Vec<String>,
     pub legend: HashMap<String, TileLegend>,
     pub encounters: Vec<EncounterZone>,
+    #[serde(default)]
+    pub encounter_rate: f32,
     pub events: Vec<MapEvent>,
     pub npcs: Vec<MapNpc>,
     #[serde(default)]

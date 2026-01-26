@@ -39,6 +39,8 @@ pub struct JobDefinition {
     #[serde(default)]
     pub spells: Vec<JobSpell>,
     #[serde(default)]
+    pub abilities: Vec<JobAbility>,
+    #[serde(default)]
     pub unlock_flag: Option<String>,
     #[serde(default)]
     pub is_default: bool,
@@ -74,6 +76,14 @@ pub struct JobSpell {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct JobAbility {
+    pub id: String,
+    pub method: String,
+    #[serde(default)]
+    pub level: Option<u32>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct StatModifier {
     #[serde(default)]
     pub add: Option<i32>,
@@ -86,6 +96,12 @@ pub struct SpellsFile {
     pub version: u32,
     pub schools: Vec<MagicSchool>,
     pub spells: Vec<SpellDefinition>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct AbilitiesFile {
+    pub version: u32,
+    pub abilities: Vec<AbilityDefinition>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -117,6 +133,23 @@ pub struct SpellEffect {
     pub r#type: String,
     pub power: i32,
     pub element: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct AbilityDefinition {
+    pub id: String,
+    pub name: String,
+    #[serde(default)]
+    pub description: Option<String>,
+    pub default_target: String,
+    pub allowed_targets: Vec<String>,
+    pub effect: AbilityEffect,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct AbilityEffect {
+    pub r#type: String,
+    pub power: i32,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -186,6 +219,10 @@ pub struct EnemyDefinition {
     pub traits: Vec<String>,
     pub sprite: EnemySprite,
     pub art: Option<EnemyArt>,
+    #[serde(default)]
+    pub exp: i32,
+    #[serde(default)]
+    pub currency: i32,
     pub loot: Vec<EnemyLoot>,
 }
 
@@ -274,6 +311,12 @@ impl JobsFile {
 }
 
 impl SpellsFile {
+    pub fn load(path: impl AsRef<Path>) -> Result<Self, String> {
+        crate::io::load_json(path)
+    }
+}
+
+impl AbilitiesFile {
     pub fn load(path: impl AsRef<Path>) -> Result<Self, String> {
         crate::io::load_json(path)
     }

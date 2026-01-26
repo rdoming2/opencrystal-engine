@@ -16,6 +16,8 @@ Each snippet corresponds to an existing schema.
       "traits": ["beast"],
       "sprite": {"glyph": "i", "palette": "enemy"},
       "art": {"lines": [" /\\ ", "( ..)", " /__\\"], "palette": "enemy"},
+      "exp": 6,
+      "currency": 8,
       "loot": [{"item": "potion", "chance": 0.2}]
     },
     {
@@ -25,6 +27,8 @@ Each snippet corresponds to an existing schema.
       "traits": ["undead"],
       "sprite": {"glyph": "*", "palette": "enemy_magic"},
       "art": {"lines": [" .*. ", "( * )", " ' ' "], "palette": "enemy_magic"},
+      "exp": 8,
+      "currency": 12,
       "loot": [{"item": "ether", "chance": 0.1}]
     }
   ]
