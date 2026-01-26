@@ -259,6 +259,27 @@ pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
                 ));
             }
         }
+        for chest in &map.chests {
+            if chest.opened_flag.trim().is_empty() {
+                errors.push(format!(
+                    "maps/{}: chest '{}' missing opened_flag",
+                    map.id, chest.id
+                ));
+            }
+            if chest.pos[0] < 0 || chest.pos[1] < 0 {
+                errors.push(format!(
+                    "maps/{}: chest '{}' has negative position",
+                    map.id, chest.id
+                ));
+                continue;
+            }
+            if chest.pos[0] >= map.width as i32 || chest.pos[1] >= map.height as i32 {
+                errors.push(format!(
+                    "maps/{}: chest '{}' position {:?} out of bounds",
+                    map.id, chest.id, chest.pos
+                ));
+            }
+        }
         for transition in &map.transitions {
             if !map_ids.contains(&transition.target_map) {
                 errors.push(format!(
@@ -663,6 +684,61 @@ pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
             for npc in &map.npcs {
                 if !npc_ids.contains(npc.id.as_str()) {
                     errors.push(format!("maps/{}: npc '{}' not found", map.id, npc.id));
+                }
+            }
+        }
+    }
+
+    if let (Some(items), Some(equipment)) = (&items, &equipment) {
+        let item_ids: HashSet<&str> = items.items.iter().map(|item| item.id.as_str()).collect();
+        let equipment_ids: HashSet<&str> = equipment
+            .equipment
+            .iter()
+            .map(|entry| entry.id.as_str())
+            .collect();
+        for map in &maps {
+            for chest in &map.chests {
+                for stack in &chest.loot.items {
+                    if stack.qty <= 0 {
+                        errors.push(format!(
+                            "maps/{}: chest '{}' has item '{}' with non-positive qty",
+                            map.id, chest.id, stack.id
+                        ));
+                    }
+                    if !item_ids.contains(stack.id.as_str()) {
+                        errors.push(format!(
+                            "maps/{}: chest '{}' references unknown item '{}'",
+                            map.id, chest.id, stack.id
+                        ));
+                    }
+                }
+                for stack in &chest.loot.equipment {
+                    if stack.qty <= 0 {
+                        errors.push(format!(
+                            "maps/{}: chest '{}' has equipment '{}' with non-positive qty",
+                            map.id, chest.id, stack.id
+                        ));
+                    }
+                    if !equipment_ids.contains(stack.id.as_str()) {
+                        errors.push(format!(
+                            "maps/{}: chest '{}' references unknown equipment '{}'",
+                            map.id, chest.id, stack.id
+                        ));
+                    }
+                }
+                for stack in &chest.loot.currency {
+                    if stack.id.trim().is_empty() {
+                        errors.push(format!(
+                            "maps/{}: chest '{}' has currency with empty id",
+                            map.id, chest.id
+                        ));
+                    }
+                    if stack.amount <= 0 {
+                        errors.push(format!(
+                            "maps/{}: chest '{}' has currency '{}' with non-positive amount",
+                            map.id, chest.id, stack.id
+                        ));
+                    }
                 }
             }
         }

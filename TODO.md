@@ -37,6 +37,7 @@
   - [ ] Dialog vs event selection.
   - [x] Shop opening via dialog actions.
   - [ ] Shop purchase flow (currency, inventory updates).
+- [x] Add map treasure chests (loot + opened flags).
 - [ ] Implement save/load system.
   - [ ] Define save file schema + versioning.
   - [ ] Serialize world/party/inventory/flags.

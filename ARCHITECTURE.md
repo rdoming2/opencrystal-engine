@@ -39,6 +39,7 @@ It is a design reference meant to guide initial implementation.
 - Transition markers can override glyphs and palettes to highlight exits.
 - NPCs render with per-definition palette overrides (theme-driven colors).
 - Signs render as map objects with a glyph override (default `⚑`), block movement, and open a centered dialog on confirm.
+- Chests render with closed/open glyphs, block movement, and display loot in a centered dialog.
 
 ### Area name popup
 

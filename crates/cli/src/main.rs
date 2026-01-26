@@ -793,7 +793,18 @@ fn run_overworld_loop(
                     area_name_active = false;
                 }
                 Action::Confirm => {
-                    if let Some(text) = find_sign_text(runtime, &current_map_id, player_pos) {
+                    if let Some(chest) = find_chest(runtime, &current_map_id, player_pos) {
+                        let chest_text = open_chest(runtime, &chest);
+                        show_centered_dialog_on_map(
+                            session,
+                            &map,
+                            player_pos,
+                            dialog_ui,
+                            bindings,
+                            &chest_text,
+                        )?;
+                    } else if let Some(text) = find_sign_text(runtime, &current_map_id, player_pos)
+                    {
                         show_centered_dialog_on_map(
                             session, &map, player_pos, dialog_ui, bindings, &text,
                         )?;
@@ -865,6 +876,7 @@ fn run_overworld_loop(
         if !is_passable(runtime, &current_map_id, player_pos)
             || npc_at(runtime, &current_map_id, player_pos)
             || sign_at(runtime, &current_map_id, player_pos)
+            || chest_at(runtime, &current_map_id, player_pos)
         {
             player_pos = previous_pos;
             transitioned = false;
@@ -3549,6 +3561,26 @@ fn build_map_view(runtime: &GameRuntime, map_id: &str) -> Option<MapView> {
             text: sign.text.clone(),
         })
         .collect();
+    let chests = map
+        .chests
+        .iter()
+        .map(|chest| tui::app::ChestView {
+            id: chest.id.clone(),
+            pos: (chest.pos[0], chest.pos[1]),
+            glyph_closed: chest
+                .glyph_closed
+                .as_ref()
+                .and_then(|glyph| glyph.chars().next())
+                .unwrap_or('▣'),
+            glyph_open: chest
+                .glyph_open
+                .as_ref()
+                .and_then(|glyph| glyph.chars().next())
+                .unwrap_or('▢'),
+            palette: chest.palette.clone(),
+            opened: runtime.has_flag(&chest.opened_flag),
+        })
+        .collect();
     let save_points = map.save_points.iter().map(|pos| (pos[0], pos[1])).collect();
     let legend = map
         .legend
@@ -3592,6 +3624,7 @@ fn build_map_view(runtime: &GameRuntime, map_id: &str) -> Option<MapView> {
         transitions,
         npcs,
         signs,
+        chests,
         save_points,
         use_color,
     })
@@ -3691,6 +3724,20 @@ fn npc_at(runtime: &GameRuntime, map_id: &str, pos: (i32, i32)) -> bool {
     map.npcs.iter().any(|npc| (npc.pos[0], npc.pos[1]) == pos)
 }
 
+fn chest_at(runtime: &GameRuntime, map_id: &str, pos: (i32, i32)) -> bool {
+    let index = match runtime.content.map_index.get(map_id) {
+        Some(index) => *index,
+        None => return false,
+    };
+    let map = match runtime.content.maps.get(index) {
+        Some(map) => map,
+        None => return false,
+    };
+    map.chests
+        .iter()
+        .any(|chest| (chest.pos[0], chest.pos[1]) == pos)
+}
+
 fn sign_at(runtime: &GameRuntime, map_id: &str, pos: (i32, i32)) -> bool {
     let index = match runtime.content.map_index.get(map_id) {
         Some(index) => *index,
@@ -3723,6 +3770,21 @@ fn find_npc_dialog(runtime: &GameRuntime, map_id: &str, pos: (i32, i32)) -> Opti
         .map(|npc| npc.dialog.clone())
 }
 
+fn find_chest(
+    runtime: &GameRuntime,
+    map_id: &str,
+    pos: (i32, i32),
+) -> Option<engine::maps::MapChest> {
+    let index = runtime.content.map_index.get(map_id)?;
+    let map = runtime.content.maps.get(*index)?;
+    let chest = map.chests.iter().find(|chest| {
+        let dx = (chest.pos[0] - pos.0).abs();
+        let dy = (chest.pos[1] - pos.1).abs();
+        (dx == 1 && dy == 0) || (dx == 0 && dy == 1)
+    })?;
+    Some(chest.clone())
+}
+
 fn find_sign_text(runtime: &GameRuntime, map_id: &str, pos: (i32, i32)) -> Option<String> {
     let index = runtime.content.map_index.get(map_id)?;
     let map = runtime.content.maps.get(*index)?;
@@ -3732,6 +3794,70 @@ fn find_sign_text(runtime: &GameRuntime, map_id: &str, pos: (i32, i32)) -> Optio
         (dx == 1 && dy == 0) || (dx == 0 && dy == 1)
     })?;
     Some(sign.text.clone())
+}
+
+fn open_chest(runtime: &mut GameRuntime, chest: &engine::maps::MapChest) -> String {
+    if runtime.has_flag(&chest.opened_flag) {
+        return "The chest is empty.".to_string();
+    }
+
+    let max_stack = runtime.content.rules.inventory.max_stack;
+    let mut found = Vec::new();
+
+    for item in &chest.loot.items {
+        if item.qty <= 0 {
+            continue;
+        }
+        runtime.inventory.add_item(&item.id, item.qty, max_stack);
+        found.push(format!(
+            "{} x{}",
+            lookup_item_name(runtime, &item.id),
+            item.qty
+        ));
+    }
+
+    for item in &chest.loot.equipment {
+        if item.qty <= 0 {
+            continue;
+        }
+        runtime
+            .inventory
+            .add_equipment(&item.id, item.qty, max_stack);
+        found.push(format!(
+            "{} x{}",
+            lookup_item_name(runtime, &item.id),
+            item.qty
+        ));
+    }
+
+    for currency in &chest.loot.currency {
+        if currency.amount <= 0 {
+            continue;
+        }
+        runtime
+            .inventory
+            .add_currency(&currency.id, currency.amount);
+        found.push(format_currency_stack(&runtime.content.rules, currency));
+    }
+
+    runtime.set_flag(&chest.opened_flag);
+
+    if found.is_empty() {
+        "The chest is empty.".to_string()
+    } else {
+        format!("Found: {}.", found.join(", "))
+    }
+}
+
+fn format_currency_stack(
+    rules: &engine::rules::RulesFile,
+    currency: &engine::maps::MapCurrencyStack,
+) -> String {
+    if currency.id == rules.game.currency.id {
+        format!("{}{}", rules.game.currency.symbol, currency.amount)
+    } else {
+        format!("{} {}", currency.amount, currency.id)
+    }
 }
 
 fn npc_glyph(runtime: &GameRuntime, npc_id: &str) -> char {

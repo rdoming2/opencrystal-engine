@@ -2,6 +2,8 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
 
+use crate::inventory::InventoryStack;
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct MapFile {
     pub version: u32,
@@ -21,6 +23,8 @@ pub struct MapFile {
     pub npcs: Vec<MapNpc>,
     #[serde(default)]
     pub signs: Vec<MapSign>,
+    #[serde(default)]
+    pub chests: Vec<MapChest>,
     pub shops: Vec<MapShop>,
     #[serde(default = "default_allow_save")]
     pub allow_save: bool,
@@ -39,6 +43,37 @@ pub struct MapSign {
     #[serde(default)]
     pub palette: Option<String>,
     pub text: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct MapChest {
+    pub id: String,
+    pub pos: [i32; 2],
+    #[serde(default)]
+    pub glyph_closed: Option<String>,
+    #[serde(default)]
+    pub glyph_open: Option<String>,
+    #[serde(default)]
+    pub palette: Option<String>,
+    pub opened_flag: String,
+    #[serde(default)]
+    pub loot: MapChestLoot,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+pub struct MapChestLoot {
+    #[serde(default)]
+    pub items: Vec<InventoryStack>,
+    #[serde(default)]
+    pub equipment: Vec<InventoryStack>,
+    #[serde(default)]
+    pub currency: Vec<MapCurrencyStack>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct MapCurrencyStack {
+    pub id: String,
+    pub amount: i32,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

@@ -38,6 +38,7 @@ pub struct MapView {
     pub transitions: Vec<TransitionView>,
     pub npcs: Vec<NpcView>,
     pub signs: Vec<SignView>,
+    pub chests: Vec<ChestView>,
     pub save_points: Vec<(i32, i32)>,
     pub use_color: bool,
 }
@@ -209,6 +210,15 @@ pub struct SignView {
     pub glyph: char,
     pub palette: Option<String>,
     pub text: String,
+}
+
+pub struct ChestView {
+    pub id: String,
+    pub pos: (i32, i32),
+    pub glyph_closed: char,
+    pub glyph_open: char,
+    pub palette: Option<String>,
+    pub opened: bool,
 }
 
 impl TuiSession {
@@ -1377,6 +1387,7 @@ const DEFAULT_NPC_PALETTE: &str = "bright_yellow";
 const DEFAULT_TRANSITION_PALETTE: &str = "bright_magenta";
 const DEFAULT_SAVE_POINT_PALETTE: &str = "bright_cyan";
 const DEFAULT_SIGN_PALETTE: &str = "bright_yellow";
+const DEFAULT_CHEST_PALETTE: &str = "bright_yellow";
 
 pub fn draw_overworld_frame(frame: &mut Frame, map: &MapView, player_pos: (i32, i32)) {
     let area = frame.size();
@@ -1402,6 +1413,14 @@ pub fn draw_overworld_frame(frame: &mut Frame, map: &MapView, player_pos: (i32, 
             } else if let Some(npc) = map.npcs.iter().find(|npc| npc.pos == (map_x, map_y)) {
                 glyph = npc.glyph;
                 palette = npc.palette.as_deref().or(Some(DEFAULT_NPC_PALETTE));
+            } else if let Some(chest) = map.chests.iter().find(|chest| chest.pos == (map_x, map_y))
+            {
+                glyph = if chest.opened {
+                    chest.glyph_open
+                } else {
+                    chest.glyph_closed
+                };
+                palette = chest.palette.as_deref().or(Some(DEFAULT_CHEST_PALETTE));
             } else if let Some(sign) = map.signs.iter().find(|sign| sign.pos == (map_x, map_y)) {
                 glyph = sign.glyph;
                 palette = sign.palette.as_deref().or(Some(DEFAULT_SIGN_PALETTE));

@@ -252,6 +252,21 @@ uses its dialog tree.
       "text": "North Road"
     }
   ],
+  "chests": [
+    {
+      "id": "starter_cache",
+      "pos": [11, 6],
+      "glyph_closed": "▣",
+      "glyph_open": "▢",
+      "palette": "bright_yellow",
+      "opened_flag": "town.starter_cache_opened",
+      "loot": {
+        "items": [{"id": "potion", "qty": 2}],
+        "equipment": [{"id": "bronze_sword", "qty": 1}],
+        "currency": [{"id": "gil", "amount": 50}]
+      }
+    }
+  ],
   "shops": [
     {"id": "corner_store", "pos": [8, 6]}
   ],
@@ -290,6 +305,13 @@ Sign notes:
 - `signs.text` appears in a centered dialog when the player confirms nearby.
 - Signs block movement and are not passable.
 - Signs are interactive objects defined directly on maps; they are not NPCs.
+
+Chest notes:
+
+- `chests.glyph_closed`/`chests.glyph_open` are optional; defaults to `▣` and `▢`.
+- `chests.opened_flag` is required and is set when the chest is opened.
+- Loot can include any combination of items, equipment, and currency stacks.
+- Chests block movement and show a centered dialog on confirm.
 
 ## entities/encounters.json
 
