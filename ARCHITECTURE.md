@@ -54,7 +54,7 @@ It is a design reference meant to guide initial implementation.
 
 ### Battle layout (FF homage)
 
-- Top: battlefield (enemy visuals + player sprites).
+- Top: battlefield (enemy visuals + player sprites arranged in a right-side grid).
 - Bottom: command region, split into three columns:
   - Left: enemy list with target highlighting.
   - Center: command menu (Attack, Magic, Abilities, Items, Run, etc.).
@@ -85,7 +85,7 @@ All runtime data is loaded from JSON. Files are organized into top-level categor
 - `worlds.json`: world list, world-to-world travel rules, zoom config.
 - `maps/*.json`: map tiles, entities, triggers, encounter zones, per-map encounter rate.
 - `party.json`: predefined party roster (optional in create mode).
-- `entities/*.json`: jobs, spells, abilities, items, equipment, enemies, vehicles, shops, encounters, npcs.
+- `entities/*.json`: jobs (including battle sprites and starting gear), spells, abilities, items, equipment, enemies, vehicles, shops, encounters, npcs.
 - `events/*.json`: scripted events and cutscenes.
 - `dialog/*.json`: NPC dialog trees.
 - `ui/*.json`: menu panels, progress tracking config.

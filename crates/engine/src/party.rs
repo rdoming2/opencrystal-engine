@@ -208,9 +208,13 @@ fn build_actor(
     let mut equipment = HashMap::new();
     if let Some(job) = job {
         let allowed_slots = job_slots(job);
+        let mut starting_equipment = job.starting_equipment.clone();
         for (slot, item_id) in &actor.starting_equipment {
-            if allowed_slots.contains(slot) {
-                equipment.insert(slot.clone(), item_id.clone());
+            starting_equipment.insert(slot.clone(), item_id.clone());
+        }
+        for (slot, item_id) in starting_equipment {
+            if allowed_slots.contains(&slot) {
+                equipment.insert(slot, item_id);
             }
         }
     }

@@ -134,7 +134,8 @@ add `unlock_flag` gating for progression-driven unlocks.
 
 Defines the roster used in `predefined` party mode. For `create` mode, this file
 is optional and can be omitted. `base_stats` keys should match `stats.json` base
-stat IDs.
+stat IDs. `starting_equipment` is an optional override; jobs can define default
+starting gear.
 
 ```json
 {
@@ -146,7 +147,6 @@ stat IDs.
       "job_id": "fighter",
       "level": 1,
       "base_stats": {"hp": 32, "mp": 0, "str": 8, "int": 2},
-      "starting_equipment": {"weapon": "bronze_sword", "armor": "bronze_armor"},
       "spells": ["cure"]
     }
   ],
@@ -432,6 +432,8 @@ Growth modes:
         "str": {"add": 2, "mult": 1.05},
         "int": {"add": -1, "mult": 0.95}
       },
+      "starting_equipment": {"weapon": "bronze_sword", "armor": "bronze_armor"},
+      "sprite": {"glyph": "F", "palette": "player"},
       "is_default": true,
       "sort_order": 10,
       "spells": [],
@@ -481,6 +483,12 @@ Job ability fields:
 
 - `method`: `level` (other methods TBD).
 - `level`: required when `method` is `level`.
+
+Job starting equipment:
+
+- `starting_equipment`: optional default equipment by slot.
+- `sprite`: job battle glyph/palette.
+- `art`: optional ASCII art for battle rendering.
 
 Job gating fields:
 
@@ -888,7 +896,8 @@ configuration intended to support ASCII logos, attribution, and menu items.
 ## ui/battle.json
 
 Defines battle UI layout and panel behavior. Panels can be anchored or flexed to adapt
-to terminal sizes.
+to terminal sizes. `party_grid.rows` controls how player sprites are arranged in the
+battlefield grid.
 
 Battle log positions:
 
@@ -943,6 +952,9 @@ Battle animation fields:
         {"id": "commands", "width_ratio": 0.4},
         {"id": "party", "width_ratio": 0.3}
       ]
+    },
+    "party_grid": {
+      "rows": 2
     }
   },
   "log": {

@@ -144,6 +144,11 @@ pub struct BattlePartyView {
     pub status: Vec<String>,
     pub alive: bool,
     pub active: bool,
+    pub glyph: char,
+    pub palette: Option<String>,
+    pub art: Option<Vec<String>>,
+    pub art_palette: Option<String>,
+    pub pos: (i32, i32),
 }
 
 #[derive(Clone, Debug)]
@@ -978,18 +983,15 @@ fn draw_enemy_panel(
 ) {
     let mut lines = Vec::new();
     for (index, enemy) in state.enemies.iter().enumerate() {
-        let is_selected = index == state.selected_enemy;
+        let focused = matches!(state.focus, BattleFocus::Enemies);
+        let is_selected = focused && index == state.selected_enemy;
         let mut style = if enemy.alive {
             Style::default().fg(Color::White)
         } else {
             Style::default().fg(Color::DarkGray)
         };
         if is_selected {
-            style = list_highlight_style(
-                style,
-                &battle_ui.selection.list_highlight,
-                matches!(state.focus, BattleFocus::Enemies),
-            );
+            style = list_highlight_style(style, &battle_ui.selection.list_highlight, focused);
         } else if state.flash_enemies.contains(&index) {
             style = style.fg(Color::Yellow).add_modifier(Modifier::REVERSED);
         }
@@ -1088,18 +1090,15 @@ fn draw_party_panel(
 ) {
     let mut lines = Vec::new();
     for (index, member) in state.party.iter().enumerate() {
-        let is_selected = index == state.selected_party;
+        let focused = matches!(state.focus, BattleFocus::Party);
+        let is_selected = focused && index == state.selected_party;
         let mut style = if member.alive {
             Style::default().fg(Color::White)
         } else {
             Style::default().fg(Color::DarkGray)
         };
         if is_selected {
-            style = list_highlight_style(
-                style,
-                &battle_ui.selection.list_highlight,
-                matches!(state.focus, BattleFocus::Party),
-            );
+            style = list_highlight_style(style, &battle_ui.selection.list_highlight, focused);
         } else if state.flash_party.contains(&index) {
             style = style.fg(Color::Yellow).add_modifier(Modifier::REVERSED);
         } else if member.active {
@@ -1202,6 +1201,56 @@ fn draw_battlefield(
             let x = center_x as i32;
             let y = center_y as i32;
             place_glyph(&mut cells, enemy.glyph, x, y, style);
+        }
+    }
+
+    for (index, member) in state.party.iter().enumerate() {
+        if member.max_hp <= 0 {
+            continue;
+        }
+        let use_art = enemy_art_mode != "glyph" && member.art.is_some();
+        let (center_x, center_y) = (
+            (member.pos.0 as f32 + 0.5) * cell_width,
+            (member.pos.1 as f32 + 0.5) * cell_height,
+        );
+        let selected = matches!(state.focus, BattleFocus::Party) && index == state.selected_party;
+        let flashing = state.flash_party.contains(&index);
+        let mut style = palette_style(state.use_color, member.palette.as_deref());
+        if !member.alive {
+            style = Style::default().fg(Color::DarkGray);
+        }
+        if selected {
+            style = style.add_modifier(highlight_modifier);
+        } else if flashing {
+            style = style.fg(Color::Yellow).add_modifier(Modifier::REVERSED);
+        }
+        if use_art {
+            if let Some(lines) = member.art.as_ref() {
+                let art_palette = member.art_palette.as_deref().or(member.palette.as_deref());
+                let art_style = if member.alive {
+                    palette_style(state.use_color, art_palette)
+                } else {
+                    Style::default().fg(Color::DarkGray)
+                };
+                let art_style = if selected {
+                    art_style.add_modifier(highlight_modifier)
+                } else if flashing {
+                    art_style.fg(Color::Yellow).add_modifier(Modifier::REVERSED)
+                } else {
+                    art_style
+                };
+                let art_height = lines.len() as i32;
+                for (line_index, line) in lines.iter().enumerate() {
+                    let line_width = line.chars().count() as i32;
+                    let start_x = center_x as i32 - line_width / 2;
+                    let start_y = center_y as i32 - art_height / 2 + line_index as i32;
+                    place_text(&mut cells, line, start_x, start_y, art_style);
+                }
+            }
+        } else {
+            let x = center_x as i32;
+            let y = center_y as i32;
+            place_glyph(&mut cells, member.glyph, x, y, style);
         }
     }
 

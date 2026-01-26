@@ -41,6 +41,12 @@ pub struct JobDefinition {
     #[serde(default)]
     pub abilities: Vec<JobAbility>,
     #[serde(default)]
+    pub starting_equipment: HashMap<String, String>,
+    #[serde(default)]
+    pub sprite: JobSprite,
+    #[serde(default)]
+    pub art: Option<JobArt>,
+    #[serde(default)]
     pub unlock_flag: Option<String>,
     #[serde(default)]
     pub is_default: bool,
@@ -81,6 +87,29 @@ pub struct JobAbility {
     pub method: String,
     #[serde(default)]
     pub level: Option<u32>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct JobSprite {
+    #[serde(default = "default_job_glyph")]
+    pub glyph: String,
+    #[serde(default = "default_job_palette")]
+    pub palette: String,
+}
+
+impl Default for JobSprite {
+    fn default() -> Self {
+        Self {
+            glyph: default_job_glyph(),
+            palette: default_job_palette(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct JobArt {
+    pub lines: Vec<String>,
+    pub palette: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -320,6 +349,14 @@ impl AbilitiesFile {
     pub fn load(path: impl AsRef<Path>) -> Result<Self, String> {
         crate::io::load_json(path)
     }
+}
+
+fn default_job_glyph() -> String {
+    "@".to_string()
+}
+
+fn default_job_palette() -> String {
+    "player".to_string()
 }
 
 impl ItemsFile {

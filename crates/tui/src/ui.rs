@@ -144,6 +144,8 @@ pub struct BreakpointBehavior {
 pub struct BattleLayout {
     pub battlefield: PanelAnchor,
     pub command_row: CommandRow,
+    #[serde(default = "default_party_grid")]
+    pub party_grid: PartyGrid,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -157,6 +159,12 @@ pub struct CommandRow {
     pub anchor: String,
     pub height_ratio: f32,
     pub columns: Vec<ColumnSpec>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct PartyGrid {
+    #[serde(default = "default_party_grid_rows")]
+    pub rows: u16,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -305,6 +313,14 @@ fn default_battle_flash_ms() -> u64 {
 }
 
 fn default_battle_flash_cycles() -> u16 {
+    2
+}
+
+fn default_party_grid() -> PartyGrid {
+    PartyGrid { rows: 2 }
+}
+
+fn default_party_grid_rows() -> u16 {
     2
 }
 
