@@ -870,7 +870,8 @@ enum InventoryKind {
 struct InventoryEntry {
     id: String,
     label: String,
-    qty: i32,
+    available_qty: i32,
+    total_qty: i32,
     kind: InventoryKind,
     slot: Option<String>,
     category: Option<String>,
@@ -1343,6 +1344,10 @@ fn build_list_line(entry: &InventoryEntry, is_selected: bool, width: usize) -> M
     } else {
         PanelSpanStyle::Muted
     };
+    let count_text = match entry.kind {
+        InventoryKind::Item => format!("x{}", entry.total_qty),
+        InventoryKind::Equipment => format!("{}/{}", entry.available_qty, entry.total_qty),
+    };
     spans.push(panel_span(
         prefix,
         if is_selected {
@@ -1356,7 +1361,7 @@ fn build_list_line(entry: &InventoryEntry, is_selected: bool, width: usize) -> M
         label_style,
     ));
     spans.push(panel_span(
-        format!("x{}", entry.qty),
+        format!("{:>6}", count_text),
         PanelSpanStyle::Accent,
     ));
     if let Some(owner) = equipped_label(entry) {
@@ -1383,7 +1388,8 @@ fn build_inventory_entries(
             entries.push(InventoryEntry {
                 id: item.id.clone(),
                 label: item.name.clone(),
-                qty,
+                available_qty: qty,
+                total_qty: qty,
                 kind: InventoryKind::Item,
                 slot: None,
                 category: None,
@@ -1406,7 +1412,8 @@ fn build_inventory_entries(
             entries.push(InventoryEntry {
                 id: equipment.id.clone(),
                 label: equipment.name.clone(),
-                qty: total_qty,
+                available_qty: qty.max(0),
+                total_qty,
                 kind: InventoryKind::Equipment,
                 slot: Some(equipment.slot.clone()),
                 category: Some(equipment.category.clone()),
@@ -1601,7 +1608,8 @@ fn build_equipment_entries(
     entries.push(InventoryEntry {
         id: "".to_string(),
         label: "Unequip".to_string(),
-        qty: 0,
+        available_qty: 0,
+        total_qty: 0,
         kind: InventoryKind::Equipment,
         slot: Some(slot.to_string()),
         category: None,
@@ -1619,9 +1627,9 @@ fn build_equipment_entries(
                 continue;
             }
         }
-        let total_qty = runtime.inventory.equipment_qty(&equipment.id);
+        let inventory_qty = runtime.inventory.equipment_qty(&equipment.id);
         let equipped_count = equipped_counts.get(&equipment.id).copied().unwrap_or(0);
-        let mut available = total_qty - equipped_count;
+        let mut available = inventory_qty;
         let equipped_by = equipped_map.get(&equipment.id).cloned().unwrap_or_default();
         let already_equipped = actor
             .equipment
@@ -1633,11 +1641,12 @@ fn build_equipment_entries(
         if available <= 0 && equipped_by.is_empty() {
             continue;
         }
-        let usable = available > 0 || !equipped_by.is_empty();
+        let usable = available > 0 || already_equipped;
         entries.push(InventoryEntry {
             id: equipment.id.clone(),
             label: equipment.name.clone(),
-            qty: available.max(0),
+            available_qty: inventory_qty.max(0),
+            total_qty: (inventory_qty + equipped_count).max(0),
             kind: InventoryKind::Equipment,
             slot: Some(equipment.slot.clone()),
             category: Some(equipment.category.clone()),
