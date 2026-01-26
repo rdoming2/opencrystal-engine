@@ -1205,9 +1205,6 @@ fn draw_battlefield(
     }
 
     for (index, member) in state.party.iter().enumerate() {
-        if member.max_hp <= 0 {
-            continue;
-        }
         let use_art = enemy_art_mode != "glyph" && member.art.is_some();
         let (center_x, center_y) = (
             (member.pos.0 as f32 + 0.5) * cell_width,

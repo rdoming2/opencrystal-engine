@@ -176,6 +176,7 @@ All runtime data is loaded from JSON. Files are organized into top-level categor
   - Turn-based (no ATB)
   - ATB with wait (pause in menus)
   - ATB active (continues during menus)
+- Turn order ranks all actors by speed each round (party + enemies).
 - Enemy selection tied to list on the left column.
 - Visual feedback highlights enemy in battlefield and list simultaneously.
 - Victory flow grants EXP/loot/currency summed from enemies.

@@ -356,7 +356,7 @@ fn default_job_glyph() -> String {
 }
 
 fn default_job_palette() -> String {
-    "player".to_string()
+    "bright_cyan".to_string()
 }
 
 impl ItemsFile {

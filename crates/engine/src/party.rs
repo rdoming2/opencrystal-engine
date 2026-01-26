@@ -153,13 +153,17 @@ fn build_created_party(
         }
         let actor_id = format!("create_{}", index + 1);
         let job = job_lookup.get(job_id.as_str()).copied();
+        let starting_equipment = job
+            .map(|job| job.starting_equipment.clone())
+            .filter(|equipment| !equipment.is_empty())
+            .unwrap_or_else(|| create_rules.starting_equipment.clone());
         let actor = ActorDefinition {
             id: actor_id.clone(),
             name,
             job_id: job_id.clone(),
             level: create_rules.starting_level,
             base_stats: HashMap::new(),
-            starting_equipment: create_rules.starting_equipment.clone(),
+            starting_equipment,
             spells: Vec::new(),
         };
         let built = build_actor(content, &actor, job, &equipment_lookup);

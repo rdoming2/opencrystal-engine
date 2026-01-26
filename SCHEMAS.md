@@ -433,7 +433,8 @@ Growth modes:
         "int": {"add": -1, "mult": 0.95}
       },
       "starting_equipment": {"weapon": "bronze_sword", "armor": "bronze_armor"},
-      "sprite": {"glyph": "F", "palette": "player"},
+      "sprite": {"glyph": "F", "palette": "bright_cyan"},
+      "art": {"lines": [" o ", "|/\\", " /\\"], "palette": "bright_cyan"},
       "is_default": true,
       "sort_order": 10,
       "spells": [],
@@ -488,7 +489,7 @@ Job starting equipment:
 
 - `starting_equipment`: optional default equipment by slot.
 - `sprite`: job battle glyph/palette.
-- `art`: optional ASCII art for battle rendering.
+- `art`: optional ASCII art for battle rendering (used when battle art mode allows).
 
 Job gating fields:
 
