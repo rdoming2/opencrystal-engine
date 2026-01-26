@@ -876,6 +876,7 @@ struct InventoryEntry {
     category: Option<String>,
     usable: bool,
     equipped_by: Vec<String>,
+    usage_target: String,
 }
 
 fn run_menu_loop(
@@ -945,8 +946,12 @@ fn run_menu_loop(
                             runtime.menu_state.selected -= 1;
                         }
                     } else if submenu_action == "items" {
-                        if runtime.menu_state.detail_selection > 0 {
-                            runtime.menu_state.detail_selection -= 1;
+                        if runtime.menu_state.detail_page == 0 {
+                            if runtime.menu_state.detail_selection > 0 {
+                                runtime.menu_state.detail_selection -= 1;
+                            }
+                        } else if runtime.menu_state.detail_target > 0 {
+                            runtime.menu_state.detail_target -= 1;
                         }
                     } else if submenu_action == "equipment" {
                         if runtime.menu_state.detail_selection > 0 {
@@ -960,13 +965,28 @@ fn run_menu_loop(
                             runtime.menu_state.selected += 1;
                         }
                     } else if submenu_action == "items" {
-                        let entries = build_inventory_entries(
-                            runtime,
-                            &filter_from_index(runtime.menu_state.detail_filter),
-                            &sort_from_index(runtime.menu_state.detail_sort),
-                        );
-                        if runtime.menu_state.detail_selection + 1 < entries.len() {
-                            runtime.menu_state.detail_selection += 1;
+                        if runtime.menu_state.detail_page == 0 {
+                            let entries = build_inventory_entries(
+                                runtime,
+                                &filter_from_index(runtime.menu_state.detail_filter),
+                                &sort_from_index(runtime.menu_state.detail_sort),
+                            );
+                            if runtime.menu_state.detail_selection + 1 < entries.len() {
+                                runtime.menu_state.detail_selection += 1;
+                            }
+                        } else {
+                            let entries = build_inventory_entries(
+                                runtime,
+                                &filter_from_index(runtime.menu_state.detail_filter),
+                                &sort_from_index(runtime.menu_state.detail_sort),
+                            );
+                            let targets = entries
+                                .get(runtime.menu_state.detail_selection)
+                                .map(|entry| item_targets_for_entry(runtime, entry))
+                                .unwrap_or_default();
+                            if runtime.menu_state.detail_target + 1 < targets.len() {
+                                runtime.menu_state.detail_target += 1;
+                            }
                         }
                     } else if submenu_action == "equipment" {
                         let limit = if runtime.menu_state.detail_page == 0 {
@@ -992,7 +1012,9 @@ fn run_menu_loop(
                                         runtime.menu_state.detail_selection = 0;
                                         runtime.menu_state.detail_filter = 0;
                                         runtime.menu_state.detail_sort = 0;
+                                        runtime.menu_state.detail_target = 0;
                                     }
+
                                     "equipment" => {
                                         runtime.menu_state.focus = MenuFocus::Detail;
                                         runtime.menu_state.active_submenu =
@@ -1019,12 +1041,38 @@ fn run_menu_loop(
                         );
                         if let Some(entry) = entries.get(runtime.menu_state.detail_selection) {
                             if entry.kind == InventoryKind::Item && entry.usable {
-                                if use_item(session, runtime, bindings, entry)? {
-                                    runtime.menu_state.detail_selection = runtime
-                                        .menu_state
-                                        .detail_selection
-                                        .min(entries.len().saturating_sub(1));
+                                if runtime.menu_state.detail_page == 0 {
+                                    let targets = item_targets_for_entry(runtime, entry);
+                                    if entry.usage_target == "party" {
+                                        if apply_item_to_targets(runtime, entry, &targets) {
+                                            runtime.inventory.remove_item(&entry.id, 1);
+                                        }
+                                    } else if targets.is_empty() {
+                                        runtime.menu_state.detail_page = 0;
+                                    } else {
+                                        runtime.menu_state.detail_page = 1;
+                                        runtime.menu_state.detail_target = 0;
+                                    }
+                                } else {
+                                    let targets = item_targets_for_entry(runtime, entry);
+                                    if let Some(target_id) =
+                                        targets.get(runtime.menu_state.detail_target)
+                                    {
+                                        if apply_item_to_targets(
+                                            runtime,
+                                            entry,
+                                            &[target_id.clone()],
+                                        ) {
+                                            runtime.inventory.remove_item(&entry.id, 1);
+                                        }
+                                    }
+                                    runtime.menu_state.detail_page = 0;
+                                    runtime.menu_state.detail_target = 0;
                                 }
+                                runtime.menu_state.detail_selection = runtime
+                                    .menu_state
+                                    .detail_selection
+                                    .min(entries.len().saturating_sub(1));
                             }
                         }
                     } else if submenu_action == "equipment" {
@@ -1055,6 +1103,9 @@ fn run_menu_loop(
                         if submenu_action == "equipment" && runtime.menu_state.detail_page == 1 {
                             runtime.menu_state.detail_page = 0;
                             runtime.menu_state.detail_selection = runtime.menu_state.detail_slot;
+                        } else if submenu_action == "items" && runtime.menu_state.detail_page == 1 {
+                            runtime.menu_state.detail_page = 0;
+                            runtime.menu_state.detail_target = 0;
                         } else {
                             runtime.menu_state.focus = MenuFocus::List;
                             runtime.menu_state.active_submenu = None;
@@ -1074,12 +1125,15 @@ fn run_menu_loop(
                             0
                         };
                     } else if matches!(focus, MenuPane::Detail) && submenu_action == "items" {
-                        runtime.menu_state.detail_filter = if matches!(action, Action::MoveRight) {
-                            next_filter_index(runtime.menu_state.detail_filter)
-                        } else {
-                            prev_filter_index(runtime.menu_state.detail_filter)
-                        };
-                        runtime.menu_state.detail_selection = 0;
+                        if runtime.menu_state.detail_page == 0 {
+                            runtime.menu_state.detail_filter =
+                                if matches!(action, Action::MoveRight) {
+                                    next_filter_index(runtime.menu_state.detail_filter)
+                                } else {
+                                    prev_filter_index(runtime.menu_state.detail_filter)
+                                };
+                            runtime.menu_state.detail_selection = 0;
+                        }
                     } else if matches!(focus, MenuPane::Detail) && submenu_action == "equipment" {
                         let actor_count = runtime.party.active.len();
                         if actor_count > 0 {
@@ -1097,7 +1151,10 @@ fn run_menu_loop(
                     }
                 }
                 Action::Pause => {
-                    if matches!(focus, MenuPane::Detail) && submenu_action == "items" {
+                    if matches!(focus, MenuPane::Detail)
+                        && submenu_action == "items"
+                        && runtime.menu_state.detail_page == 0
+                    {
                         runtime.menu_state.detail_sort =
                             toggle_sort_index(runtime.menu_state.detail_sort);
                     }
@@ -1132,7 +1189,13 @@ fn menu_footer_text(focus: MenuPane, submenu: &str, page: usize) -> &'static str
                     "Left/Right: summary  Cancel: back"
                 }
             }
-            "items" => "Confirm: use  Left/Right: filter  Pause: sort  Cancel: back",
+            "items" => {
+                if page == 0 {
+                    "Confirm: use  Left/Right: filter  Pause: sort  Cancel: back"
+                } else {
+                    "Confirm: use  Cancel: back"
+                }
+            }
             "equipment" => {
                 if page == 0 {
                     "Confirm: pick slot  Left/Right: actor  Cancel: back"
@@ -1285,6 +1348,7 @@ fn build_inventory_entries(
                 category: None,
                 usable,
                 equipped_by: Vec::new(),
+                usage_target: item.usage.target.clone(),
             });
         }
     } else {
@@ -1306,6 +1370,7 @@ fn build_inventory_entries(
                 category: Some(equipment.category.clone()),
                 usable: false,
                 equipped_by,
+                usage_target: String::new(),
             });
         }
     }
@@ -1500,6 +1565,7 @@ fn build_equipment_entries(
         category: None,
         usable: true,
         equipped_by: Vec::new(),
+        usage_target: String::new(),
     });
 
     for equipment in &runtime.content.equipment.equipment {
@@ -1535,6 +1601,7 @@ fn build_equipment_entries(
             category: Some(equipment.category.clone()),
             usable,
             equipped_by,
+            usage_target: String::new(),
         });
     }
 
@@ -1565,12 +1632,25 @@ fn equipment_allowed(
     }
 }
 
-fn use_item(
-    session: &mut TuiSession,
+fn item_targets_for_entry(runtime: &GameRuntime, entry: &InventoryEntry) -> Vec<String> {
+    let item = match runtime
+        .content
+        .items
+        .items
+        .iter()
+        .find(|item| item.id == entry.id)
+    {
+        Some(item) => item,
+        None => return Vec::new(),
+    };
+    build_item_targets(runtime, item)
+}
+
+fn apply_item_to_targets(
     runtime: &mut GameRuntime,
-    bindings: &tui::input::InputBindings,
     entry: &InventoryEntry,
-) -> std::io::Result<bool> {
+    targets: &[String],
+) -> bool {
     let item = match runtime
         .content
         .items
@@ -1580,44 +1660,15 @@ fn use_item(
         .cloned()
     {
         Some(item) => item,
-        None => return Ok(false),
+        None => return false,
     };
     if !item_usage_allows_field(&item.usage.context) {
-        return Ok(false);
+        return false;
     }
-    let targets = build_item_targets(runtime, &item);
-    if targets.is_empty() {
-        return Ok(false);
+    for target_id in targets {
+        apply_item_to_actor(runtime, &item, target_id);
     }
-    match item.usage.target.as_str() {
-        "party" => {
-            for actor_id in targets {
-                apply_item_to_actor(runtime, &item, &actor_id);
-            }
-        }
-        _ => {
-            let labels = targets
-                .iter()
-                .filter_map(|id| runtime.party.roster.get(id))
-                .map(|actor| actor.name.clone())
-                .collect::<Vec<_>>();
-            let selected = match prompt_choice(
-                session,
-                bindings,
-                "Use Item",
-                "Choose a target:",
-                &labels,
-                0,
-            )? {
-                Some(index) => index,
-                None => return Ok(false),
-            };
-            let actor_id = &targets[selected];
-            apply_item_to_actor(runtime, &item, actor_id);
-        }
-    }
-    runtime.inventory.remove_item(&item.id, 1);
-    Ok(true)
+    true
 }
 
 fn build_item_targets(
@@ -1867,12 +1918,63 @@ fn build_items_panel(runtime: &GameRuntime) -> MenuPanelView {
         lines.push(panel_line_spans(spans));
     }
     lines.push(panel_line("------------------------------"));
+    if runtime.menu_state.detail_page == 1 {
+        lines.extend(build_item_target_panel(runtime, entries.get(selection)));
+        lines.push(panel_line("------------------------------"));
+    }
     lines.extend(build_item_description(runtime, entries.get(selection)));
 
     MenuPanelView {
         title: "Items".to_string(),
         lines,
     }
+}
+
+fn build_item_target_panel(
+    runtime: &GameRuntime,
+    entry: Option<&InventoryEntry>,
+) -> Vec<MenuPanelLine> {
+    let Some(entry) = entry else {
+        return vec![panel_line("No target."), panel_line("")];
+    };
+    let targets = item_targets_for_entry(runtime, entry);
+    if targets.is_empty() {
+        return vec![panel_line("No valid targets."), panel_line("")];
+    }
+    let selection = runtime
+        .menu_state
+        .detail_target
+        .min(targets.len().saturating_sub(1));
+    let mut lines = Vec::new();
+    lines.push(panel_line("Target:"));
+    for (index, target_id) in targets.iter().enumerate() {
+        let name = runtime
+            .party
+            .roster
+            .get(target_id)
+            .map(|actor| actor.name.as_str())
+            .unwrap_or(target_id.as_str());
+        let is_selected = index == selection;
+        lines.push(panel_line_spans(vec![
+            panel_span(
+                if is_selected { "> " } else { "  " },
+                if is_selected {
+                    PanelSpanStyle::Highlight
+                } else {
+                    PanelSpanStyle::Normal
+                },
+            ),
+            panel_span(
+                name,
+                if is_selected {
+                    PanelSpanStyle::Highlight
+                } else {
+                    PanelSpanStyle::Normal
+                },
+            ),
+        ]));
+    }
+    lines
 }
 
 fn build_equipment_panel(runtime: &GameRuntime) -> MenuPanelView {
@@ -2077,6 +2179,23 @@ fn build_item_description(
                 .find(|item| item.id == entry.id);
             if let Some(item) = item {
                 let mut lines = Vec::new();
+                let power_text = item
+                    .effect
+                    .power
+                    .map(|value| value.to_string())
+                    .unwrap_or_else(|| "-".to_string());
+                lines.push(panel_line_spans(vec![
+                    panel_span("Usage: ", PanelSpanStyle::Normal),
+                    panel_span(item.usage.context.clone(), PanelSpanStyle::Accent),
+                    panel_span("  Target: ", PanelSpanStyle::Normal),
+                    panel_span(item.usage.target.clone(), PanelSpanStyle::Accent),
+                ]));
+                lines.push(panel_line_spans(vec![
+                    panel_span("Effect: ", PanelSpanStyle::Normal),
+                    panel_span(item.effect.r#type.clone(), PanelSpanStyle::Accent),
+                    panel_span("  Power: ", PanelSpanStyle::Normal),
+                    panel_span(power_text, PanelSpanStyle::Accent),
+                ]));
                 let description = item
                     .description
                     .clone()
@@ -2084,23 +2203,6 @@ fn build_item_description(
                 lines.push(panel_line_spans(vec![
                     panel_span("Description: ", PanelSpanStyle::Accent),
                     panel_span(description, PanelSpanStyle::Normal),
-                ]));
-                lines.push(panel_line_spans(vec![
-                    panel_span("Usage: ", PanelSpanStyle::Normal),
-                    panel_span(item.usage.context.clone(), PanelSpanStyle::Accent),
-                    panel_span("  Target: ", PanelSpanStyle::Normal),
-                    panel_span(item.usage.target.clone(), PanelSpanStyle::Accent),
-                ]));
-                let power_text = item
-                    .effect
-                    .power
-                    .map(|value| value.to_string())
-                    .unwrap_or_else(|| "-".to_string());
-                lines.push(panel_line_spans(vec![
-                    panel_span("Effect: ", PanelSpanStyle::Normal),
-                    panel_span(item.effect.r#type.clone(), PanelSpanStyle::Accent),
-                    panel_span("  Power: ", PanelSpanStyle::Normal),
-                    panel_span(power_text, PanelSpanStyle::Accent),
                 ]));
                 if !entry.usable {
                     lines.push(panel_line("Cannot use in field."));

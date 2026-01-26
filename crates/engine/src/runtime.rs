@@ -31,6 +31,7 @@ pub struct MenuState {
     pub detail_sort: usize,
     pub detail_actor: usize,
     pub detail_slot: usize,
+    pub detail_target: usize,
 }
 
 impl Default for MenuState {
@@ -45,6 +46,7 @@ impl Default for MenuState {
             detail_sort: 0,
             detail_actor: 0,
             detail_slot: 0,
+            detail_target: 0,
         }
     }
 }
@@ -95,6 +97,7 @@ impl GameRuntime {
         self.menu_state.detail_sort = 0;
         self.menu_state.detail_actor = 0;
         self.menu_state.detail_slot = 0;
+        self.menu_state.detail_target = 0;
     }
 
     pub fn set_flag(&mut self, flag: &str) {
