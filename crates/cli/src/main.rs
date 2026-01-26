@@ -1324,6 +1324,47 @@ fn panel_span(text: impl Into<String>, style: PanelSpanStyle) -> MenuPanelSpan {
     }
 }
 
+fn list_line_width(entries: &[InventoryEntry]) -> usize {
+    entries
+        .iter()
+        .map(|entry| entry.label.chars().count())
+        .max()
+        .unwrap_or(10)
+        + 2
+}
+
+fn build_list_line(entry: &InventoryEntry, is_selected: bool, width: usize) -> MenuPanelLine {
+    let prefix = if is_selected { "> " } else { "  " };
+    let mut spans = Vec::new();
+    let label_style = if is_selected {
+        PanelSpanStyle::Highlight
+    } else if entry.usable {
+        PanelSpanStyle::Normal
+    } else {
+        PanelSpanStyle::Muted
+    };
+    spans.push(panel_span(
+        prefix,
+        if is_selected {
+            PanelSpanStyle::Highlight
+        } else {
+            PanelSpanStyle::Normal
+        },
+    ));
+    spans.push(panel_span(
+        format!("{:<width$}", entry.label, width = width),
+        label_style,
+    ));
+    spans.push(panel_span(
+        format!("x{}", entry.qty),
+        PanelSpanStyle::Accent,
+    ));
+    if let Some(owner) = equipped_label(entry) {
+        spans.push(panel_span(format!(" {}", owner), PanelSpanStyle::Accent));
+    }
+    panel_line_spans(spans)
+}
+
 fn build_inventory_entries(
     runtime: &GameRuntime,
     filter: &InventoryFilter,
@@ -1361,10 +1402,11 @@ fn build_inventory_entries(
             if qty <= 0 && equipped_by.is_empty() {
                 continue;
             }
+            let total_qty = qty + equipped_by.len() as i32;
             entries.push(InventoryEntry {
                 id: equipment.id.clone(),
                 label: equipment.name.clone(),
-                qty,
+                qty: total_qty,
                 kind: InventoryKind::Equipment,
                 slot: Some(equipment.slot.clone()),
                 category: Some(equipment.category.clone()),
@@ -1890,38 +1932,20 @@ fn build_items_panel(runtime: &GameRuntime) -> MenuPanelView {
         .min(entries.len().saturating_sub(1));
     let header = inventory_filter_line(&filter, &sort);
     let mut lines = Vec::new();
+    let width = list_line_width(&entries);
     lines.push(header);
     for (index, entry) in entries.iter().enumerate() {
-        let is_selected = index == selection;
-        let mut spans = Vec::new();
-        spans.push(panel_span(
-            if is_selected { "> " } else { "  " },
-            if is_selected {
-                PanelSpanStyle::Highlight
-            } else {
-                PanelSpanStyle::Normal
-            },
-        ));
-        spans.push(panel_span(
-            format!("{} x{}", entry.label, entry.qty),
-            if is_selected {
-                PanelSpanStyle::Highlight
-            } else if entry.usable {
-                PanelSpanStyle::Normal
-            } else {
-                PanelSpanStyle::Muted
-            },
-        ));
-        if let Some(owner) = equipped_label(entry) {
-            spans.push(panel_span(format!(" {}", owner), PanelSpanStyle::Accent));
-        }
-        lines.push(panel_line_spans(spans));
+        lines.push(build_list_line(entry, index == selection, width));
     }
     lines.push(panel_line("------------------------------"));
     if runtime.menu_state.detail_page == 1 {
         lines.extend(build_item_target_panel(runtime, entries.get(selection)));
         lines.push(panel_line("------------------------------"));
     }
+    lines.push(panel_line_spans(vec![panel_span(
+        "Details",
+        PanelSpanStyle::Accent,
+    )]));
     lines.extend(build_item_description(runtime, entries.get(selection)));
 
     MenuPanelView {
@@ -1946,7 +1970,10 @@ fn build_item_target_panel(
         .detail_target
         .min(targets.len().saturating_sub(1));
     let mut lines = Vec::new();
-    lines.push(panel_line("Target:"));
+    lines.push(panel_line_spans(vec![panel_span(
+        "Target",
+        PanelSpanStyle::Accent,
+    )]));
     for (index, target_id) in targets.iter().enumerate() {
         let name = runtime
             .party
@@ -2058,33 +2085,15 @@ fn build_equipment_panel(runtime: &GameRuntime) -> MenuPanelView {
             .menu_state
             .detail_selection
             .min(entries.len().saturating_sub(1));
+        let width = list_line_width(&entries);
         for (index, entry) in entries.iter().enumerate() {
-            let is_selected = index == selection;
-            let mut spans = Vec::new();
-            spans.push(panel_span(
-                if is_selected { "> " } else { "  " },
-                if is_selected {
-                    PanelSpanStyle::Highlight
-                } else {
-                    PanelSpanStyle::Normal
-                },
-            ));
-            spans.push(panel_span(
-                format!("{} x{}", entry.label, entry.qty.max(0)),
-                if is_selected {
-                    PanelSpanStyle::Highlight
-                } else if entry.usable {
-                    PanelSpanStyle::Normal
-                } else {
-                    PanelSpanStyle::Muted
-                },
-            ));
-            if let Some(owner) = equipped_label(entry) {
-                spans.push(panel_span(format!(" {}", owner), PanelSpanStyle::Accent));
-            }
-            lines.push(panel_line_spans(spans));
+            lines.push(build_list_line(entry, index == selection, width));
         }
         lines.push(panel_line("------------------------------"));
+        lines.push(panel_line_spans(vec![panel_span(
+            "Details",
+            PanelSpanStyle::Accent,
+        )]));
         if let Some(entry) = entries.get(selection) {
             let slot = equipment_slot_for_menu(runtime).unwrap_or_default();
             lines.extend(build_equipment_detail(runtime, &actor_id, &slot, entry).lines);
