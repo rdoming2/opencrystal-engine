@@ -4,6 +4,7 @@
 - [x] Create runtime state machine.
   - [x] Title state.
   - [x] Overworld state.
+- [x] Global stat tracking (playtime, currency).
 - [x] Battle state.
 - [x] Menu state.
   - [x] Store menu focus (left list vs right pane).
@@ -66,6 +67,7 @@
 - [x] Main menu UI.
   - [x] Two-pane layout (left list, right detail pane).
   - [x] Default party summary panel.
+  - [x] Playtime and currency display.
   - [x] Focus switching (confirm enters right pane, cancel returns).
   - [x] Optional menu entries (rules systems + unlock flag gating).
   - [x] Items/equipment/magic/abilities/status submenus (stub views).
@@ -81,7 +83,7 @@
 - [x] Turn-based flow (command selection, targeting, resolve action).
 - [ ] ATB timers (wait + active modes).
 - [ ] Status effects and damage formulas (derived stats).
-- [x] Victory/defeat flow and rewards.
+- [x] Victory/defeat flow (spoils, level-ups, modals).
 - [x] Scan reveals enemy HP.
 - [ ] Define battle rules schema (damage, hit, crit, ATB speed).
 - [ ] Define status effects schema (buffs/debuffs, durations).
@@ -94,9 +96,9 @@
 - [x] Enable menu casting for field magic.
 
 ## Progression
-- [ ] Implement experience + level-up pipeline.
+- [x] Implement experience + level-up pipeline.
 - [ ] Apply job growth formulas/tables on level-up.
-- [ ] Recompute derived stats with `lvl` variable.
+- [x] Recompute derived stats with `lvl` variable.
 
 ## World + Events
 - [x] Map transitions (enter/exit dungeons, overworld zoom).

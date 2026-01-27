@@ -919,8 +919,8 @@ configuration intended to support ASCII logos, attribution, and menu items.
 ## ui/battle.json
 
 Defines battle UI layout and panel behavior. Panels can be anchored or flexed to adapt
-to terminal sizes. `party_grid.rows` controls how player sprites are arranged in the
-battlefield grid.
+to terminal sizes. `party_grid.columns` controls how player sprites are arranged in the
+battlefield grid (default 1 for a vertical line).
 
 Battle log positions:
 
@@ -977,16 +977,12 @@ Battle animation fields:
       ]
     },
     "party_grid": {
-      "rows": 2
+      "columns": 1
     }
   },
   "log": {
     "position": "top",
-    "height": 2
-  },
-  "dialog": {
-    "position": "top",
-    "height": 3,
+    "height": 2,
     "auto_advance_ms": 700,
     "allow_skip": true
   },

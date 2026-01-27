@@ -55,7 +55,7 @@ It is a design reference meant to guide initial implementation.
 
 ### Battle layout (FF homage)
 
-- Top: battlefield (enemy visuals + player sprites arranged in a right-side grid).
+- Top: battlefield (enemy visuals + player sprites arranged in a right-side vertical grid).
 - Bottom: command region, split into three columns:
   - Left: enemy list with target highlighting.
   - Center: command menu (Attack, Magic, Abilities, Items, Run, etc.).
