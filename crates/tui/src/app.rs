@@ -1163,12 +1163,15 @@ fn draw_battlefield(
     if area.height == 0 || area.width == 0 {
         return;
     }
-    let mut cells = vec![
-        vec![BattleCell::new(' ', Style::default()); area.width as usize];
-        area.height as usize
-    ];
-    let cell_width = area.width as f32 / 10.0;
-    let cell_height = area.height as f32 / 6.0;
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .title(if hide_titles { "" } else { "Battle" });
+    let inner = block.inner(area);
+    let inner_width = inner.width as usize;
+    let inner_height = inner.height as usize;
+    let mut cells = vec![vec![BattleCell::new(' ', Style::default()); inner_width]; inner_height];
+    let cell_width = inner.width as f32 / 10.0;
+    let cell_height = inner.height as f32 / 6.0;
     let highlight_modifier =
         battlefield_highlight_modifier(&battle_ui.selection.battlefield_highlight);
 
@@ -1280,9 +1283,8 @@ fn draw_battlefield(
             )
         })
         .collect::<Vec<_>>();
-    let title = if hide_titles { "" } else { "Battle" };
     let panel = Paragraph::new(lines)
-        .block(Block::default().borders(Borders::ALL).title(title))
+        .block(block)
         .alignment(Alignment::Left)
         .wrap(Wrap { trim: false });
     frame.render_widget(panel, area);
