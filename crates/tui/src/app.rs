@@ -1,11 +1,11 @@
 use std::io::{self, ErrorKind, Stdout};
 
+use crossterm::ExecutableCommand;
 use crossterm::event::{self, Event, KeyCode};
 use crossterm::terminal::{
-    disable_raw_mode, enable_raw_mode, Clear as TermClear, ClearType, EnterAlternateScreen,
-    LeaveAlternateScreen,
+    Clear as TermClear, ClearType, EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode,
+    enable_raw_mode,
 };
-use crossterm::ExecutableCommand;
 use ratatui::backend::CrosstermBackend;
 use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
@@ -1448,7 +1448,7 @@ pub fn draw_overworld_frame(frame: &mut Frame, map: &MapView, player_pos: (i32, 
                     .as_deref()
                     .or(Some(DEFAULT_TRANSITION_PALETTE));
             } else if map.save_points.iter().any(|pos| *pos == (map_x, map_y)) {
-                glyph = 'S';
+                glyph = '◈';
                 palette = Some(DEFAULT_SAVE_POINT_PALETTE);
             }
 
