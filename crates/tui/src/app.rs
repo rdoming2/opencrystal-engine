@@ -1396,7 +1396,7 @@ fn panel_span_style(style: PanelSpanStyle) -> Style {
 const DEFAULT_PLAYER_PALETTE: &str = "bright_white";
 const DEFAULT_NPC_PALETTE: &str = "bright_yellow";
 const DEFAULT_TRANSITION_PALETTE: &str = "bright_magenta";
-const DEFAULT_SAVE_POINT_PALETTE: &str = "bright_cyan";
+const DEFAULT_SAVE_POINT_PALETTE: &str = "bright_blue";
 const DEFAULT_SIGN_PALETTE: &str = "bright_yellow";
 const DEFAULT_CHEST_PALETTE: &str = "bright_yellow";
 
@@ -1448,7 +1448,7 @@ pub fn draw_overworld_frame(frame: &mut Frame, map: &MapView, player_pos: (i32, 
                     .as_deref()
                     .or(Some(DEFAULT_TRANSITION_PALETTE));
             } else if map.save_points.iter().any(|pos| *pos == (map_x, map_y)) {
-                glyph = '◈';
+                glyph = '♦';
                 palette = Some(DEFAULT_SAVE_POINT_PALETTE);
             }
 
