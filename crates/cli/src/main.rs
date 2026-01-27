@@ -1028,6 +1028,7 @@ fn run_menu_loop(
         };
 
         let footer_text = menu_footer_text(focus, submenu_action, runtime.menu_state.detail_page);
+        let stats_view = build_menu_stats_view(runtime);
         draw_menu(
             session,
             menu_ui,
@@ -1035,6 +1036,7 @@ fn run_menu_loop(
             runtime.menu_state.selected,
             focus,
             &right_panel,
+            Some(&stats_view),
             footer_text,
         )?;
 
@@ -1427,6 +1429,7 @@ fn run_menu_loop(
                     }
                 }
                 Action::Quit => {
+                    let confirm_stats = build_menu_stats_view(runtime);
                     if tui::app::confirm_quit(session, |frame| {
                         draw_menu_frame(
                             frame,
@@ -1435,6 +1438,7 @@ fn run_menu_loop(
                             runtime.menu_state.selected,
                             focus,
                             &right_panel,
+                            Some(&confirm_stats),
                             footer_text,
                         );
                     })? {
@@ -3439,6 +3443,26 @@ fn menu_default_panel(menu_ui: &MenuUiFile, runtime: &GameRuntime) -> MenuPanelV
             title,
             lines: vec![panel_line("Menu panel not configured.")],
         },
+    }
+}
+
+fn build_menu_stats_view(runtime: &GameRuntime) -> MenuPanelView {
+    let current_session = runtime.start_time.elapsed().as_secs();
+    let total_seconds = runtime.playtime + current_session;
+    let hours = total_seconds / 3600;
+    let minutes = (total_seconds % 3600) / 60;
+    let seconds = total_seconds % 60;
+
+    let currency_id = &runtime.content.rules.game.currency.id;
+    let currency_symbol = &runtime.content.rules.game.currency.symbol;
+    let currency_amount = runtime.inventory.currency_amount(currency_id);
+
+    MenuPanelView {
+        title: String::new(),
+        lines: vec![
+            panel_line(format!("Time: {:02}:{:02}:{:02}", hours, minutes, seconds)),
+            panel_line(format!("{}: {}", currency_symbol, currency_amount)),
+        ],
     }
 }
 

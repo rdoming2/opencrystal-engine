@@ -1,8 +1,9 @@
 use crate::content::Content;
 use crate::inventory::InventoryState;
-use crate::party::{PartyState, reset_magic_tier_charges};
+use crate::party::{reset_magic_tier_charges, PartyState};
 use crate::rules::Ruleset;
 use std::collections::HashSet;
+use std::time::Instant;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum GameState {
@@ -61,6 +62,8 @@ pub struct GameRuntime {
     pub menu_state: MenuState,
     pub party: PartyState,
     pub inventory: InventoryState,
+    pub playtime: u64,
+    pub start_time: Instant,
 }
 
 impl GameRuntime {
@@ -75,6 +78,8 @@ impl GameRuntime {
             menu_state: MenuState::default(),
             party: PartyState::empty(),
             inventory: InventoryState::default(),
+            playtime: 0,
+            start_time: Instant::now(),
         }
     }
 
@@ -123,6 +128,8 @@ impl GameRuntime {
                     .add_equipment(&item.id, item.qty, rules.inventory.max_stack);
             }
         }
+        self.playtime = 0;
+        self.start_time = Instant::now();
         if let Some(event_id) = &rules.start_event {
             self.queue_event(event_id);
             self.state = GameState::Event;

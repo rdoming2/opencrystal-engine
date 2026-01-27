@@ -570,6 +570,7 @@ pub fn draw_menu(
     selected: usize,
     focus: MenuPane,
     right_panel: &MenuPanelView,
+    stats_panel: Option<&MenuPanelView>,
     footer_text: &str,
 ) -> io::Result<()> {
     session
@@ -582,6 +583,7 @@ pub fn draw_menu(
                 selected,
                 focus,
                 right_panel,
+                stats_panel,
                 footer_text,
             );
         })
@@ -657,6 +659,7 @@ pub fn draw_menu_frame(
     selected: usize,
     focus: MenuPane,
     right_panel: &MenuPanelView,
+    stats_panel: Option<&MenuPanelView>,
     footer_text: &str,
 ) {
     let size = frame.size();
@@ -704,20 +707,63 @@ pub fn draw_menu_frame(
         .wrap(Wrap { trim: false });
     frame.render_widget(menu_panel, columns[0]);
 
-    let detail_lines = right_panel
-        .lines
-        .iter()
-        .map(render_panel_line)
-        .collect::<Vec<_>>();
-    let detail_panel = Paragraph::new(detail_lines)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title(right_panel.title.as_str()),
-        )
-        .alignment(Alignment::Left)
-        .wrap(Wrap { trim: false });
-    frame.render_widget(detail_panel, columns[1]);
+    match stats_panel {
+        Some(stats) => {
+            let right_column = Layout::default()
+                .direction(Direction::Vertical)
+                .constraints([
+                    Constraint::Min(0),
+                    Constraint::Length(stats.lines.len() as u16 + 2),
+                ])
+                .split(columns[1]);
+
+            let detail_lines = right_panel
+                .lines
+                .iter()
+                .map(render_panel_line)
+                .collect::<Vec<_>>();
+            let detail_panel = Paragraph::new(detail_lines)
+                .block(
+                    Block::default()
+                        .borders(Borders::ALL)
+                        .title(right_panel.title.as_str()),
+                )
+                .alignment(Alignment::Left)
+                .wrap(Wrap { trim: false });
+            frame.render_widget(detail_panel, right_column[0]);
+
+            let stats_lines = stats
+                .lines
+                .iter()
+                .map(render_panel_line)
+                .collect::<Vec<_>>();
+            let stats_panel_widget = Paragraph::new(stats_lines)
+                .block(
+                    Block::default()
+                        .borders(Borders::ALL)
+                        .title(stats.title.as_str()),
+                )
+                .alignment(Alignment::Left)
+                .wrap(Wrap { trim: false });
+            frame.render_widget(stats_panel_widget, right_column[1]);
+        }
+        None => {
+            let detail_lines = right_panel
+                .lines
+                .iter()
+                .map(render_panel_line)
+                .collect::<Vec<_>>();
+            let detail_panel = Paragraph::new(detail_lines)
+                .block(
+                    Block::default()
+                        .borders(Borders::ALL)
+                        .title(right_panel.title.as_str()),
+                )
+                .alignment(Alignment::Left)
+                .wrap(Wrap { trim: false });
+            frame.render_widget(detail_panel, columns[1]);
+        }
+    }
 
     let footer = Paragraph::new(footer_text)
         .alignment(Alignment::Center)
