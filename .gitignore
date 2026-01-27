@@ -11,3 +11,4 @@ content/*
 *.swo
 *.log
 **/*.rs.bk
+.opencode/

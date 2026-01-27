@@ -1,11 +1,11 @@
 use std::io::{self, ErrorKind, Stdout};
 
-use crossterm::ExecutableCommand;
 use crossterm::event::{self, Event, KeyCode};
 use crossterm::terminal::{
-    Clear as TermClear, ClearType, EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode,
-    enable_raw_mode,
+    disable_raw_mode, enable_raw_mode, Clear as TermClear, ClearType, EnterAlternateScreen,
+    LeaveAlternateScreen,
 };
+use crossterm::ExecutableCommand;
 use ratatui::backend::CrosstermBackend;
 use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
@@ -2162,4 +2162,114 @@ fn centered_rect(area: Rect, width: u16, height: u16) -> Rect {
     let x = area.x + area.width.saturating_sub(width) / 2;
     let y = area.y + area.height.saturating_sub(height) / 2;
     Rect::new(x, y, width.min(area.width), height.min(area.height))
+}
+
+pub fn draw_victory_summary(
+    session: &mut TuiSession,
+    exp: i32,
+    currency: i32,
+    items: &std::collections::HashMap<String, i32>,
+) -> io::Result<()> {
+    session
+        .terminal
+        .draw(|frame| {
+            let area = centered_rect(frame.size(), 40, 15);
+            frame.render_widget(Clear, area);
+
+            let mut lines = Vec::new();
+            lines.push(Line::from(Span::raw("")));
+            lines.push(Line::from(Span::styled(
+                "Victory!",
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            )));
+            lines.push(Line::from(Span::styled(
+                if exp > 0 {
+                    format!("Exp: {}", exp)
+                } else {
+                    String::new()
+                },
+                Style::default(),
+            )));
+            lines.push(Line::from(Span::styled(
+                if currency > 0 {
+                    format!("Gi: {}", currency)
+                } else {
+                    String::new()
+                },
+                Style::default(),
+            )));
+
+            if !items.is_empty() {
+                lines.push(Line::from(Span::raw("Items found:")));
+                for (item, qty) in items {
+                    lines.push(Line::from(Span::styled(
+                        format!("  {} x{}", item, qty),
+                        Style::default(),
+                    )));
+                }
+            }
+
+            lines.push(Line::from(Span::raw("")));
+            lines.push(Line::from(Span::styled(
+                "Press Confirm to continue.",
+                Style::default().fg(Color::Gray),
+            )));
+
+            let paragraph = Paragraph::new(lines)
+                .block(Block::default().borders(Borders::ALL))
+                .alignment(Alignment::Center)
+                .wrap(Wrap { trim: false });
+            frame.render_widget(paragraph, area);
+        })
+        .map(|_| ())
+}
+
+pub fn draw_level_up_modal(
+    session: &mut TuiSession,
+    actor_name: &str,
+    _old_level: u32,
+    new_level: u32,
+    stat_changes: &std::collections::HashMap<String, (i32, i32)>,
+) -> io::Result<()> {
+    session
+        .terminal
+        .draw(|frame| {
+            let area = centered_rect(frame.size(), 30, 16);
+            frame.render_widget(Clear, area);
+
+            let mut lines = Vec::new();
+            lines.push(Line::from(Span::raw("")));
+            lines.push(Line::from(Span::raw("")));
+            lines.push(Line::from(Span::styled(
+                format!("{} reached Level {}!", actor_name, new_level),
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
+            )));
+
+            let mut stats: Vec<_> = stat_changes.iter().collect();
+            stats.sort_by(|a, b| a.0.cmp(b.0));
+
+            for (stat, (new_val, diff)) in stats {
+                lines.push(Line::from(Span::styled(
+                    format!("  {}: {} (+{})", stat, new_val, diff),
+                    Style::default(),
+                )));
+            }
+
+            lines.push(Line::from(Span::raw("")));
+            lines.push(Line::from(Span::styled(
+                "Press Confirm to continue.",
+                Style::default().fg(Color::Gray),
+            )));
+
+            let paragraph = Paragraph::new(lines)
+                .block(Block::default().borders(Borders::ALL))
+                .alignment(Alignment::Center)
+                .wrap(Wrap { trim: false });
+            frame.render_widget(paragraph, area);
+        })
+        .map(|_| ())
 }

@@ -5,28 +5,28 @@ use std::thread::sleep;
 use std::time::{Duration, Instant};
 
 use engine::{
-    Engine,
     battle::{
-        BattleState, apply_damage_to_actor, apply_damage_to_enemy, build_battle_state,
-        collect_rewards, is_enemies_defeated, is_party_defeated, next_living_party_index,
-        physical_damage, roll_damage,
+        apply_damage_to_actor, apply_damage_to_enemy, build_battle_state, collect_rewards,
+        is_enemies_defeated, is_party_defeated, next_living_party_index, physical_damage,
+        roll_damage, BattleResult, BattleState, LevelUpDiff,
     },
     content::Content,
-    party::{PartyState, actor_slots, exp_for_level, gain_exp, recompute_derived_stats},
+    party::{actor_slots, exp_for_level, gain_exp, recompute_derived_stats, PartyState},
     rules::{MagicSystem, PartyMode, Ruleset},
     runtime::{GameRuntime, GameState, MenuFocus},
     world::WorldState,
+    Engine,
 };
-use rand::Rng;
 use rand::seq::SliceRandom;
+use rand::Rng;
 use tui::app::{
+    draw_battle, draw_menu, draw_menu_frame, draw_overworld, draw_overworld_with_tooltip,
+    prompt_choice, prompt_text, run_title, show_centered_dialog_on_map, show_dialog,
+    show_dialog_on_map, show_dialog_with_choices, show_dialog_with_choices_on_map, show_shop,
     BattleCommandItem, BattleCommandPanelMode, BattleCommandPanelView, BattleEnemyView,
     BattleFocus, BattlePartyView, BattleRenderState, ChoiceView, MapView, MenuEntryView, MenuPane,
     MenuPanelLine, MenuPanelSpan, MenuPanelView, NpcView, PanelSpanStyle, ShopItem, ShopView,
-    TileRender, TitleAction, TransitionView, TuiSession, draw_battle, draw_menu, draw_menu_frame,
-    draw_overworld, draw_overworld_with_tooltip, prompt_choice, prompt_text, run_title,
-    show_centered_dialog_on_map, show_dialog, show_dialog_on_map, show_dialog_with_choices,
-    show_dialog_with_choices_on_map, show_shop,
+    TileRender, TitleAction, TransitionView, TuiSession,
 };
 use tui::input::{Action, InputBindings, InputFile};
 use tui::renderer::RenderMode;
@@ -1512,11 +1512,19 @@ fn next_filter_index(index: usize) -> usize {
 }
 
 fn prev_filter_index(index: usize) -> usize {
-    if index == 0 { 4 } else { index - 1 }
+    if index == 0 {
+        4
+    } else {
+        index - 1
+    }
 }
 
 fn toggle_sort_index(index: usize) -> usize {
-    if index == 0 { 1 } else { 0 }
+    if index == 0 {
+        1
+    } else {
+        0
+    }
 }
 
 fn detail_actor_id(runtime: &GameRuntime) -> Option<String> {
@@ -4304,6 +4312,12 @@ fn run_event_battle(
     run_battle(runtime, battle_ui, bindings, session, &formation, &mut rng)
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum VictoryState {
+    Summary,
+    LevelUp(usize),
+}
+
 fn run_battle(
     runtime: &mut GameRuntime,
     battle_ui: &BattleUiFile,
@@ -4326,6 +4340,8 @@ fn run_battle(
     let mut menu_state = BattleMenuState::new();
     let mut turn_state = BattleTurnState::new(build_turn_order(runtime, &battle_state));
     let mut last_actor_id: Option<String> = None;
+    let mut battle_result: Option<BattleResult> = None;
+    let mut victory_state: Option<VictoryState> = None;
 
     loop {
         if is_enemies_defeated(&battle_state.enemies) {
@@ -4351,7 +4367,16 @@ fn run_battle(
                     Vec::new(),
                 )?;
                 menu_state.phase = BattlePhase::Victory;
-                apply_battle_rewards(runtime, &mut battle_state, rng);
+                battle_result = Some(apply_battle_rewards(runtime, &mut battle_state, rng));
+                victory_state = if battle_result
+                    .as_ref()
+                    .map(|r| !r.level_ups.is_empty())
+                    .unwrap_or(false)
+                {
+                    Some(VictoryState::LevelUp(0))
+                } else {
+                    Some(VictoryState::Summary)
+                };
                 push_battle_log(&mut battle_state.log, "Victory!");
             }
         }
@@ -4441,7 +4466,37 @@ fn run_battle(
             &ability_entries,
             &item_entries,
         );
-        draw_battle(session, battle_ui, &render_state)?;
+
+        if menu_state.phase == BattlePhase::Victory {
+            match victory_state {
+                Some(VictoryState::Summary) => {
+                    if let Some(ref result) = battle_result {
+                        tui::app::draw_victory_summary(
+                            session,
+                            result.rewards.exp,
+                            result.rewards.currency,
+                            &result.rewards.items,
+                        )?;
+                    }
+                }
+                Some(VictoryState::LevelUp(index)) => {
+                    if let Some(ref result) = battle_result {
+                        if let Some(diff) = result.level_ups.get(index) {
+                            tui::app::draw_level_up_modal(
+                                session,
+                                &diff.actor_name,
+                                diff.old_level,
+                                diff.new_level,
+                                &diff.stat_changes,
+                            )?;
+                        }
+                    }
+                }
+                None => draw_battle(session, battle_ui, &render_state)?,
+            }
+        } else {
+            draw_battle(session, battle_ui, &render_state)?;
+        }
 
         let Some(action) = read_action(bindings) else {
             continue;
@@ -4450,7 +4505,31 @@ fn run_battle(
         match menu_state.phase {
             BattlePhase::Victory => {
                 if matches!(action, Action::Confirm | Action::Cancel | Action::Menu) {
-                    return Ok(BattleOutcome::Victory);
+                    match victory_state {
+                        Some(VictoryState::Summary) => {
+                            if let Some(ref result) = battle_result {
+                                if !result.level_ups.is_empty() {
+                                    victory_state = Some(VictoryState::LevelUp(0));
+                                } else {
+                                    return Ok(BattleOutcome::Victory);
+                                }
+                            } else {
+                                return Ok(BattleOutcome::Victory);
+                            }
+                        }
+                        Some(VictoryState::LevelUp(index)) => {
+                            if let Some(ref result) = battle_result {
+                                if index + 1 < result.level_ups.len() {
+                                    victory_state = Some(VictoryState::LevelUp(index + 1));
+                                } else {
+                                    return Ok(BattleOutcome::Victory);
+                                }
+                            } else {
+                                return Ok(BattleOutcome::Victory);
+                            }
+                        }
+                        None => return Ok(BattleOutcome::Victory),
+                    }
                 }
             }
             BattlePhase::Defeat => {
@@ -5856,66 +5935,76 @@ fn apply_battle_rewards(
     runtime: &mut GameRuntime,
     battle_state: &mut BattleState,
     rng: &mut impl Rng,
-) {
-    let rewards = collect_rewards(&battle_state.enemies, rng);
-    if rewards.exp > 0 {
+) -> BattleResult {
+    let base_rewards = collect_rewards(&battle_state.enemies, rng);
+    let mut result = BattleResult {
+        rewards: base_rewards.clone(),
+        level_ups: Vec::new(),
+    };
+
+    if result.rewards.exp > 0 {
         let rules = Ruleset::from_file(runtime.content.rules.clone());
         for actor_id in runtime.party.active.clone() {
             if let Some(actor) = runtime.party.roster.get_mut(&actor_id) {
-                let levels = gain_exp(&runtime.content, &rules, actor, rewards.exp);
-                if levels > 0 {
-                    push_battle_log(
-                        &mut battle_state.log,
-                        format!("{} levels up to Lv{}!", actor.name, actor.level),
-                    );
+                let old_level = actor.level;
+                let old_stats = actor.derived_stats.clone();
+
+                let levels_gained = gain_exp(&runtime.content, &rules, actor, result.rewards.exp);
+
+                if levels_gained > 0 {
+                    let new_stats = actor.derived_stats.clone();
+                    let mut stat_changes = HashMap::new();
+
+                    for (stat, new_value) in new_stats {
+                        let old_value = old_stats.get(&stat).copied().unwrap_or(0);
+                        let diff = new_value - old_value;
+                        if diff != 0 {
+                            stat_changes.insert(stat, (new_value, diff));
+                        }
+                    }
+
+                    result.level_ups.push(LevelUpDiff {
+                        actor_name: actor.name.clone(),
+                        old_level,
+                        new_level: actor.level,
+                        stat_changes,
+                    });
                 }
             }
         }
-        push_battle_log(
-            &mut battle_state.log,
-            format!("Party gains {} experience.", rewards.exp),
-        );
     }
-    if rewards.currency > 0 {
+
+    if result.rewards.currency > 0 {
         let currency = &runtime.content.rules.game.currency;
         runtime
             .inventory
-            .add_currency(currency.id.as_str(), rewards.currency);
-        push_battle_log(
-            &mut battle_state.log,
-            format!("{}{} gained.", currency.symbol, rewards.currency),
-        );
+            .add_currency(currency.id.as_str(), result.rewards.currency);
     }
-    if !rewards.items.is_empty() {
+
+    if !result.rewards.items.is_empty() {
         let max_stack = runtime.content.rules.inventory.max_stack;
-        for (item_id, qty) in rewards.items {
+        for (item_id, qty) in &result.rewards.items {
             if runtime
                 .content
                 .items
                 .items
                 .iter()
-                .any(|item| item.id == item_id)
+                .any(|item| item.id == *item_id)
             {
-                runtime.inventory.add_item(&item_id, qty, max_stack);
-                push_battle_log(
-                    &mut battle_state.log,
-                    format!("Found {} x{}.", lookup_item_name(runtime, &item_id), qty),
-                );
+                runtime.inventory.add_item(item_id, *qty, max_stack);
             } else if runtime
                 .content
                 .equipment
                 .equipment
                 .iter()
-                .any(|item| item.id == item_id)
+                .any(|item| item.id == *item_id)
             {
-                runtime.inventory.add_equipment(&item_id, qty, max_stack);
-                push_battle_log(
-                    &mut battle_state.log,
-                    format!("Found {} x{}.", lookup_item_name(runtime, &item_id), qty),
-                );
+                runtime.inventory.add_equipment(item_id, *qty, max_stack);
             }
         }
     }
+
+    result
 }
 
 fn push_battle_log(log: &mut Vec<String>, message: impl Into<String>) {

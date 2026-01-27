@@ -38,6 +38,20 @@ pub struct BattleRewards {
     pub items: HashMap<String, i32>,
 }
 
+#[derive(Clone, Debug, Default)]
+pub struct LevelUpDiff {
+    pub actor_name: String,
+    pub old_level: u32,
+    pub new_level: u32,
+    pub stat_changes: HashMap<String, (i32, i32)>,
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct BattleResult {
+    pub rewards: BattleRewards,
+    pub level_ups: Vec<LevelUpDiff>,
+}
+
 impl BattleEnemy {
     pub fn max_hp(&self) -> i32 {
         stat_value(&self.stats, "hp")
