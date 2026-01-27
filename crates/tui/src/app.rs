@@ -646,10 +646,6 @@ pub fn draw_battle_frame(frame: &mut Frame, battle_ui: &BattleUiFile, state: &Ba
     }
 
     draw_command_row(frame, columns_area, battle_ui, state, hide_titles);
-
-    if let Some(dialog) = &battle_ui.dialog {
-        draw_battle_dialog(frame, dialog, &state.log);
-    }
 }
 
 pub fn draw_menu_frame(
@@ -960,39 +956,6 @@ fn draw_battle_log(frame: &mut Frame, area: Rect, lines: &[String]) {
         .alignment(Alignment::Left)
         .wrap(Wrap { trim: false });
     frame.render_widget(panel, area);
-}
-
-fn draw_battle_dialog(frame: &mut Frame, dialog: &crate::ui::BattleDialog, lines: &[String]) {
-    if dialog.height == 0 {
-        return;
-    }
-    let area = frame.size();
-    let height = dialog.height.min(area.height);
-    let y = match dialog.position.as_str() {
-        "bottom" => area.height.saturating_sub(height),
-        _ => 0,
-    };
-    let dialog_area = Rect {
-        x: area.x,
-        y: area.y + y,
-        width: area.width,
-        height,
-    };
-    if dialog_area.height < 2 || dialog_area.width == 0 {
-        return;
-    }
-    let max = dialog_area.height.saturating_sub(2) as usize;
-    let start = lines.len().saturating_sub(max);
-    let dialog_lines = lines
-        .iter()
-        .skip(start)
-        .map(|line| Line::from(Span::raw(line.clone())))
-        .collect::<Vec<_>>();
-    let panel = Paragraph::new(dialog_lines)
-        .block(Block::default().borders(Borders::ALL))
-        .alignment(Alignment::Left)
-        .wrap(Wrap { trim: false });
-    frame.render_widget(panel, dialog_area);
 }
 
 fn draw_command_row(

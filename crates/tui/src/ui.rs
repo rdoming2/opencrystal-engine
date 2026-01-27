@@ -95,7 +95,6 @@ pub struct BattleUiFile {
     pub breakpoints: Vec<Breakpoint>,
     pub layout: BattleLayout,
     pub log: Option<BattleLog>,
-    pub dialog: Option<BattleDialog>,
     pub animation: Option<BattleAnimation>,
     pub panels: BattlePanels,
     pub menus: BattleMenus,
@@ -104,12 +103,6 @@ pub struct BattleUiFile {
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct BattleLog {
-    pub position: String,
-    pub height: u16,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct BattleDialog {
     pub position: String,
     pub height: u16,
     #[serde(default = "default_battle_dialog_auto_advance_ms")]

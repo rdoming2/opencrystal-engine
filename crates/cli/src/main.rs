@@ -5491,21 +5491,21 @@ fn wait_for_battle_dialog(
     bindings: &tui::input::InputBindings,
     battle_ui: &BattleUiFile,
 ) -> std::io::Result<()> {
-    let Some(dialog) = &battle_ui.dialog else {
+    let Some(log) = &battle_ui.log else {
         return Ok(());
     };
-    if dialog.auto_advance_ms == 0 && !dialog.allow_skip {
+    if log.auto_advance_ms == 0 && !log.allow_skip {
         return Ok(());
     }
-    let timeout = Duration::from_millis(dialog.auto_advance_ms);
+    let timeout = Duration::from_millis(log.auto_advance_ms);
     let start = Instant::now();
     loop {
         let elapsed = start.elapsed();
-        if dialog.auto_advance_ms > 0 && elapsed >= timeout {
+        if log.auto_advance_ms > 0 && elapsed >= timeout {
             break;
         }
-        if dialog.allow_skip {
-            let wait = if dialog.auto_advance_ms == 0 {
+        if log.allow_skip {
+            let wait = if log.auto_advance_ms == 0 {
                 Duration::from_millis(50)
             } else {
                 timeout.saturating_sub(elapsed)
@@ -5519,7 +5519,7 @@ fn wait_for_battle_dialog(
                     }
                 }
             }
-        } else if dialog.auto_advance_ms > 0 {
+        } else if log.auto_advance_ms > 0 {
             sleep(timeout);
             break;
         }
