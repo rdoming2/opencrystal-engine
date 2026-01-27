@@ -156,8 +156,8 @@ pub struct CommandRow {
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct PartyGrid {
-    #[serde(default = "default_party_grid_rows")]
-    pub rows: u16,
+    #[serde(default = "default_party_grid_columns")]
+    pub columns: u16,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -310,11 +310,11 @@ fn default_battle_flash_cycles() -> u16 {
 }
 
 fn default_party_grid() -> PartyGrid {
-    PartyGrid { rows: 2 }
+    PartyGrid { columns: 1 }
 }
 
-fn default_party_grid_rows() -> u16 {
-    2
+fn default_party_grid_columns() -> u16 {
+    1
 }
 
 fn default_menu_enabled() -> bool {

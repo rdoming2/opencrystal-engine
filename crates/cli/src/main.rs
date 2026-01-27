@@ -5221,7 +5221,7 @@ fn build_battle_render_state(
         .collect();
     let party_positions = party_sprite_positions(
         battle_state.party_order.len(),
-        battle_ui.layout.party_grid.rows,
+        battle_ui.layout.party_grid.columns,
     );
     let party = battle_state
         .party_order
@@ -5294,19 +5294,19 @@ fn build_battle_render_state(
     }
 }
 
-fn party_sprite_positions(count: usize, rows: u16) -> Vec<(i32, i32)> {
+fn party_sprite_positions(count: usize, columns: u16) -> Vec<(i32, i32)> {
     if count == 0 {
         return Vec::new();
     }
-    let rows = rows.max(1).min(6) as usize;
-    let cols = (count + rows - 1) / rows;
-    let cols = cols.min(10).max(1);
-    let start_col = (10 - cols) as i32;
-    let start_row = (6 - rows) as i32;
+    let columns = columns.max(1).min(10) as usize;
+    let rows = (count + columns - 1) / columns;
+    let rows = rows.min(6).max(1);
+    let start_col = (10 - columns) as i32;
+    let start_row = ((6 - rows) / 2) as i32;
     (0..count)
         .map(|index| {
-            let col = (index / rows) as i32;
-            let row = (index % rows) as i32;
+            let col = (index % columns) as i32;
+            let row = (index / columns) as i32;
             (start_col + col, start_row + row)
         })
         .collect()
