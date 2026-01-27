@@ -2168,6 +2168,7 @@ pub fn draw_victory_summary(
     session: &mut TuiSession,
     exp: i32,
     currency: i32,
+    currency_label: &str,
     items: &std::collections::HashMap<String, i32>,
 ) -> io::Result<()> {
     session
@@ -2194,7 +2195,7 @@ pub fn draw_victory_summary(
             )));
             lines.push(Line::from(Span::styled(
                 if currency > 0 {
-                    format!("Gi: {}", currency)
+                    format!("{}: {}", currency_label, currency)
                 } else {
                     String::new()
                 },

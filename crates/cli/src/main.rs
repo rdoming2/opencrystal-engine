@@ -4475,6 +4475,7 @@ fn run_battle(
                             session,
                             result.rewards.exp,
                             result.rewards.currency,
+                            &runtime.content.rules.game.currency.symbol,
                             &result.rewards.items,
                         )?;
                     }
