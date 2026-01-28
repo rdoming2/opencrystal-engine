@@ -5,28 +5,28 @@ use std::thread::sleep;
 use std::time::{Duration, Instant};
 
 use engine::{
+    Engine,
     battle::{
-        apply_damage_to_actor, apply_damage_to_enemy, build_battle_state, collect_rewards,
-        is_enemies_defeated, is_party_defeated, next_living_party_index, physical_damage,
-        roll_damage, BattleResult, BattleState, LevelUpDiff,
+        BattleResult, BattleState, LevelUpDiff, apply_damage_to_actor, apply_damage_to_enemy,
+        build_battle_state, collect_rewards, is_enemies_defeated, is_party_defeated,
+        next_living_party_index, physical_damage, roll_damage,
     },
     content::Content,
-    party::{actor_slots, exp_for_level, gain_exp, recompute_derived_stats, PartyState},
+    party::{PartyState, actor_slots, exp_for_level, gain_exp, recompute_derived_stats},
     rules::{MagicSystem, PartyMode, Ruleset},
     runtime::{GameRuntime, GameState, MenuFocus},
     world::WorldState,
-    Engine,
 };
-use rand::seq::SliceRandom;
 use rand::Rng;
+use rand::seq::SliceRandom;
 use tui::app::{
-    draw_battle, draw_menu, draw_menu_frame, draw_overworld, draw_overworld_with_tooltip,
-    prompt_choice, prompt_text, run_title, show_centered_dialog_on_map, show_dialog,
-    show_dialog_on_map, show_dialog_with_choices, show_dialog_with_choices_on_map, show_shop,
     BattleCommandItem, BattleCommandPanelMode, BattleCommandPanelView, BattleEnemyView,
     BattleFocus, BattlePartyView, BattleRenderState, ChoiceView, MapView, MenuEntryView, MenuPane,
     MenuPanelLine, MenuPanelSpan, MenuPanelView, NpcView, PanelSpanStyle, ShopItem, ShopView,
-    TileRender, TitleAction, TransitionView, TuiSession,
+    TileRender, TitleAction, TransitionView, TuiSession, draw_battle, draw_menu, draw_menu_frame,
+    draw_overworld, draw_overworld_with_tooltip, prompt_choice, prompt_text, run_title,
+    show_centered_dialog_on_map, show_dialog, show_dialog_on_map, show_dialog_with_choices,
+    show_dialog_with_choices_on_map, show_shop,
 };
 use tui::input::{Action, InputBindings, InputFile};
 use tui::renderer::RenderMode;
@@ -1516,19 +1516,11 @@ fn next_filter_index(index: usize) -> usize {
 }
 
 fn prev_filter_index(index: usize) -> usize {
-    if index == 0 {
-        4
-    } else {
-        index - 1
-    }
+    if index == 0 { 4 } else { index - 1 }
 }
 
 fn toggle_sort_index(index: usize) -> usize {
-    if index == 0 {
-        1
-    } else {
-        0
-    }
+    if index == 0 { 1 } else { 0 }
 }
 
 fn detail_actor_id(runtime: &GameRuntime) -> Option<String> {
@@ -5518,8 +5510,8 @@ fn pause_on_enemy_defeat(
             bindings,
             &render_state,
             Vec::new(),
-            vec![battle_state.active_index],
-            vec![menu_state.enemy_index],
+            Vec::new(),
+            Vec::new(),
             Vec::new(),
         )?;
     }
