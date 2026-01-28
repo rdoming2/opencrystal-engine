@@ -4389,6 +4389,8 @@ fn run_battle(
                     &render_state,
                     Vec::new(),
                     Vec::new(),
+                    Vec::new(),
+                    Vec::new(),
                 )?;
                 menu_state.phase = BattlePhase::Victory;
                 battle_result = Some(apply_battle_rewards(runtime, &mut battle_state, rng));
@@ -4469,6 +4471,8 @@ fn run_battle(
                             bindings,
                             &render_state,
                             vec![enemy_index],
+                            Vec::new(),
+                            Vec::new(),
                             vec![target_index],
                         )?;
                     }
@@ -4638,6 +4642,8 @@ fn run_battle(
                                 &render_state,
                                 Vec::new(),
                                 vec![battle_state.active_index],
+                                Vec::new(),
+                                Vec::new(),
                             )?;
                             advance_turn(&mut menu_state, &mut turn_state);
                         }
@@ -4693,22 +4699,22 @@ fn run_battle(
                             );
                             let render_state = build_battle_render_state(
                                 runtime,
-                                &battle_state,
+                                &mut battle_state,
                                 &menu_state,
                                 battle_ui,
                                 &spell_entries,
                                 &ability_entries,
                                 &item_entries,
                             );
-                            let party_indices =
-                                (0..battle_state.party_order.len()).collect::<Vec<_>>();
                             pause_after_action(
                                 session,
                                 battle_ui,
                                 bindings,
                                 &render_state,
                                 Vec::new(),
-                                party_indices,
+                                vec![battle_state.active_index],
+                                Vec::new(),
+                                (0..battle_state.party_order.len()).collect::<Vec<_>>(),
                             )?;
                             advance_turn(&mut menu_state, &mut turn_state);
                         }
@@ -4771,7 +4777,7 @@ fn run_battle(
                             );
                             let render_state = build_battle_render_state(
                                 runtime,
-                                &battle_state,
+                                &mut battle_state,
                                 &menu_state,
                                 battle_ui,
                                 &spell_entries,
@@ -4785,6 +4791,8 @@ fn run_battle(
                                 battle_ui,
                                 bindings,
                                 &render_state,
+                                Vec::new(),
+                                vec![battle_state.active_index],
                                 Vec::new(),
                                 party_indices,
                             )?;
@@ -4847,7 +4855,7 @@ fn run_battle(
                             execute_item_action(runtime, &mut battle_state, &actor_id, &item, None);
                             let render_state = build_battle_render_state(
                                 runtime,
-                                &battle_state,
+                                &mut battle_state,
                                 &menu_state,
                                 battle_ui,
                                 &spell_entries,
@@ -4861,6 +4869,8 @@ fn run_battle(
                                 battle_ui,
                                 bindings,
                                 &render_state,
+                                Vec::new(),
+                                vec![battle_state.active_index],
                                 Vec::new(),
                                 party_indices,
                             )?;
@@ -4945,8 +4955,10 @@ fn run_battle(
                                     battle_ui,
                                     bindings,
                                     &render_state,
-                                    vec![menu_state.enemy_index],
+                                    Vec::new(),
                                     vec![battle_state.active_index],
+                                    vec![menu_state.enemy_index],
+                                    Vec::new(),
                                 )?;
                             }
                             PendingBattleAction::Magic(entry) => {
@@ -4972,8 +4984,10 @@ fn run_battle(
                                     battle_ui,
                                     bindings,
                                     &render_state,
-                                    vec![menu_state.enemy_index],
+                                    Vec::new(),
                                     vec![battle_state.active_index],
+                                    vec![menu_state.enemy_index],
+                                    Vec::new(),
                                 )?;
                             }
                             PendingBattleAction::Ability(entry) => {
@@ -4999,8 +5013,10 @@ fn run_battle(
                                     battle_ui,
                                     bindings,
                                     &render_state,
-                                    vec![menu_state.enemy_index],
+                                    Vec::new(),
                                     vec![battle_state.active_index],
+                                    vec![menu_state.enemy_index],
+                                    Vec::new(),
                                 )?;
                             }
                             PendingBattleAction::Item(item_id) => {
@@ -5033,8 +5049,10 @@ fn run_battle(
                                         battle_ui,
                                         bindings,
                                         &render_state,
-                                        vec![menu_state.enemy_index],
+                                        Vec::new(),
                                         vec![battle_state.active_index],
+                                        vec![menu_state.enemy_index],
+                                        Vec::new(),
                                     )?;
                                 }
                             }
@@ -5119,7 +5137,9 @@ fn run_battle(
                                 bindings,
                                 &render_state,
                                 Vec::new(),
-                                vec![menu_state.party_index, battle_state.active_index],
+                                vec![battle_state.active_index],
+                                Vec::new(),
+                                vec![menu_state.party_index],
                             )?;
                         }
                         PendingBattleAction::Ability(entry) => {
@@ -5146,7 +5166,9 @@ fn run_battle(
                                 bindings,
                                 &render_state,
                                 Vec::new(),
-                                vec![menu_state.party_index, battle_state.active_index],
+                                vec![battle_state.active_index],
+                                Vec::new(),
+                                vec![menu_state.party_index],
                             )?;
                         }
                         PendingBattleAction::Item(item_id) => {
@@ -5180,7 +5202,9 @@ fn run_battle(
                                     bindings,
                                     &render_state,
                                     Vec::new(),
-                                    vec![menu_state.party_index, battle_state.active_index],
+                                    vec![battle_state.active_index],
+                                    vec![menu_state.enemy_index],
+                                    Vec::new(),
                                 )?;
                             }
                         }
@@ -5291,6 +5315,8 @@ fn build_battle_render_state(
             .eq_ignore_ascii_case("terminal"),
         flash_enemies: Vec::new(),
         flash_party: Vec::new(),
+        acting_enemies: Vec::new(),
+        acting_party: Vec::new(),
     }
 }
 
@@ -5420,20 +5446,31 @@ fn pause_after_action(
     battle_ui: &BattleUiFile,
     bindings: &tui::input::InputBindings,
     render_state: &BattleRenderState,
+    acting_enemies: Vec<usize>,
+    acting_party: Vec<usize>,
     flash_enemies: Vec<usize>,
     flash_party: Vec<usize>,
 ) -> std::io::Result<()> {
     if let Some(animation) = &battle_ui.animation {
-        if !flash_enemies.is_empty() || !flash_party.is_empty() {
+        if !flash_enemies.is_empty()
+            || !flash_party.is_empty()
+            || !acting_enemies.is_empty()
+            || !acting_party.is_empty()
+        {
+            let base_acting_state = BattleRenderState {
+                acting_enemies: acting_enemies.clone(),
+                acting_party: acting_party.clone(),
+                ..render_state.clone()
+            };
             let cycles = animation.flash_cycles.max(1);
             let delay = Duration::from_millis(animation.flash_ms.max(1));
             for _ in 0..cycles {
-                let mut flash_state = render_state.clone();
+                let mut flash_state = base_acting_state.clone();
                 flash_state.flash_enemies = flash_enemies.clone();
                 flash_state.flash_party = flash_party.clone();
                 draw_battle(session, battle_ui, &flash_state)?;
                 sleep(delay);
-                draw_battle(session, battle_ui, render_state)?;
+                draw_battle(session, battle_ui, &base_acting_state)?;
                 sleep(delay);
             }
         }
@@ -5481,6 +5518,8 @@ fn pause_on_enemy_defeat(
             bindings,
             &render_state,
             Vec::new(),
+            vec![battle_state.active_index],
+            vec![menu_state.enemy_index],
             Vec::new(),
         )?;
     }

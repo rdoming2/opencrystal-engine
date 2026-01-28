@@ -1,11 +1,11 @@
 use std::io::{self, ErrorKind, Stdout};
 
-use crossterm::ExecutableCommand;
 use crossterm::event::{self, Event, KeyCode};
 use crossterm::terminal::{
-    Clear as TermClear, ClearType, EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode,
-    enable_raw_mode,
+    disable_raw_mode, enable_raw_mode, Clear as TermClear, ClearType, EnterAlternateScreen,
+    LeaveAlternateScreen,
 };
+use crossterm::ExecutableCommand;
 use ratatui::backend::CrosstermBackend;
 use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
@@ -195,6 +195,8 @@ pub struct BattleRenderState {
     pub use_color: bool,
     pub flash_enemies: Vec<usize>,
     pub flash_party: Vec<usize>,
+    pub acting_enemies: Vec<usize>,
+    pub acting_party: Vec<usize>,
 }
 
 pub struct NpcView {
@@ -1116,10 +1118,10 @@ fn draw_party_panel(
         } else {
             Style::default().fg(Color::DarkGray)
         };
-        if is_selected {
-            style = list_highlight_style(style, &battle_ui.selection.list_highlight, focused);
-        } else if state.flash_party.contains(&index) {
+        if state.flash_party.contains(&index) {
             style = style.fg(Color::Yellow).add_modifier(Modifier::REVERSED);
+        } else if is_selected {
+            style = list_highlight_style(style, &battle_ui.selection.list_highlight, focused);
         } else if member.active {
             style = style.fg(Color::Cyan).add_modifier(Modifier::BOLD);
         }
@@ -1184,16 +1186,21 @@ fn draw_battlefield(
             (enemy.pos.0 as f32 + 0.5) * cell_width,
             (enemy.pos.1 as f32 + 0.5) * cell_height,
         );
+        let acting_offset = if state.acting_enemies.contains(&index) {
+            1
+        } else {
+            0
+        };
         let selected = matches!(state.focus, BattleFocus::Enemies) && index == state.selected_enemy;
         let flashing = state.flash_enemies.contains(&index);
         let mut style = palette_style(state.use_color, enemy.palette.as_deref());
         if !enemy.alive {
             style = Style::default().fg(Color::DarkGray);
         }
-        if selected {
-            style = style.add_modifier(highlight_modifier);
-        } else if flashing {
+        if flashing {
             style = style.fg(Color::Yellow).add_modifier(Modifier::REVERSED);
+        } else if selected {
+            style = style.add_modifier(highlight_modifier);
         }
 
         if use_art {
@@ -1204,23 +1211,23 @@ fn draw_battlefield(
                 } else {
                     Style::default().fg(Color::DarkGray)
                 };
-                let art_style = if selected {
-                    art_style.add_modifier(highlight_modifier)
-                } else if flashing {
+                let art_style = if flashing {
                     art_style.fg(Color::Yellow).add_modifier(Modifier::REVERSED)
+                } else if selected {
+                    art_style.add_modifier(highlight_modifier)
                 } else {
                     art_style
                 };
                 let art_height = lines.len() as i32;
                 for (line_index, line) in lines.iter().enumerate() {
                     let line_width = line.chars().count() as i32;
-                    let start_x = center_x as i32 - line_width / 2;
+                    let start_x = center_x as i32 - line_width / 2 + acting_offset;
                     let start_y = center_y as i32 - art_height / 2 + line_index as i32;
                     place_text(&mut cells, line, start_x, start_y, art_style);
                 }
             }
         } else {
-            let x = center_x as i32;
+            let x = center_x as i32 + acting_offset;
             let y = center_y as i32;
             place_glyph(&mut cells, enemy.glyph, x, y, style);
         }
@@ -1232,16 +1239,21 @@ fn draw_battlefield(
             (member.pos.0 as f32 + 0.5) * cell_width,
             (member.pos.1 as f32 + 0.5) * cell_height,
         );
+        let acting_offset = if state.acting_party.contains(&index) {
+            -1
+        } else {
+            0
+        };
         let selected = matches!(state.focus, BattleFocus::Party) && index == state.selected_party;
         let flashing = state.flash_party.contains(&index);
         let mut style = palette_style(state.use_color, member.palette.as_deref());
         if !member.alive {
             style = Style::default().fg(Color::DarkGray);
         }
-        if selected {
-            style = style.add_modifier(highlight_modifier);
-        } else if flashing {
+        if flashing {
             style = style.fg(Color::Yellow).add_modifier(Modifier::REVERSED);
+        } else if selected {
+            style = style.add_modifier(highlight_modifier);
         }
         if use_art {
             if let Some(lines) = member.art.as_ref() {
@@ -1251,23 +1263,23 @@ fn draw_battlefield(
                 } else {
                     Style::default().fg(Color::DarkGray)
                 };
-                let art_style = if selected {
-                    art_style.add_modifier(highlight_modifier)
-                } else if flashing {
+                let art_style = if flashing {
                     art_style.fg(Color::Yellow).add_modifier(Modifier::REVERSED)
+                } else if selected {
+                    art_style.add_modifier(highlight_modifier)
                 } else {
                     art_style
                 };
                 let art_height = lines.len() as i32;
                 for (line_index, line) in lines.iter().enumerate() {
                     let line_width = line.chars().count() as i32;
-                    let start_x = center_x as i32 - line_width / 2;
+                    let start_x = center_x as i32 - line_width / 2 + acting_offset;
                     let start_y = center_y as i32 - art_height / 2 + line_index as i32;
                     place_text(&mut cells, line, start_x, start_y, art_style);
                 }
             }
         } else {
-            let x = center_x as i32;
+            let x = center_x as i32 + acting_offset;
             let y = center_y as i32;
             place_glyph(&mut cells, member.glyph, x, y, style);
         }
