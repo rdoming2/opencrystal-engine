@@ -926,6 +926,15 @@ fn run_overworld_loop(
             for event_id in on_enter_events {
                 runtime.queue_event(&event_id);
             }
+            if !runtime.event_queue.is_empty() {
+                runtime.state = GameState::Event;
+                runtime.start_next_event();
+                if let Err(err) = run_event_loop(runtime, dialog_ui, battle_ui, bindings, session) {
+                    if err.kind() == std::io::ErrorKind::Interrupted {
+                        return Err(err);
+                    }
+                }
+            }
         }
 
         let moved = player_pos != previous_pos;
@@ -938,6 +947,15 @@ fn run_overworld_loop(
                 runtime.get_on_step_events_for_zone(&current_map_id, player_pos, previous_pos);
             for event_id in step_events_pos.into_iter().chain(step_events_zone) {
                 runtime.queue_event(&event_id);
+            }
+            if !runtime.event_queue.is_empty() {
+                runtime.state = GameState::Event;
+                runtime.start_next_event();
+                if let Err(err) = run_event_loop(runtime, dialog_ui, battle_ui, bindings, session) {
+                    if err.kind() == std::io::ErrorKind::Interrupted {
+                        return Err(err);
+                    }
+                }
             }
             if let Some(outcome) = try_start_random_battle(
                 runtime,

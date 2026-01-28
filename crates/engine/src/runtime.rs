@@ -1,7 +1,7 @@
 use crate::content::Content;
 use crate::events::{EventExecutionResult, EventStep};
 use crate::inventory::InventoryState;
-use crate::party::{PartyState, reset_magic_tier_charges};
+use crate::party::{reset_magic_tier_charges, PartyState};
 use crate::rules::Ruleset;
 use std::collections::HashSet;
 use std::time::Instant;
@@ -219,7 +219,7 @@ impl GameRuntime {
         self.event_step >= event.steps.len()
     }
 
-    fn start_next_event(&mut self) {
+    pub fn start_next_event(&mut self) {
         while let Some(event_id) = self.event_queue.first().cloned() {
             if self.content.event_index.contains_key(&event_id) {
                 self.active_event = Some(event_id);
