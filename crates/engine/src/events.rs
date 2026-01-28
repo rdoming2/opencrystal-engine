@@ -39,10 +39,33 @@ pub struct EventTarget {
     pub pos: [i32; 2],
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct FormationMember {
     pub enemy: String,
     pub pos: [i32; 2],
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum EventExecutionResult {
+    Continue,
+    Dialog {
+        speaker: String,
+        text: String,
+    },
+    Narration {
+        text: String,
+    },
+    StartDialog {
+        dialog_id: String,
+    },
+    StartBattle {
+        encounter: String,
+        formation: Vec<FormationMember>,
+    },
+    OpenShop {
+        shop_id: String,
+    },
+    Completed,
 }
 
 impl EventFile {

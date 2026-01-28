@@ -112,11 +112,15 @@ All runtime data is loaded from JSON. Files are organized into top-level categor
 
 ### Event triggers
 
-- Map triggers (`on_enter`, tile or zone triggers).
-- NPC interactions (map NPC `script` event).
+- Map triggers (`on_enter`, `trigger: "on_enter"`, `on_step` with zone support).
+- NPC interactions (map NPC `script` event, dialog tree actions).
 - Dialog actions (`start_event`, `open_shop`).
 - Item effects (warp, start battle).
 - Battle results (victory/defeat hooks).
+
+Event execution is handled by `GameRuntime.apply_event_step`, which:
+- Manages state changes (flag setting, item grants, warps to new maps).
+- Returns `EventExecutionResult` for UI requests (dialogs, battles, shops).
 
 ### New game flow
 

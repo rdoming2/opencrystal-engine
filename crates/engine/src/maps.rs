@@ -96,6 +96,10 @@ pub struct MapEvent {
     pub id: String,
     pub trigger: String,
     pub script: String,
+    #[serde(default)]
+    pub zone: Option<String>,
+    #[serde(default)]
+    pub pos: Option<[i32; 2]>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

@@ -233,6 +233,18 @@ uses its dialog tree.
       "id": "intro",
       "trigger": "on_enter",
       "script": "intro_scene"
+    },
+    {
+      "id": "danger_zone",
+      "trigger": "on_step",
+      "zone": "grasslands",
+      "script": "bear_encounter"
+    },
+    {
+      "id": "trap_tile",
+      "trigger": "on_step",
+      "pos": [15, 10],
+      "script": "stepped_on_trap"
     }
   ],
   "npcs": [
@@ -724,20 +736,24 @@ Event scripts are ordered lists of actions.
 
 Supported event step types:
 
-- `dialog`
-- `narration`
-- `set_flag`
-- `require_flags`
-- `give_item`
-- `give_equipment`
-- `warp`
-- `start_battle`
-- `open_shop`
-- `npc_show`
-- `npc_hide`
-- `npc_move`
-- `npc_set_sprite`
-- `start_dialog`
+- `dialog` (fields: `speaker`, `text`)
+- `narration` (fields: `text`)
+- `set_flag` (fields: `flag`)
+- `require_flags` (fields: `flags` list)
+- `give_item` (fields: `item`, `qty`)
+- `give_equipment` (fields: `item`, `qty`)
+- `warp` (fields: `target` with `map` and `pos`)
+- `start_battle` (fields: `encounter`, `formation`)
+- `open_shop` (fields: `shop`)
+- `npc_show`, `npc_hide`, `npc_move`, `npc_set_sprite` (fields: `npc`, `pos`, `sprite`)
+- `start_dialog` (fields: `dialog`)
+
+Event trigger types (for `maps/*/json` `events` entries):
+
+- `on_enter`: Fires when entering a map.
+- `on_step`: Fires when stepping on a tile or crossing a zone boundary.
+  - For coordinate-based: Include `pos` field with `[x, y]` coordinates.
+  - For zone-based: Include `zone` field matching an `encounters` zone ID.
 
 Example steps:
 

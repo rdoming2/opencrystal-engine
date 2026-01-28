@@ -5,28 +5,28 @@ use std::thread::sleep;
 use std::time::{Duration, Instant};
 
 use engine::{
-    Engine,
     battle::{
-        BattleResult, BattleState, LevelUpDiff, apply_damage_to_actor, apply_damage_to_enemy,
-        build_battle_state, collect_rewards, is_enemies_defeated, is_party_defeated,
-        next_living_party_index, physical_damage, roll_damage,
+        apply_damage_to_actor, apply_damage_to_enemy, build_battle_state, collect_rewards,
+        is_enemies_defeated, is_party_defeated, next_living_party_index, physical_damage,
+        roll_damage, BattleResult, BattleState, LevelUpDiff,
     },
     content::Content,
-    party::{PartyState, actor_slots, exp_for_level, gain_exp, recompute_derived_stats},
+    party::{actor_slots, exp_for_level, gain_exp, recompute_derived_stats, PartyState},
     rules::{MagicSystem, PartyMode, Ruleset},
     runtime::{GameRuntime, GameState, MenuFocus},
     world::WorldState,
+    Engine,
 };
-use rand::Rng;
 use rand::seq::SliceRandom;
+use rand::Rng;
 use tui::app::{
+    draw_battle, draw_menu, draw_menu_frame, draw_overworld, draw_overworld_with_tooltip,
+    prompt_choice, prompt_text, run_title, show_centered_dialog_on_map, show_dialog,
+    show_dialog_on_map, show_dialog_with_choices, show_dialog_with_choices_on_map, show_shop,
     BattleCommandItem, BattleCommandPanelMode, BattleCommandPanelView, BattleEnemyView,
     BattleFocus, BattlePartyView, BattleRenderState, ChoiceView, MapView, MenuEntryView, MenuPane,
     MenuPanelLine, MenuPanelSpan, MenuPanelView, NpcView, PanelSpanStyle, ShopItem, ShopView,
-    TileRender, TitleAction, TransitionView, TuiSession, draw_battle, draw_menu, draw_menu_frame,
-    draw_overworld, draw_overworld_with_tooltip, prompt_choice, prompt_text, run_title,
-    show_centered_dialog_on_map, show_dialog, show_dialog_on_map, show_dialog_with_choices,
-    show_dialog_with_choices_on_map, show_shop,
+    TileRender, TitleAction, TransitionView, TuiSession,
 };
 use tui::input::{Action, InputBindings, InputFile};
 use tui::renderer::RenderMode;
@@ -242,7 +242,8 @@ fn run_event_loop(
     while runtime.state == GameState::Event {
         match runtime.next_event_step() {
             Some(step) => {
-                handle_event_step(runtime, dialog_ui, battle_ui, bindings, session, &step)?
+                let result = runtime.apply_event_step(&step);
+                handle_event_result(runtime, dialog_ui, battle_ui, bindings, session, result)?
             }
             None => {}
         }
@@ -257,6 +258,44 @@ fn run_event_loop_console(runtime: &mut GameRuntime, dialog_ui: &DialogUiFile) {
             None => {}
         }
     }
+}
+
+fn handle_event_result(
+    runtime: &mut GameRuntime,
+    dialog_ui: &DialogUiFile,
+    battle_ui: &BattleUiFile,
+    bindings: &tui::input::InputBindings,
+    session: &mut TuiSession,
+    result: engine::events::EventExecutionResult,
+) -> std::io::Result<()> {
+    match result {
+        engine::events::EventExecutionResult::Continue => {}
+        engine::events::EventExecutionResult::Dialog { speaker, text } => {
+            show_dialog(session, dialog_ui, bindings, &speaker, &text)?;
+        }
+        engine::events::EventExecutionResult::Narration { text } => {
+            show_dialog(session, dialog_ui, bindings, "", &text)?;
+        }
+        engine::events::EventExecutionResult::StartDialog { dialog_id } => {
+            run_dialog(runtime, dialog_ui, bindings, session, &dialog_id)?;
+        }
+        engine::events::EventExecutionResult::StartBattle {
+            encounter,
+            formation,
+        } => {
+            let outcome = run_event_battle_with_result(
+                runtime, battle_ui, bindings, session, &encounter, &formation,
+            )?;
+            if matches!(outcome, BattleOutcome::Defeat) {
+                show_dialog(session, dialog_ui, bindings, "", "The party was defeated.")?;
+            }
+        }
+        engine::events::EventExecutionResult::OpenShop { shop_id } => {
+            open_shop(runtime, session, bindings, &shop_id)?;
+        }
+        engine::events::EventExecutionResult::Completed => {}
+    }
+    Ok(())
 }
 
 fn handle_event_step(
@@ -882,8 +921,24 @@ fn run_overworld_loop(
             transitioned = false;
         }
 
+        if transitioned {
+            let on_enter_events = runtime.get_on_enter_events_for_map(&current_map_id);
+            for event_id in on_enter_events {
+                runtime.queue_event(&event_id);
+            }
+        }
+
         let moved = player_pos != previous_pos;
         if moved && !transitioned {
+            runtime.world.map_id = current_map_id.clone();
+            runtime.world.position = player_pos;
+            let step_events_pos =
+                runtime.get_on_step_events_for_position(&current_map_id, player_pos);
+            let step_events_zone =
+                runtime.get_on_step_events_for_zone(&current_map_id, player_pos, previous_pos);
+            for event_id in step_events_pos.into_iter().chain(step_events_zone) {
+                runtime.queue_event(&event_id);
+            }
             if let Some(outcome) = try_start_random_battle(
                 runtime,
                 battle_ui,
@@ -1516,11 +1571,19 @@ fn next_filter_index(index: usize) -> usize {
 }
 
 fn prev_filter_index(index: usize) -> usize {
-    if index == 0 { 4 } else { index - 1 }
+    if index == 0 {
+        4
+    } else {
+        index - 1
+    }
 }
 
 fn toggle_sort_index(index: usize) -> usize {
-    if index == 0 { 1 } else { 0 }
+    if index == 0 {
+        1
+    } else {
+        0
+    }
 }
 
 fn detail_actor_id(runtime: &GameRuntime) -> Option<String> {
@@ -4321,6 +4384,39 @@ fn run_event_battle(
         }
     } else {
         Vec::new()
+    };
+    if formation.is_empty() {
+        return Ok(BattleOutcome::Victory);
+    }
+    run_battle(runtime, battle_ui, bindings, session, &formation, &mut rng)
+}
+
+fn run_event_battle_with_result(
+    runtime: &mut GameRuntime,
+    battle_ui: &BattleUiFile,
+    bindings: &tui::input::InputBindings,
+    session: &mut TuiSession,
+    encounter_id: &str,
+    formation: &[engine::events::FormationMember],
+) -> std::io::Result<BattleOutcome> {
+    let mut rng = rand::thread_rng();
+    let formation = if formation.is_empty() {
+        if encounter_id.is_empty() {
+            Vec::new()
+        } else {
+            match select_encounter_entry(&runtime.content.encounters, encounter_id, &mut rng) {
+                Some(entry) => entry.formation,
+                None => Vec::new(),
+            }
+        }
+    } else {
+        formation
+            .iter()
+            .map(|member| engine::encounters::EncounterMember {
+                enemy: member.enemy.clone(),
+                pos: member.pos,
+            })
+            .collect()
     };
     if formation.is_empty() {
         return Ok(BattleOutcome::Victory);

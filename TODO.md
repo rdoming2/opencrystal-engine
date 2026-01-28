@@ -105,6 +105,13 @@
 - [x] NPC interactions with flag gating.
 - [x] Airship unlock flow (demo completion).
 - [x] Define NPC schema (behavior, dialog, schedules).
+- [x] Move event execution logic to engine (apply_event_step).
+- [ ] Add EventExecutionResult enum for UI action communication.
+- [ ] Add world state to GameRuntime for warp support.
+- [ ] Implement on_enter trigger for map load events.
+- [ ] Implement on_step trigger with zone support.
+- [ ] Implement NPC script event triggers.
+- [ ] Move WorldState from CLI to GameRuntime.
 - [ ] Implement quest resolver (flag-driven steps and journal updates).
 - [ ] Implement NPC roaming (persisted positions).
 - [ ] Implement event-driven NPC controls (show/hide/move/set_sprite).
