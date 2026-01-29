@@ -1,8 +1,16 @@
 pub mod app;
+pub mod battle;
+pub mod dialog;
 pub mod input;
 pub mod layout;
+pub mod menu;
+pub mod overworld;
 pub mod renderer;
+pub mod session;
+pub mod shop;
+pub mod title;
 pub mod ui;
+pub mod utils;
 
 #[derive(Clone, Debug)]
 pub struct TuiApp {
