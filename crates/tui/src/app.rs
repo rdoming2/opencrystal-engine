@@ -28,6 +28,7 @@ pub struct TuiSession {
     terminal: Terminal<CrosstermBackend<Stdout>>,
 }
 
+#[derive(Clone)]
 pub struct MapView {
     pub name: String,
     pub hide_name: bool,
@@ -43,10 +44,12 @@ pub struct MapView {
     pub use_color: bool,
 }
 
+#[derive(Clone)]
 pub struct TileRender {
     pub palette: Option<String>,
 }
 
+#[derive(Clone)]
 pub struct TransitionView {
     pub pos: (i32, i32),
     pub glyph: Option<char>,
@@ -199,6 +202,7 @@ pub struct BattleRenderState {
     pub acting_party: Vec<usize>,
 }
 
+#[derive(Clone)]
 pub struct NpcView {
     pub id: String,
     pub pos: (i32, i32),
@@ -206,6 +210,7 @@ pub struct NpcView {
     pub palette: Option<String>,
 }
 
+#[derive(Clone)]
 pub struct SignView {
     pub id: String,
     pub pos: (i32, i32),
@@ -214,6 +219,7 @@ pub struct SignView {
     pub text: String,
 }
 
+#[derive(Clone)]
 pub struct ChestView {
     pub id: String,
     pub pos: (i32, i32),

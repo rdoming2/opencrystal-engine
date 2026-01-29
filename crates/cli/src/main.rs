@@ -188,12 +188,14 @@ fn run_play(args: Vec<String>) {
                 }
 
                 runtime.start_new_game(&rules);
+                let initial_map_view = build_map_view(&runtime, &runtime.world.map_id);
                 if let Err(err) = run_event_loop(
                     &mut runtime,
                     &dialog_ui,
                     &battle_ui,
                     &input_bindings,
                     session,
+                    initial_map_view,
                 ) {
                     if err.kind() == std::io::ErrorKind::Interrupted {
                         return;
@@ -238,12 +240,30 @@ fn run_event_loop(
     battle_ui: &BattleUiFile,
     bindings: &tui::input::InputBindings,
     session: &mut TuiSession,
+    initial_map_view: Option<MapView>,
 ) -> std::io::Result<()> {
+    let mut current_map_id = runtime.world.map_id.clone();
+    let mut map_view = initial_map_view;
+
     while runtime.state == GameState::Event {
+        // Check if map has changed (e.g., due to warp event)
+        if runtime.world.map_id != current_map_id {
+            current_map_id = runtime.world.map_id.clone();
+            map_view = build_map_view(runtime, &current_map_id);
+        }
+
         match runtime.next_event_step() {
             Some(step) => {
                 let result = runtime.apply_event_step(&step);
-                handle_event_result(runtime, dialog_ui, battle_ui, bindings, session, result)?
+                handle_event_result(
+                    runtime,
+                    dialog_ui,
+                    battle_ui,
+                    bindings,
+                    session,
+                    result,
+                    map_view.as_ref(),
+                )?
             }
             None => {}
         }
@@ -267,17 +287,54 @@ fn handle_event_result(
     bindings: &tui::input::InputBindings,
     session: &mut TuiSession,
     result: engine::events::EventExecutionResult,
+    map_view: Option<&MapView>,
 ) -> std::io::Result<()> {
     match result {
         engine::events::EventExecutionResult::Continue => {}
         engine::events::EventExecutionResult::Dialog { speaker, text } => {
-            show_dialog(session, dialog_ui, bindings, &speaker, &text)?;
+            if let Some(map) = map_view {
+                show_dialog_on_map(
+                    session,
+                    map,
+                    runtime.world.position,
+                    dialog_ui,
+                    bindings,
+                    &speaker,
+                    &text,
+                )?;
+            } else {
+                show_dialog(session, dialog_ui, bindings, &speaker, &text)?;
+            }
         }
         engine::events::EventExecutionResult::Narration { text } => {
-            show_dialog(session, dialog_ui, bindings, "", &text)?;
+            if let Some(map) = map_view {
+                show_dialog_on_map(
+                    session,
+                    map,
+                    runtime.world.position,
+                    dialog_ui,
+                    bindings,
+                    "",
+                    &text,
+                )?;
+            } else {
+                show_dialog(session, dialog_ui, bindings, "", &text)?;
+            }
         }
         engine::events::EventExecutionResult::StartDialog { dialog_id } => {
-            run_dialog(runtime, dialog_ui, bindings, session, &dialog_id)?;
+            if let Some(map) = map_view {
+                run_dialog_on_map(
+                    runtime,
+                    dialog_ui,
+                    bindings,
+                    session,
+                    &dialog_id,
+                    map,
+                    runtime.world.position,
+                )?;
+            } else {
+                run_dialog(runtime, dialog_ui, bindings, session, &dialog_id)?;
+            }
         }
         engine::events::EventExecutionResult::StartBattle {
             encounter,
@@ -287,7 +344,19 @@ fn handle_event_result(
                 runtime, battle_ui, bindings, session, &encounter, &formation,
             )?;
             if matches!(outcome, BattleOutcome::Defeat) {
-                show_dialog(session, dialog_ui, bindings, "", "The party was defeated.")?;
+                if let Some(map) = map_view {
+                    show_dialog_on_map(
+                        session,
+                        map,
+                        runtime.world.position,
+                        dialog_ui,
+                        bindings,
+                        "",
+                        "The party was defeated.",
+                    )?;
+                } else {
+                    show_dialog(session, dialog_ui, bindings, "", "The party was defeated.")?;
+                }
             }
         }
         engine::events::EventExecutionResult::OpenShop { shop_id } => {
@@ -929,7 +998,14 @@ fn run_overworld_loop(
             if !runtime.event_queue.is_empty() {
                 runtime.state = GameState::Event;
                 runtime.start_next_event();
-                if let Err(err) = run_event_loop(runtime, dialog_ui, battle_ui, bindings, session) {
+                if let Err(err) = run_event_loop(
+                    runtime,
+                    dialog_ui,
+                    battle_ui,
+                    bindings,
+                    session,
+                    Some(map.clone()),
+                ) {
                     if err.kind() == std::io::ErrorKind::Interrupted {
                         return Err(err);
                     }
@@ -951,7 +1027,14 @@ fn run_overworld_loop(
             if !runtime.event_queue.is_empty() {
                 runtime.state = GameState::Event;
                 runtime.start_next_event();
-                if let Err(err) = run_event_loop(runtime, dialog_ui, battle_ui, bindings, session) {
+                if let Err(err) = run_event_loop(
+                    runtime,
+                    dialog_ui,
+                    battle_ui,
+                    bindings,
+                    session,
+                    Some(map.clone()),
+                ) {
                     if err.kind() == std::io::ErrorKind::Interrupted {
                         return Err(err);
                     }
