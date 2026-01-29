@@ -1,11 +1,12 @@
 use std::collections::HashMap;
 
 use engine::runtime::{GameRuntime, GameState};
-use tui::app::{
-    draw_overworld, draw_overworld_with_tooltip, show_centered_dialog_on_map, MapView, NpcView,
-    TileRender, TransitionView, TuiSession,
-};
 use tui::input::{Action, InputBindings};
+use tui::overworld::{
+    draw_overworld, draw_overworld_with_tooltip, show_centered_dialog_on_map, MapView, NpcView,
+    TileRender, TransitionView,
+};
+use tui::session::TuiSession;
 use tui::ui::{BattleUiFile, DialogUiFile, MenuUiFile};
 
 use crate::battle::{try_start_random_battle, BattleOutcome};
@@ -114,8 +115,8 @@ pub fn run_overworld_loop(
                 }
                 Action::Cancel => {}
                 Action::Quit => {
-                    if tui::app::confirm_quit(session, |frame| {
-                        tui::app::draw_overworld_frame(frame, &map, player_pos);
+                    if tui::dialog::confirm_quit(session, |frame| {
+                        tui::overworld::draw_overworld_frame(frame, &map, player_pos);
                     })? {
                         return Err(std::io::Error::new(std::io::ErrorKind::Interrupted, "quit"));
                     }
@@ -223,7 +224,7 @@ pub fn run_overworld_loop(
                 &mut rng,
             )? {
                 if matches!(outcome, BattleOutcome::Defeat) {
-                    tui::app::show_dialog(
+                    tui::dialog::show_dialog(
                         session,
                         dialog_ui,
                         bindings,
@@ -263,7 +264,7 @@ pub fn build_map_view(runtime: &GameRuntime, map_id: &str) -> Option<MapView> {
     let signs = map
         .signs
         .iter()
-        .map(|sign| tui::app::SignView {
+        .map(|sign| tui::overworld::SignView {
             id: sign.id.clone(),
             pos: (sign.pos[0], sign.pos[1]),
             glyph: sign
@@ -278,7 +279,7 @@ pub fn build_map_view(runtime: &GameRuntime, map_id: &str) -> Option<MapView> {
     let chests = map
         .chests
         .iter()
-        .map(|chest| tui::app::ChestView {
+        .map(|chest| tui::overworld::ChestView {
             id: chest.id.clone(),
             pos: (chest.pos[0], chest.pos[1]),
             glyph_closed: chest

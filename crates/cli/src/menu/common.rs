@@ -1,4 +1,4 @@
-use tui::app::MenuEntryView;
+use tui::menu::MenuEntryView;
 
 pub struct MenuEntryState {
     pub view: MenuEntryView,

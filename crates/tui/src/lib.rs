@@ -1,4 +1,3 @@
-pub mod app;
 pub mod battle;
 pub mod dialog;
 pub mod input;

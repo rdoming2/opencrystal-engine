@@ -9,7 +9,7 @@ pub struct JobOption {
 }
 
 pub fn run_party_create_flow(
-    session: &mut tui::app::TuiSession,
+    session: &mut tui::session::TuiSession,
     runtime: &mut engine::runtime::GameRuntime,
     rules: &Ruleset,
     bindings: &tui::input::InputBindings,
@@ -35,7 +35,7 @@ pub fn run_party_create_flow(
     for index in 0..rules.party_size {
         let default_name = format!("Hero {}", index + 1);
         let prompt = format!("Name character {}:", index + 1);
-        let name = match tui::app::prompt_text(
+        let name = match tui::dialog::prompt_text(
             session,
             "Create Party",
             &prompt,
@@ -50,7 +50,7 @@ pub fn run_party_create_flow(
                 .iter()
                 .map(|job| job.name.clone())
                 .collect::<Vec<_>>();
-            match tui::app::prompt_choice(
+            match tui::dialog::prompt_choice(
                 session,
                 bindings,
                 "Choose Job",

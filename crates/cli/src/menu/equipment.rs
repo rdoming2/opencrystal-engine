@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use engine::party::{actor_slots, recompute_derived_stats};
 use engine::runtime::GameRuntime;
-use tui::app::{MenuPanelLine, MenuPanelView, PanelSpanStyle};
+use tui::menu::{MenuPanelLine, MenuPanelView, PanelSpanStyle};
 
 use super::common::{InventoryEntry, InventoryKind};
 use super::inventory::{

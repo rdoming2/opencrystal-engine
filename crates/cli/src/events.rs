@@ -1,6 +1,8 @@
 use engine::runtime::{GameRuntime, GameState};
-use tui::app::{show_dialog, show_dialog_on_map, MapView, TuiSession};
+use tui::dialog::show_dialog;
 use tui::input::InputBindings;
+use tui::overworld::{show_dialog_on_map, MapView};
+use tui::session::TuiSession;
 use tui::ui::{BattleUiFile, DialogUiFile};
 
 use crate::battle::{run_event_battle_with_result, BattleOutcome};

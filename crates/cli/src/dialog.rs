@@ -1,6 +1,8 @@
 use engine::runtime::GameRuntime;
-use tui::app::{ChoiceView, TuiSession};
+use tui::dialog::ChoiceView;
 use tui::input::InputBindings;
+use tui::overworld::{show_dialog_on_map, show_dialog_with_choices_on_map};
+use tui::session::TuiSession;
 use tui::ui::DialogUiFile;
 
 use crate::shop::open_shop;
@@ -40,11 +42,11 @@ pub fn run_dialog(
         });
 
         let selection = if let Some(choices) = &choice_views {
-            tui::app::show_dialog_with_choices(
+            tui::dialog::show_dialog_with_choices(
                 session, dialog_ui, bindings, speaker, &node.text, choices,
             )?
         } else {
-            tui::app::show_dialog(session, dialog_ui, bindings, speaker, &node.text)?;
+            tui::dialog::show_dialog(session, dialog_ui, bindings, speaker, &node.text)?;
             None
         };
 
@@ -78,7 +80,7 @@ pub fn run_dialog_on_map(
     bindings: &InputBindings,
     session: &mut TuiSession,
     dialog_id: &str,
-    map: &tui::app::MapView,
+    map: &tui::overworld::MapView,
     player_pos: (i32, i32),
 ) -> std::io::Result<()> {
     let dialog = match runtime.get_dialog(dialog_id).cloned() {
@@ -109,11 +111,11 @@ pub fn run_dialog_on_map(
         });
 
         let selection = if let Some(choices) = &choice_views {
-            tui::app::show_dialog_with_choices_on_map(
+            show_dialog_with_choices_on_map(
                 session, map, player_pos, dialog_ui, bindings, speaker, &node.text, choices,
             )?
         } else {
-            tui::app::show_dialog_on_map(
+            show_dialog_on_map(
                 session, map, player_pos, dialog_ui, bindings, speaker, &node.text,
             )?;
             None

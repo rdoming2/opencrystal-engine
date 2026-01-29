@@ -14,8 +14,9 @@ use engine::party::gain_exp;
 use engine::rules::Ruleset;
 use engine::runtime::GameRuntime;
 use rand::Rng;
-use tui::app::{draw_battle, BattleRenderState, TuiSession};
+use tui::battle::{draw_battle, BattleRenderState};
 use tui::input::{Action, InputBindings};
+use tui::session::TuiSession;
 use tui::ui::BattleUiFile;
 
 use self::actions::{
@@ -198,7 +199,7 @@ pub fn run_battle(
             match victory_state {
                 Some(VictoryState::Summary) => {
                     if let Some(ref result) = battle_result {
-                        tui::app::draw_victory_summary(
+                        tui::battle::draw_victory_summary(
                             session,
                             result.rewards.exp,
                             result.rewards.currency,
@@ -210,7 +211,7 @@ pub fn run_battle(
                 Some(VictoryState::LevelUp(index)) => {
                     if let Some(ref result) = battle_result {
                         if let Some(diff) = result.level_ups.get(index) {
-                            tui::app::draw_level_up_modal(
+                            tui::battle::draw_level_up_modal(
                                 session,
                                 &diff.actor_name,
                                 diff.old_level,

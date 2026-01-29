@@ -1,6 +1,6 @@
 use engine::battle::BattleState;
 use engine::runtime::GameRuntime;
-use tui::app::{
+use tui::battle::{
     BattleCommandItem, BattleCommandPanelMode, BattleCommandPanelView, BattleEnemyView,
     BattleFocus, BattlePartyView, BattleRenderState,
 };

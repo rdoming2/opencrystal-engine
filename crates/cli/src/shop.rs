@@ -1,6 +1,7 @@
 use engine::runtime::GameRuntime;
-use tui::app::{ShopView, TuiSession};
 use tui::input::InputBindings;
+use tui::session::TuiSession;
+use tui::shop::ShopView;
 
 pub fn open_shop(
     runtime: &GameRuntime,
@@ -15,7 +16,7 @@ pub fn open_shop(
             return Ok(());
         }
     };
-    let _ = tui::app::show_shop(session, &shop, bindings)?;
+    let _ = tui::shop::show_shop(session, &shop, bindings)?;
     Ok(())
 }
 
@@ -30,7 +31,7 @@ pub fn build_shop_view(runtime: &GameRuntime, shop_id: &str) -> Option<ShopView>
     let items = shop
         .inventory
         .iter()
-        .map(|entry| tui::app::ShopItem {
+        .map(|entry| tui::shop::ShopItem {
             name: lookup_item_name(runtime, &entry.item),
             price: entry.price,
         })

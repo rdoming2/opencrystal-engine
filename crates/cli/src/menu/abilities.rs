@@ -1,5 +1,5 @@
 use engine::runtime::GameRuntime;
-use tui::app::{MenuPanelLine, MenuPanelView, PanelSpanStyle};
+use tui::menu::{MenuPanelLine, MenuPanelView, PanelSpanStyle};
 
 use super::common::AbilityEntry;
 use super::equipment::detail_actor_id;

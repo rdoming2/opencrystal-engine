@@ -7,8 +7,9 @@ pub mod status;
 
 use engine::menu::MenuFocus;
 use engine::runtime::GameRuntime;
-use tui::app::{MenuEntryView, MenuPane, MenuPanelLine, MenuPanelView, TuiSession};
 use tui::input::{Action, InputBindings};
+use tui::menu::{MenuEntryView, MenuPane, MenuPanelLine, MenuPanelView};
+use tui::session::TuiSession;
 use tui::ui::MenuUiFile;
 
 use crate::utils::read_action;
@@ -85,7 +86,7 @@ pub fn run_menu_loop(
 
         let footer_text = menu_footer_text(focus, submenu_action, runtime.menu_state.detail_page);
         let stats_view = build_menu_stats_view(runtime);
-        tui::app::draw_menu(
+        tui::menu::draw_menu(
             session,
             menu_ui,
             &entry_views,
@@ -486,8 +487,8 @@ pub fn run_menu_loop(
                 }
                 Action::Quit => {
                     let confirm_stats = build_menu_stats_view(runtime);
-                    if tui::app::confirm_quit(session, |frame| {
-                        tui::app::draw_menu_frame(
+                    if tui::dialog::confirm_quit(session, |frame| {
+                        tui::menu::draw_menu_frame(
                             frame,
                             menu_ui,
                             &entry_views,

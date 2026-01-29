@@ -1,5 +1,5 @@
 use engine::runtime::GameRuntime;
-use tui::app::{MenuPanelLine, MenuPanelSpan, MenuPanelView, PanelSpanStyle};
+use tui::menu::{MenuPanelLine, MenuPanelSpan, MenuPanelView, PanelSpanStyle};
 
 use super::common::{
     filter_from_index, sort_from_index, InventoryEntry, InventoryFilter, InventoryKind,

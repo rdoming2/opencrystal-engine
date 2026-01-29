@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use engine::party::exp_for_level;
 use engine::runtime::GameRuntime;
-use tui::app::{MenuPanelLine, MenuPanelSpan, PanelSpanStyle};
+use tui::menu::{MenuPanelLine, MenuPanelSpan, PanelSpanStyle};
 
 pub fn build_status_panel(runtime: &GameRuntime, page: usize) -> Vec<MenuPanelLine> {
     if runtime.party.active.is_empty() {

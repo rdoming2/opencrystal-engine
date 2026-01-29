@@ -18,9 +18,10 @@ use engine::{
     world::WorldState,
     Engine,
 };
-use tui::app::{run_title, TitleAction, TuiSession};
 use tui::input::{InputBindings, InputFile};
 use tui::renderer::RenderMode;
+use tui::session::TuiSession;
+use tui::title::{run_title, TitleAction};
 use tui::ui::{BattleUiFile, DialogUiFile, MenuUiFile, ProgressUiFile, TitleUiFile};
 
 use crate::dialog::default_dialog_ui;
