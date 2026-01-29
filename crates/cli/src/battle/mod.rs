@@ -14,7 +14,8 @@ use engine::party::gain_exp;
 use engine::rules::Ruleset;
 use engine::runtime::GameRuntime;
 use rand::Rng;
-use tui::battle::{draw_battle, BattleRenderState};
+use tui::battle::{draw_battle, draw_battle_frame, BattleRenderState};
+use tui::dialog::confirm_quit;
 use tui::input::{Action, InputBindings};
 use tui::session::TuiSession;
 use tui::ui::BattleUiFile;
@@ -230,6 +231,15 @@ pub fn run_battle(
         let Some(action) = read_action(bindings) else {
             continue;
         };
+
+        if action == Action::Quit {
+            if confirm_quit(session, |frame| {
+                draw_battle_frame(frame, battle_ui, &render_state);
+            })? {
+                return Err(std::io::Error::new(std::io::ErrorKind::Interrupted, "quit"));
+            }
+            continue;
+        }
 
         match menu_state.phase {
             BattlePhase::Victory => {
@@ -1020,7 +1030,7 @@ fn pause_after_action(
         }
     }
     draw_battle(session, battle_ui, render_state)?;
-    wait_for_battle_dialog(bindings, battle_ui)
+    wait_for_battle_dialog(session, bindings, battle_ui, render_state)
 }
 
 fn pause_on_enemy_defeat(
@@ -1071,8 +1081,10 @@ fn pause_on_enemy_defeat(
 }
 
 fn wait_for_battle_dialog(
+    session: &mut TuiSession,
     bindings: &InputBindings,
     battle_ui: &BattleUiFile,
+    render_state: &BattleRenderState,
 ) -> std::io::Result<()> {
     let Some(log) = &battle_ui.log else {
         return Ok(());
@@ -1098,6 +1110,17 @@ fn wait_for_battle_dialog(
                     if let Some(action) = bindings.action_for(key.code) {
                         if matches!(action, Action::Confirm | Action::Cancel | Action::Menu) {
                             break;
+                        }
+                        if action == Action::Quit {
+                            if confirm_quit(session, |frame| {
+                                draw_battle_frame(frame, battle_ui, render_state);
+                            })? {
+                                return Err(std::io::Error::new(
+                                    std::io::ErrorKind::Interrupted,
+                                    "quit",
+                                ));
+                            }
+                            draw_battle(session, battle_ui, render_state)?;
                         }
                     }
                 }
