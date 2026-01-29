@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
 use crate::inventory::InventoryStack;
@@ -139,4 +139,18 @@ impl MapFile {
 
 fn default_allow_save() -> bool {
     true
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct EntityState {
+    pub pos: Option<(i32, i32)>,
+    pub state: Option<String>,
+    pub visible: Option<bool>,
+    pub sprite: Option<String>,
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct MapState {
+    pub flags: HashSet<String>,
+    pub entities: HashMap<String, EntityState>,
 }

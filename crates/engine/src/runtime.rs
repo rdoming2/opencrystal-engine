@@ -1,9 +1,11 @@
 use crate::content::Content;
 use crate::events::{EventExecutionResult, EventStep};
 use crate::inventory::InventoryState;
+use crate::maps::MapState;
+use crate::menu::{MenuFocus, MenuState};
 use crate::party::{reset_magic_tier_charges, PartyState};
 use crate::rules::Ruleset;
-use serde::{Deserialize, Serialize};
+use crate::world::WorldState;
 use std::collections::{HashMap, HashSet};
 use std::time::Instant;
 
@@ -15,78 +17,6 @@ pub enum GameState {
     Menu,
     Battle,
     Event,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub enum MenuFocus {
-    List,
-    Detail,
-}
-
-#[derive(Clone, Debug)]
-pub struct MenuState {
-    pub focus: MenuFocus,
-    pub selected: usize,
-    pub active_submenu: Option<String>,
-    pub detail_page: usize,
-    pub detail_selection: usize,
-    pub detail_filter: usize,
-    pub detail_sort: usize,
-    pub detail_actor: usize,
-    pub detail_slot: usize,
-    pub detail_target: usize,
-}
-
-impl Default for MenuState {
-    fn default() -> Self {
-        Self {
-            focus: MenuFocus::List,
-            selected: 0,
-            active_submenu: None,
-            detail_page: 0,
-            detail_selection: 0,
-            detail_filter: 0,
-            detail_sort: 0,
-            detail_actor: 0,
-            detail_slot: 0,
-            detail_target: 0,
-        }
-    }
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct EntityState {
-    pub pos: Option<(i32, i32)>,
-    pub state: Option<String>,
-    pub visible: Option<bool>,
-    pub sprite: Option<String>,
-}
-
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
-pub struct MapState {
-    pub flags: HashSet<String>,
-    pub entities: HashMap<String, EntityState>,
-}
-
-#[derive(Clone, Debug)]
-pub struct WorldState {
-    pub world_id: String,
-    pub map_id: String,
-    pub position: (i32, i32),
-}
-
-impl WorldState {
-    pub fn new(
-        world_id: impl Into<String>,
-        map_id: impl Into<String>,
-        position: (i32, i32),
-    ) -> Self {
-        Self {
-            world_id: world_id.into(),
-            map_id: map_id.into(),
-            position,
-        }
-    }
 }
 
 pub struct GameRuntime {
@@ -264,160 +194,15 @@ impl GameRuntime {
     }
 
     pub fn apply_event_step(&mut self, step: &EventStep) -> EventExecutionResult {
-        match step.r#type.as_str() {
-            "dialog" => {
-                let speaker = step.speaker.as_deref().unwrap_or("Narrator");
-                let text = step.text.as_deref().unwrap_or("");
-                EventExecutionResult::Dialog {
-                    speaker: speaker.to_string(),
-                    text: text.to_string(),
-                }
-            }
-            "narration" => {
-                let text = step.text.as_deref().unwrap_or("");
-                EventExecutionResult::Narration {
-                    text: text.to_string(),
-                }
-            }
-            "start_dialog" => {
-                if let Some(dialog) = &step.dialog {
-                    EventExecutionResult::StartDialog {
-                        dialog_id: dialog.clone(),
-                    }
-                } else {
-                    EventExecutionResult::Continue
-                }
-            }
-            "set_flag" => {
-                if let Some(flag) = &step.flag {
-                    self.set_flag(flag);
-                }
-                EventExecutionResult::Continue
-            }
-            "require_flags" => {
-                if let Some(flags) = &step.flags {
-                    let missing = flags
-                        .iter()
-                        .filter(|flag| !self.has_flag(flag))
-                        .cloned()
-                        .collect::<Vec<_>>();
-                    if !missing.is_empty() {
-                        self.abort_event();
-                        return EventExecutionResult::Abort;
-                    }
-                }
-                EventExecutionResult::Continue
-            }
-            "give_item" => {
-                if let Some(item) = &step.item {
-                    let qty = step.qty.unwrap_or(1);
-                    let max_stack = self.content.rules.inventory.max_stack;
-                    self.inventory.add_item(item, qty, max_stack);
-                }
-                EventExecutionResult::Continue
-            }
-            "give_equipment" => {
-                if let Some(item) = &step.item {
-                    let qty = step.qty.unwrap_or(1);
-                    let max_stack = self.content.rules.inventory.max_stack;
-                    self.inventory.add_equipment(item, qty, max_stack);
-                }
-                EventExecutionResult::Continue
-            }
-            "warp" => {
-                if let Some(target) = &step.target {
-                    self.world.map_id = target.map.clone();
-                    self.world.position = (target.pos[0], target.pos[1]);
-                }
-                EventExecutionResult::Continue
-            }
-            "start_battle" => {
-                let encounter = step.encounter.clone().unwrap_or_default();
-                let formation = step.formation.clone().unwrap_or_default();
-                EventExecutionResult::StartBattle {
-                    encounter,
-                    formation,
-                }
-            }
-            "open_shop" => {
-                if let Some(shop) = &step.shop {
-                    EventExecutionResult::OpenShop {
-                        shop_id: shop.clone(),
-                    }
-                } else {
-                    EventExecutionResult::Continue
-                }
-            }
-            "npc_show" | "npc_hide" | "npc_move" | "npc_set_sprite" => {
-                if let Some(npc_id) = &step.npc {
-                    let map_id = self.world.map_id.clone();
-                    let map_state = self.map_states.entry(map_id).or_default();
-                    let entity_state =
-                        map_state
-                            .entities
-                            .entry(npc_id.clone())
-                            .or_insert(EntityState {
-                                pos: None,
-                                state: None,
-                                visible: None,
-                                sprite: None,
-                            });
-
-                    match step.r#type.as_str() {
-                        "npc_show" => entity_state.visible = Some(true),
-                        "npc_hide" => entity_state.visible = Some(false),
-                        "npc_move" => {
-                            if let Some(pos) = step.pos {
-                                entity_state.pos = Some((pos[0], pos[1]));
-                            }
-                        }
-                        "npc_set_sprite" => {
-                            if let Some(sprite) = &step.sprite {
-                                entity_state.sprite = Some(sprite.clone());
-                            }
-                        }
-                        _ => {}
-                    }
-                }
-                EventExecutionResult::Continue
-            }
-            _ => EventExecutionResult::Continue,
-        }
+        crate::events::apply_event_step(self, step)
     }
 
     pub fn get_on_enter_events_for_map(&self, map_id: &str) -> Vec<String> {
-        let map_index = match self.content.map_index.get(map_id) {
-            Some(index) => *index,
-            None => return Vec::new(),
-        };
-        let map = &self.content.maps[map_index];
-        let mut events = Vec::new();
-        for map_event in &map.events {
-            if map_event.trigger == "on_enter" {
-                events.push(map_event.script.clone());
-            }
-        }
-        events
+        self.content.get_map_on_enter_events(map_id)
     }
 
     pub fn get_on_step_events_for_position(&self, map_id: &str, pos: (i32, i32)) -> Vec<String> {
-        let map_index = match self.content.map_index.get(map_id) {
-            Some(index) => *index,
-            None => return Vec::new(),
-        };
-        let map = &self.content.maps[map_index];
-        let mut events = Vec::new();
-        for map_event in &map.events {
-            if map_event.trigger != "on_step" {
-                continue;
-            }
-            if let Some(event_pos) = map_event.pos {
-                if event_pos[0] == pos.0 && event_pos[1] == pos.1 {
-                    events.push(map_event.script.clone());
-                }
-            }
-        }
-        events
+        self.content.get_map_on_step_events(map_id, pos)
     }
 
     pub fn get_on_step_events_for_zone(
@@ -426,73 +211,14 @@ impl GameRuntime {
         pos: (i32, i32),
         previous_pos: (i32, i32),
     ) -> Vec<String> {
-        let map_index = match self.content.map_index.get(map_id) {
-            Some(index) => *index,
-            None => return Vec::new(),
-        };
-        let map = &self.content.maps[map_index];
-        let mut events = Vec::new();
-        for map_event in &map.events {
-            if map_event.trigger != "on_step" {
-                continue;
-            }
-            let Some(zone_id) = &map_event.zone else {
-                continue;
-            };
-            let zone = map.encounters.iter().find(|z| &z.zone_id == zone_id);
-            let Some(zone_rect) = zone.map(|z| z.rect) else {
-                continue;
-            };
-            let in_zone_current = pos.0 >= zone_rect[0]
-                && pos.0 < zone_rect[2]
-                && pos.1 >= zone_rect[1]
-                && pos.1 < zone_rect[3];
-            let in_zone_previous = previous_pos.0 >= zone_rect[0]
-                && previous_pos.0 < zone_rect[2]
-                && previous_pos.1 >= zone_rect[1]
-                && previous_pos.1 < zone_rect[3];
-            if in_zone_current && !in_zone_previous {
-                events.push(map_event.script.clone());
-            }
-        }
-        events
+        self.content
+            .get_zone_on_step_events(map_id, pos, previous_pos)
     }
 
     pub fn apply_dialog_action(
         &mut self,
         action: &crate::dialog::DialogAction,
     ) -> EventExecutionResult {
-        match action.r#type.as_str() {
-            "start_event" => {
-                if let Some(event_id) = &action.event {
-                    self.queue_event(event_id);
-                }
-                EventExecutionResult::Continue
-            }
-            "open_shop" => {
-                if let Some(shop_id) = &action.shop {
-                    EventExecutionResult::OpenShop {
-                        shop_id: shop_id.clone(),
-                    }
-                } else {
-                    EventExecutionResult::Continue
-                }
-            }
-            "set_flag" => {
-                if let Some(flag) = &action.flag {
-                    self.set_flag(flag);
-                }
-                EventExecutionResult::Continue
-            }
-            "give_item" => {
-                if let Some(item) = &action.item {
-                    let qty = action.qty.unwrap_or(1);
-                    let max_stack = self.content.rules.inventory.max_stack;
-                    self.inventory.add_item(item, qty, max_stack);
-                }
-                EventExecutionResult::Continue
-            }
-            _ => EventExecutionResult::Continue,
-        }
+        crate::dialog::apply_dialog_action(self, action)
     }
 }

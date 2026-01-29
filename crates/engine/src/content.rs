@@ -39,6 +39,79 @@ pub struct Content {
 }
 
 impl Content {
+    pub fn get_map_on_enter_events(&self, map_id: &str) -> Vec<String> {
+        let map_index = match self.map_index.get(map_id) {
+            Some(index) => *index,
+            None => return Vec::new(),
+        };
+        let map = &self.maps[map_index];
+        let mut events = Vec::new();
+        for map_event in &map.events {
+            if map_event.trigger == "on_enter" {
+                events.push(map_event.script.clone());
+            }
+        }
+        events
+    }
+
+    pub fn get_map_on_step_events(&self, map_id: &str, pos: (i32, i32)) -> Vec<String> {
+        let map_index = match self.map_index.get(map_id) {
+            Some(index) => *index,
+            None => return Vec::new(),
+        };
+        let map = &self.maps[map_index];
+        let mut events = Vec::new();
+        for map_event in &map.events {
+            if map_event.trigger != "on_step" {
+                continue;
+            }
+            if let Some(event_pos) = map_event.pos {
+                if event_pos[0] == pos.0 && event_pos[1] == pos.1 {
+                    events.push(map_event.script.clone());
+                }
+            }
+        }
+        events
+    }
+
+    pub fn get_zone_on_step_events(
+        &self,
+        map_id: &str,
+        pos: (i32, i32),
+        previous_pos: (i32, i32),
+    ) -> Vec<String> {
+        let map_index = match self.map_index.get(map_id) {
+            Some(index) => *index,
+            None => return Vec::new(),
+        };
+        let map = &self.maps[map_index];
+        let mut events = Vec::new();
+        for map_event in &map.events {
+            if map_event.trigger != "on_step" {
+                continue;
+            }
+            let Some(zone_id) = &map_event.zone else {
+                continue;
+            };
+            let zone = map.encounters.iter().find(|z| &z.zone_id == zone_id);
+            let Some(zone_rect) = zone.map(|z| z.rect) else {
+                continue;
+            };
+            let in_zone_current = pos.0 >= zone_rect[0]
+                && pos.0 < zone_rect[2]
+                && pos.1 >= zone_rect[1]
+                && pos.1 < zone_rect[3];
+            let in_zone_previous = previous_pos.0 >= zone_rect[0]
+                && previous_pos.0 < zone_rect[2]
+                && previous_pos.1 >= zone_rect[1]
+                && previous_pos.1 < zone_rect[3];
+            if in_zone_current && !in_zone_previous {
+                events.push(map_event.script.clone());
+            }
+        }
+        events
+    }
+
     pub fn load(content_dir: impl AsRef<Path>) -> Result<Self, Vec<String>> {
         let content_dir = content_dir.as_ref();
         let mut errors = Vec::new();
