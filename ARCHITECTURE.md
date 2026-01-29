@@ -227,8 +227,28 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
   - `renderer`: map rendering, battle rendering
   - `layout`: dynamic terminal sizing, battle layout
   - `input`: key mapping and action routing
-- `crates/cli/`
-  - `commands`: play/validate/new-project/build
+- `crates/cli/src/`
+  - `main`: CLI entry point and command routing
+  - `utils`: common utilities (e.g., `read_action`)
+  - `shop`: shop interface and item lookup
+  - `party`: party creation flow and initialization
+  - `dialog`: dialog execution engine (TUI and console modes)
+  - `events`: event loop execution and result handling
+  - `overworld`: map navigation, NPCs, and world interaction
+  - `menu/`: comprehensive menu system
+    - `mod.rs`: main menu loop orchestration
+    - `common.rs`: shared structs (InventoryEntry, SpellEntry, etc.)
+    - `status.rs`: status panel rendering
+    - `inventory.rs`: item management and usage
+    - `equipment.rs`: equipment management and stat previews
+    - `magic.rs`: spell casting and MP/charge management
+    - `abilities.rs`: ability system
+  - `battle/`: complete battle system
+    - `mod.rs`: main battle loop and encounters
+    - `state.rs`: battle state management and turn phases
+    - `logic.rs`: turn order, enemy AI, battle logging
+    - `actions.rs`: action execution (attack, magic, ability, use item)
+    - `render.rs`: battle UI render state construction
 - `crates/content/`
   - demo content and templates
 
