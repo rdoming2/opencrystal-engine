@@ -224,9 +224,19 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
   - `save`: serialization and schema versions
   - `rules`: rules loader and validation
 - `crates/tui/`
-  - `renderer`: map rendering, battle rendering
-  - `layout`: dynamic terminal sizing, battle layout
+  - `app`: re-exports for public API
+  - `battle`: battle rendering and summary modals
+  - `dialog`: dialog boxes, prompts, and choice selections
   - `input`: key mapping and action routing
+  - `layout`: dynamic terminal sizing and layout logic
+  - `menu`: main menu and inventory rendering
+  - `overworld`: map rendering and overworld dialogs
+  - `renderer`: core rendering modes (auto, wide, modern)
+  - `session`: terminal lifecycle and session management
+  - `shop`: shop interface
+  - `title`: title screen and menu
+  - `ui`: UI file loading and schema definitions
+  - `utils`: shared rendering and layout utilities
 - `crates/cli/src/`
   - `main`: CLI entry point and command routing
   - `utils`: common utilities (e.g., `read_action`)
