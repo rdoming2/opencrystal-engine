@@ -66,6 +66,7 @@ pub enum EventExecutionResult {
         shop_id: String,
     },
     Completed,
+    Abort,
 }
 
 impl EventFile {

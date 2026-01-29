@@ -3,7 +3,8 @@ use crate::events::{EventExecutionResult, EventStep};
 use crate::inventory::InventoryState;
 use crate::party::{reset_magic_tier_charges, PartyState};
 use crate::rules::Ruleset;
-use std::collections::HashSet;
+use serde::{Deserialize, Serialize};
+use std::collections::{HashMap, HashSet};
 use std::time::Instant;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -53,6 +54,20 @@ impl Default for MenuState {
     }
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct EntityState {
+    pub pos: Option<(i32, i32)>,
+    pub state: Option<String>,
+    pub visible: Option<bool>,
+    pub sprite: Option<String>,
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct MapState {
+    pub flags: HashSet<String>,
+    pub entities: HashMap<String, EntityState>,
+}
+
 #[derive(Clone, Debug)]
 pub struct WorldState {
     pub world_id: String,
@@ -81,6 +96,7 @@ pub struct GameRuntime {
     pub active_event: Option<String>,
     pub event_step: usize,
     pub flags: HashSet<String>,
+    pub map_states: HashMap<String, MapState>,
     pub menu_state: MenuState,
     pub party: PartyState,
     pub inventory: InventoryState,
@@ -98,6 +114,7 @@ impl GameRuntime {
             active_event: None,
             event_step: 0,
             flags: HashSet::new(),
+            map_states: HashMap::new(),
             menu_state: MenuState::default(),
             party: PartyState::empty(),
             inventory: InventoryState::default(),
@@ -240,6 +257,12 @@ impl GameRuntime {
         self.start_next_event();
     }
 
+    pub fn abort_event(&mut self) {
+        self.active_event = None;
+        self.event_step = 0;
+        self.state = GameState::Overworld;
+    }
+
     pub fn apply_event_step(&mut self, step: &EventStep) -> EventExecutionResult {
         match step.r#type.as_str() {
             "dialog" => {
@@ -278,7 +301,10 @@ impl GameRuntime {
                         .filter(|flag| !self.has_flag(flag))
                         .cloned()
                         .collect::<Vec<_>>();
-                    if !missing.is_empty() {}
+                    if !missing.is_empty() {
+                        self.abort_event();
+                        return EventExecutionResult::Abort;
+                    }
                 }
                 EventExecutionResult::Continue
             }
@@ -323,6 +349,36 @@ impl GameRuntime {
                 }
             }
             "npc_show" | "npc_hide" | "npc_move" | "npc_set_sprite" => {
+                if let Some(npc_id) = &step.npc {
+                    let map_id = self.world.map_id.clone();
+                    let map_state = self.map_states.entry(map_id).or_default();
+                    let entity_state =
+                        map_state
+                            .entities
+                            .entry(npc_id.clone())
+                            .or_insert(EntityState {
+                                pos: None,
+                                state: None,
+                                visible: None,
+                                sprite: None,
+                            });
+
+                    match step.r#type.as_str() {
+                        "npc_show" => entity_state.visible = Some(true),
+                        "npc_hide" => entity_state.visible = Some(false),
+                        "npc_move" => {
+                            if let Some(pos) = step.pos {
+                                entity_state.pos = Some((pos[0], pos[1]));
+                            }
+                        }
+                        "npc_set_sprite" => {
+                            if let Some(sprite) = &step.sprite {
+                                entity_state.sprite = Some(sprite.clone());
+                            }
+                        }
+                        _ => {}
+                    }
+                }
                 EventExecutionResult::Continue
             }
             _ => EventExecutionResult::Continue,
@@ -400,5 +456,43 @@ impl GameRuntime {
             }
         }
         events
+    }
+
+    pub fn apply_dialog_action(
+        &mut self,
+        action: &crate::dialog::DialogAction,
+    ) -> EventExecutionResult {
+        match action.r#type.as_str() {
+            "start_event" => {
+                if let Some(event_id) = &action.event {
+                    self.queue_event(event_id);
+                }
+                EventExecutionResult::Continue
+            }
+            "open_shop" => {
+                if let Some(shop_id) = &action.shop {
+                    EventExecutionResult::OpenShop {
+                        shop_id: shop_id.clone(),
+                    }
+                } else {
+                    EventExecutionResult::Continue
+                }
+            }
+            "set_flag" => {
+                if let Some(flag) = &action.flag {
+                    self.set_flag(flag);
+                }
+                EventExecutionResult::Continue
+            }
+            "give_item" => {
+                if let Some(item) = &action.item {
+                    let qty = action.qty.unwrap_or(1);
+                    let max_stack = self.content.rules.inventory.max_stack;
+                    self.inventory.add_item(item, qty, max_stack);
+                }
+                EventExecutionResult::Continue
+            }
+            _ => EventExecutionResult::Continue,
+        }
     }
 }

@@ -363,6 +363,9 @@ fn handle_event_result(
             open_shop(runtime, session, bindings, &shop_id)?;
         }
         engine::events::EventExecutionResult::Completed => {}
+        engine::events::EventExecutionResult::Abort => {
+            println!("Event execution aborted.");
+        }
     }
     Ok(())
 }
