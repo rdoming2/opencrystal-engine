@@ -66,6 +66,12 @@ add `unlock_flag` gating for progression-driven unlocks.
     "battle_mode": "turn",
     "magic_system": "mp",
     "start_event": "intro_cutscene",
+    "start_location": {
+      "world": "gaia",
+      "map": "overworld_gaia",
+      "x": 20,
+      "y": 14
+    },
     "job_change_enabled": false,
     "job_change_flag": "world.job_change_unlocked",
     "currency": {"id": "gil", "name": "G", "symbol": "G"}

@@ -25,6 +25,14 @@ pub struct RulesFile {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct StartLocation {
+    pub world: String,
+    pub map: String,
+    pub x: i32,
+    pub y: i32,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct GameRules {
     pub title: String,
     pub start_mode: StartMode,
@@ -33,6 +41,7 @@ pub struct GameRules {
     pub battle_mode: BattleMode,
     pub magic_system: MagicSystem,
     pub start_event: Option<String>,
+    pub start_location: StartLocation,
     pub job_change_enabled: bool,
     pub job_change_flag: String,
     pub currency: Currency,
@@ -79,6 +88,7 @@ pub struct Ruleset {
     pub battle_mode: BattleMode,
     pub magic_system: MagicSystem,
     pub start_event: Option<String>,
+    pub start_location: StartLocation,
     pub party_mode: PartyMode,
     pub party_create: PartyCreateRules,
     pub exp_curve: ExpCurveRules,
@@ -97,6 +107,12 @@ impl Ruleset {
             battle_mode: BattleMode::Turn,
             magic_system: MagicSystem::Mp,
             start_event: Some("intro_cutscene".to_string()),
+            start_location: StartLocation {
+                world: "gaia".to_string(),
+                map: "overworld_gaia".to_string(),
+                x: 20,
+                y: 14,
+            },
             party_mode: PartyMode::Predefined,
             party_create: PartyCreateRules::default(),
             exp_curve: ExpCurveRules::default(),
@@ -115,6 +131,7 @@ impl Ruleset {
             battle_mode: file.game.battle_mode,
             magic_system: file.game.magic_system,
             start_event: file.game.start_event,
+            start_location: file.game.start_location,
             party_mode: file.party_mode,
             party_create: file.party_create,
             exp_curve: file.exp_curve,

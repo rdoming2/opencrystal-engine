@@ -37,6 +37,7 @@ pub struct GameRuntime {
 
 impl GameRuntime {
     pub fn new(content: Content) -> Self {
+        let start_location = content.rules.game.start_location.clone();
         Self {
             content,
             state: GameState::Title,
@@ -48,7 +49,11 @@ impl GameRuntime {
             menu_state: MenuState::default(),
             party: PartyState::empty(),
             inventory: InventoryState::default(),
-            world: WorldState::new("gaia", "overworld_gaia", (0, 0)),
+            world: WorldState::new(
+                &start_location.world,
+                &start_location.map,
+                (start_location.x, start_location.y),
+            ),
             playtime: 0,
             start_time: Instant::now(),
         }
@@ -101,6 +106,9 @@ impl GameRuntime {
         }
         self.playtime = 0;
         self.start_time = Instant::now();
+        self.world.world_id = rules.start_location.world.clone();
+        self.world.map_id = rules.start_location.map.clone();
+        self.world.position = (rules.start_location.x, rules.start_location.y);
         if let Some(event_id) = &rules.start_event {
             self.queue_event(event_id);
             self.state = GameState::Event;

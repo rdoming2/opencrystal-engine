@@ -172,6 +172,25 @@ pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
         .iter()
         .map(|map| (map.id.as_str(), (map.width, map.height)))
         .collect();
+
+    if let Some(rules) = &rules {
+        if !map_ids.contains(&rules.game.start_location.map) {
+            errors.push(format!(
+                "rules.json: start_location.map '{}' not found in maps",
+                rules.game.start_location.map
+            ));
+        }
+        if let Some(worlds) = &worlds {
+            let world_ids: HashSet<&str> = worlds.worlds.iter().map(|w| w.id.as_str()).collect();
+            if !world_ids.contains(rules.game.start_location.world.as_str()) {
+                errors.push(format!(
+                    "rules.json: start_location.world '{}' not found in worlds.json",
+                    rules.game.start_location.world
+                ));
+            }
+        }
+    }
+
     if let Some(worlds) = &worlds {
         for world in &worlds.worlds {
             if !map_ids.contains(&world.starting_map) {

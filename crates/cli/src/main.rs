@@ -91,12 +91,11 @@ fn run_play(args: Vec<String>) {
     };
 
     let rules = Ruleset::from_file(content.rules.clone());
-    let world = content
-        .worlds
-        .worlds
-        .first()
-        .map(|world| WorldState::new(&world.id, &world.starting_map, (0, 0)))
-        .unwrap_or_else(|| WorldState::new("gaia", "overworld_gaia", (20, 14)));
+    let world = WorldState::new(
+        &rules.start_location.world,
+        &rules.start_location.map,
+        (rules.start_location.x, rules.start_location.y),
+    );
 
     let input_bindings = match InputFile::load(&input_path) {
         Ok(file) => match InputBindings::from_file(file) {
