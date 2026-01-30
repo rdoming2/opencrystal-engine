@@ -106,6 +106,25 @@ pub fn build_spell_entries(runtime: &GameRuntime) -> Vec<SpellEntry> {
             .unwrap_or(spell.school.as_str())
             .to_string();
         let (usable, reason) = spell_cast_status(runtime, actor, spell);
+        let magic_system = runtime.content.rules.game.magic_system.clone();
+        let (tier_current, tier_max) = if magic_system == MagicSystem::TierCharges {
+            let current = actor
+                .magic_tier_charges
+                .get(&spell.tier)
+                .copied()
+                .unwrap_or(0);
+            let max = runtime
+                .content
+                .rules
+                .magic_tiers
+                .iter()
+                .find(|tier| tier.tier == spell.tier)
+                .map(|tier| tier.max_charges)
+                .unwrap_or(0);
+            (current, max)
+        } else {
+            (-1, -1)
+        };
         entries.push(SpellEntry {
             id: spell.id.clone(),
             name: spell.name.clone(),
@@ -119,6 +138,8 @@ pub fn build_spell_entries(runtime: &GameRuntime) -> Vec<SpellEntry> {
             effect_power: spell.effect.power,
             usable,
             reason,
+            tier_current,
+            tier_max,
         });
     }
     entries.sort_by(|left, right| {
@@ -202,10 +223,13 @@ pub fn apply_spell_to_targets(
 }
 
 pub fn spell_cost_label(entry: &SpellEntry) -> String {
-    match entry.cost_type.as_str() {
-        "mp" => format!(" MP {}", entry.cost_value),
-        "tier_charges" => format!(" T{} {}", entry.tier, entry.cost_value),
-        _ => "".to_string(),
+    if entry.tier_max >= 0 {
+        format!(" T{} {}/{}", entry.tier, entry.tier_current, entry.tier_max)
+    } else {
+        match entry.cost_type.as_str() {
+            "mp" => format!(" MP {}", entry.cost_value),
+            _ => "".to_string(),
+        }
     }
 }
 
@@ -219,10 +243,15 @@ pub fn spell_cost_available(
     if !spell_system_matches(magic_system.clone(), cost_type) {
         return false;
     }
+    let cost = if magic_system == MagicSystem::TierCharges {
+        1
+    } else {
+        cost_value
+    };
     match magic_system {
-        MagicSystem::Mp => actor.current_mp >= cost_value,
+        MagicSystem::Mp => actor.current_mp >= cost,
         MagicSystem::TierCharges => {
-            actor.magic_tier_charges.get(&tier).copied().unwrap_or(0) >= cost_value
+            actor.magic_tier_charges.get(&tier).copied().unwrap_or(0) >= cost
         }
     }
 }
@@ -232,20 +261,25 @@ pub fn consume_spell_cost(
     actor: &mut engine::party::Actor,
     entry: &SpellEntry,
 ) -> bool {
+    let cost = if magic_system == MagicSystem::TierCharges {
+        1
+    } else {
+        entry.cost_value
+    };
     match magic_system {
         MagicSystem::Mp => {
-            if actor.current_mp < entry.cost_value {
+            if actor.current_mp < cost {
                 return false;
             }
-            actor.current_mp = actor.current_mp.saturating_sub(entry.cost_value);
+            actor.current_mp = actor.current_mp.saturating_sub(cost);
             true
         }
         MagicSystem::TierCharges => {
             let charges = actor.magic_tier_charges.entry(entry.tier).or_insert(0);
-            if *charges < entry.cost_value {
+            if *charges < cost {
                 return false;
             }
-            *charges -= entry.cost_value;
+            *charges -= cost;
             true
         }
     }
@@ -286,6 +320,7 @@ pub fn build_battle_spell_entries(runtime: &GameRuntime, actor_id: &str) -> Vec<
     spell_ids.sort();
     spell_ids.dedup();
     let mut entries = Vec::new();
+    let magic_system = runtime.content.rules.game.magic_system.clone();
     for spell_id in spell_ids {
         let Some(spell) = runtime
             .content
@@ -302,6 +337,24 @@ pub fn build_battle_spell_entries(runtime: &GameRuntime, actor_id: &str) -> Vec<
             .unwrap_or(spell.school.as_str())
             .to_string();
         let (usable, reason) = spell_cast_status_battle(runtime, actor, spell);
+        let (tier_current, tier_max) = if magic_system == MagicSystem::TierCharges {
+            let current = actor
+                .magic_tier_charges
+                .get(&spell.tier)
+                .copied()
+                .unwrap_or(0);
+            let max = runtime
+                .content
+                .rules
+                .magic_tiers
+                .iter()
+                .find(|tier| tier.tier == spell.tier)
+                .map(|tier| tier.max_charges)
+                .unwrap_or(0);
+            (current, max)
+        } else {
+            (-1, -1)
+        };
         entries.push(SpellEntry {
             id: spell.id.clone(),
             name: spell.name.clone(),
@@ -315,6 +368,8 @@ pub fn build_battle_spell_entries(runtime: &GameRuntime, actor_id: &str) -> Vec<
             effect_power: spell.effect.power,
             usable,
             reason,
+            tier_current,
+            tier_max,
         });
     }
     entries.sort_by(|left, right| {
@@ -356,8 +411,9 @@ pub fn spell_cast_status_battle(
 
 pub fn spell_system_matches(magic_system: MagicSystem, cost_type: &str) -> bool {
     match magic_system {
-        MagicSystem::Mp => cost_type == "mp",
-        MagicSystem::TierCharges => cost_type == "tier_charges",
+        MagicSystem::Mp | MagicSystem::TierCharges => {
+            cost_type == "mp" || cost_type == "tier_charges"
+        }
     }
 }
 
@@ -615,13 +671,11 @@ fn build_spell_description(
                 .map(|tier| tier.max_charges)
                 .unwrap_or(0);
             lines.push(panel_line_spans(vec![
-                panel_span("Cost: ", PanelSpanStyle::Normal),
+                panel_span("Charges: ", PanelSpanStyle::Normal),
                 panel_span(
-                    format!("T{} {}", entry.tier, entry.cost_value),
+                    format!("T{} {}/{}", entry.tier, current, max),
                     PanelSpanStyle::Accent,
                 ),
-                panel_span("  Charges: ", PanelSpanStyle::Normal),
-                panel_span(format!("{}/{}", current, max), PanelSpanStyle::Accent),
             ]));
         }
     }

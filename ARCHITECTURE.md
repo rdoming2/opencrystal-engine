@@ -173,6 +173,8 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
 - Spell unlocks are configured per job.
 - Magic system mode can switch between MP and tier charges.
 - Menu casting supports field-friendly spells (heal/revive); damage stays battle-only.
+- Tier charges are tracked per character and shared across spells of the same tier.
+- Global shared MP pools are a future magic style to add.
 
 ### Ability system
 

@@ -53,7 +53,7 @@ absolute XP totals per level or `mode: "formula"` with a formula string (use
 used for global availability (e.g., disabling materia). Menu entries can still
 add `unlock_flag` gating for progression-driven unlocks.
 `magic_tiers` defines per-tier charge limits when `magic_system` is
-`tier_charges`.
+`tier_charges`. Charges are tracked per character (not a shared party pool).
 
 ```json
 {
@@ -561,7 +561,9 @@ Equipment slot fields:
 Supports multiple magic schools.
 
 Spell costs are flexible. Use `{"type": "mp"}` for MP-based casting or
-`{"type": "tier_charges"}` for limited-per-tier systems.
+`{"type": "tier_charges"}` for limited-per-tier systems. When
+`magic_system` is `tier_charges`, spell cost types are interpreted as tier
+uses (one shared charge per tier per cast).
 
 ```json
 {

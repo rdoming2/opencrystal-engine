@@ -679,10 +679,10 @@ fn build_party_summary(runtime: &GameRuntime) -> Vec<MenuPanelLine> {
         return vec![panel_line("No party members.")];
     }
     let mut lines = Vec::new();
+    let magic_system = runtime.content.rules.game.magic_system.clone();
     for member_id in &runtime.party.active {
         if let Some(actor) = runtime.party.roster.get(member_id) {
             let max_hp = actor.derived_stats.get("hp").copied().unwrap_or(0);
-            let max_mp = actor.derived_stats.get("mp").copied().unwrap_or(0);
             let job_name = runtime
                 .content
                 .jobs
@@ -691,10 +691,33 @@ fn build_party_summary(runtime: &GameRuntime) -> Vec<MenuPanelLine> {
                 .find(|job| job.id == actor.job_id)
                 .map(|job| job.name.as_str())
                 .unwrap_or(actor.job_id.as_str());
-            lines.push(panel_line(format!(
-                "{}  Lv{}  HP {}/{}  MP {}/{}",
-                actor.name, actor.level, actor.current_hp, max_hp, actor.current_mp, max_mp
-            )));
+            let summary_line = if magic_system == engine::rules::MagicSystem::TierCharges {
+                let mut tiers = Vec::new();
+                for tier in &runtime.content.rules.magic_tiers {
+                    let current = actor
+                        .magic_tier_charges
+                        .get(&tier.tier)
+                        .copied()
+                        .unwrap_or(0);
+                    tiers.push(format!("T{} {}/{}", tier.tier, current, tier.max_charges));
+                }
+                let charge_text = if tiers.is_empty() {
+                    "No charges".to_string()
+                } else {
+                    tiers.join("  ")
+                };
+                format!(
+                    "{}  Lv{}  HP {}/{}  {}",
+                    actor.name, actor.level, actor.current_hp, max_hp, charge_text
+                )
+            } else {
+                let max_mp = actor.derived_stats.get("mp").copied().unwrap_or(0);
+                format!(
+                    "{}  Lv{}  HP {}/{}  MP {}/{}",
+                    actor.name, actor.level, actor.current_hp, max_hp, actor.current_mp, max_mp
+                )
+            };
+            lines.push(panel_line(summary_line));
             lines.push(panel_line(format!("Job: {}", job_name)));
             lines.push(panel_line(""));
         }

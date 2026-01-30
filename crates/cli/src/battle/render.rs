@@ -39,6 +39,7 @@ pub fn build_battle_render_state(
         battle_state.party_order.len(),
         battle_ui.layout.party_grid.columns,
     );
+    let show_mp = runtime.content.rules.game.magic_system == engine::rules::MagicSystem::Mp;
     let party = battle_state
         .party_order
         .iter()
@@ -72,6 +73,7 @@ pub fn build_battle_render_state(
                 max_hp: actor.derived_stats.get("hp").copied().unwrap_or(0),
                 mp: actor.current_mp,
                 max_mp: actor.derived_stats.get("mp").copied().unwrap_or(0),
+                show_mp,
                 status: Vec::new(),
                 alive: actor.current_hp > 0,
                 active: index == battle_state.active_index,

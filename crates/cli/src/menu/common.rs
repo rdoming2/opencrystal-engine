@@ -54,6 +54,8 @@ pub struct SpellEntry {
     pub effect_power: i32,
     pub usable: bool,
     pub reason: Option<String>,
+    pub tier_current: i32,
+    pub tier_max: i32,
 }
 
 #[derive(Clone, Debug)]

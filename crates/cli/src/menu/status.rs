@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use engine::party::exp_for_level;
+use engine::rules::MagicSystem;
 use engine::runtime::GameRuntime;
 use tui::menu::{MenuPanelLine, MenuPanelSpan, PanelSpanStyle};
 
@@ -21,14 +22,37 @@ pub fn build_status_panel(runtime: &GameRuntime, page: usize) -> Vec<MenuPanelLi
                 .unwrap_or(actor.job_id.as_str());
             if page == 0 {
                 let max_hp = actor.derived_stats.get("hp").copied().unwrap_or(0);
-                let max_mp = actor.derived_stats.get("mp").copied().unwrap_or(0);
+                let magic_system = runtime.content.rules.game.magic_system.clone();
                 let exp_next = exp_for_level(&runtime.content.rules.exp_curve, actor.level + 1)
                     .unwrap_or(actor.exp);
                 let exp_remaining = exp_next.saturating_sub(actor.exp);
-                lines.push(panel_line(format!(
-                    "{}  Lv{}  HP {}/{}  MP {}/{}",
-                    actor.name, actor.level, actor.current_hp, max_hp, actor.current_mp, max_mp
-                )));
+                let status_line = if magic_system == MagicSystem::TierCharges {
+                    let mut tiers = Vec::new();
+                    for tier in &runtime.content.rules.magic_tiers {
+                        let current = actor
+                            .magic_tier_charges
+                            .get(&tier.tier)
+                            .copied()
+                            .unwrap_or(0);
+                        tiers.push(format!("T{} {}/{}", tier.tier, current, tier.max_charges));
+                    }
+                    let charge_text = if tiers.is_empty() {
+                        "No charges".to_string()
+                    } else {
+                        tiers.join("  ")
+                    };
+                    format!(
+                        "{}  Lv{}  HP {}/{}  {}",
+                        actor.name, actor.level, actor.current_hp, max_hp, charge_text
+                    )
+                } else {
+                    let max_mp = actor.derived_stats.get("mp").copied().unwrap_or(0);
+                    format!(
+                        "{}  Lv{}  HP {}/{}  MP {}/{}",
+                        actor.name, actor.level, actor.current_hp, max_hp, actor.current_mp, max_mp
+                    )
+                };
+                lines.push(panel_line(status_line));
                 lines.push(panel_line(format!("Job: {}", job_name)));
                 lines.push(panel_line(format!(
                     "EXP {} (next {})",
@@ -37,9 +61,23 @@ pub fn build_status_panel(runtime: &GameRuntime, page: usize) -> Vec<MenuPanelLi
             } else {
                 lines.push(panel_line(format!("{}  Lv{}", actor.name, actor.level)));
                 lines.push(panel_line(format!("Job: {}", job_name)));
+                let base_entries =
+                    if runtime.content.rules.game.magic_system == MagicSystem::TierCharges {
+                        runtime
+                            .content
+                            .stats
+                            .stats
+                            .base
+                            .iter()
+                            .filter(|entry| entry.id != "mp")
+                            .cloned()
+                            .collect::<Vec<_>>()
+                    } else {
+                        runtime.content.stats.stats.base.clone()
+                    };
                 lines.push(panel_line(format!(
                     "Base: {}",
-                    format_stat_block(&runtime.content.stats.stats.base, &actor.base_stats)
+                    format_stat_block(&base_entries, &actor.base_stats)
                 )));
                 lines.push(panel_line(format!(
                     "Derived: {}",

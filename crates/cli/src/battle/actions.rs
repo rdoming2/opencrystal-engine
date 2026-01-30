@@ -1,4 +1,5 @@
 use engine::battle::{apply_damage_to_enemy, physical_damage, roll_damage};
+use engine::rules::MagicSystem;
 use engine::runtime::GameRuntime;
 use rand::Rng;
 
@@ -50,11 +51,19 @@ pub fn execute_magic_action(
             entry.tier,
             entry.cost_value,
         ) {
-            super::logic::push_battle_log(&mut battle_state.log, "Not enough MP.");
+            let reason = match magic_system {
+                MagicSystem::Mp => "Not enough MP.",
+                MagicSystem::TierCharges => "No tier charges.",
+            };
+            super::logic::push_battle_log(&mut battle_state.log, reason);
             return;
         }
-        if !crate::menu::magic::consume_spell_cost(magic_system, actor, entry) {
-            super::logic::push_battle_log(&mut battle_state.log, "Not enough MP.");
+        if !crate::menu::magic::consume_spell_cost(magic_system.clone(), actor, entry) {
+            let reason = match magic_system {
+                MagicSystem::Mp => "Not enough MP.",
+                MagicSystem::TierCharges => "No tier charges.",
+            };
+            super::logic::push_battle_log(&mut battle_state.log, reason);
             return;
         }
         (
