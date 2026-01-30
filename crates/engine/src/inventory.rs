@@ -30,11 +30,12 @@ impl InventoryState {
     }
 
     pub fn add_currency(&mut self, currency_id: &str, amount: i32) {
-        if amount <= 0 {
-            return;
-        }
         let entry = self.currency.entry(currency_id.to_string()).or_insert(0);
-        *entry = entry.saturating_add(amount);
+        if amount >= 0 {
+            *entry = entry.saturating_add(amount);
+        } else {
+            *entry = entry.saturating_sub(amount.abs());
+        }
     }
 
     pub fn currency_amount(&self, currency_id: &str) -> i32 {

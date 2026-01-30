@@ -1,24 +1,30 @@
 use std::io::{self, ErrorKind};
 
 use crossterm::event::{self, Event};
-use ratatui::layout::Alignment;
+use ratatui::layout::{Alignment, Constraint, Direction, Layout};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, Paragraph, Wrap};
 
 use crate::dialog::confirm_quit;
 use crate::input::{Action, InputBindings};
+use crate::menu::{render_panel_line, MenuPanelView};
 use crate::session::TuiSession;
 use crate::utils::centered_rect;
 
 pub struct ShopView {
     pub name: String,
+    pub currency: i32,
     pub items: Vec<ShopItem>,
 }
 
 pub struct ShopItem {
+    pub id: String,
     pub name: String,
     pub price: i32,
+    pub details: MenuPanelView,
+    pub owned: i32,
+    pub max: i32,
 }
 
 pub fn show_shop(
@@ -29,30 +35,79 @@ pub fn show_shop(
     let mut selected = 0usize;
     loop {
         session.terminal_mut().draw(|frame| {
-            let area = centered_rect(frame.size(), 50, 12);
+            let size = frame.size();
+            let vertical_layout = Layout::default()
+                .direction(Direction::Vertical)
+                .constraints([
+                    Constraint::Percentage(10),
+                    Constraint::Percentage(80),
+                    Constraint::Percentage(10),
+                ])
+                .split(size);
+
+            let area = Layout::default()
+                .direction(Direction::Horizontal)
+                .constraints([
+                    Constraint::Percentage(10),
+                    Constraint::Percentage(80),
+                    Constraint::Percentage(10),
+                ])
+                .split(vertical_layout[1])[1];
+
             frame.render_widget(Clear, area);
-            let mut lines = Vec::new();
-            lines.push(Line::from(Span::styled(
-                shop.name.as_str(),
+
+            let main_block = Block::default()
+                .borders(Borders::ALL)
+                .title(shop.name.as_str());
+            frame.render_widget(main_block.clone(), area);
+
+            let inner_area = main_block.inner(area);
+
+            let chunks = Layout::default()
+                .direction(Direction::Horizontal)
+                .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+                .split(inner_area);
+
+            let list_area = chunks[0];
+            let details_area = chunks[1];
+
+            let mut list_lines = Vec::new();
+            list_lines.push(Line::from(Span::styled(
+                format!("Currency: {} G", shop.currency),
                 Style::default()
                     .fg(Color::Yellow)
                     .add_modifier(Modifier::BOLD),
             )));
+            list_lines.push(Line::from(""));
 
             for (index, item) in shop.items.iter().enumerate() {
-                let prefix = if index == selected { "> " } else { "  " };
-                let text = format!("{}{} - {} G", prefix, item.name, item.price);
-                lines.push(Line::from(Span::raw(text)));
+                let is_selected = index == selected;
+                let prefix = if is_selected { "> " } else { "  " };
+                let mut style = Style::default().fg(Color::White);
+
+                if is_selected {
+                    style = style.fg(Color::Yellow).add_modifier(Modifier::BOLD);
+                }
+
+                let text = format!(
+                    "{}{:<16} {:>4} G ({}/{})",
+                    prefix, item.name, item.price, item.owned, item.max
+                );
+                list_lines.push(Line::from(Span::styled(text, style)));
             }
 
-            lines.push(Line::from(Span::raw(" ")));
-            lines.push(Line::from(Span::raw("Confirm to select, Cancel to exit.")));
+            let list_widget =
+                Paragraph::new(list_lines).block(Block::default().borders(Borders::RIGHT));
+            frame.render_widget(list_widget, list_area);
 
-            let paragraph = Paragraph::new(lines)
-                .block(Block::default().borders(Borders::ALL))
-                .alignment(Alignment::Left)
-                .wrap(Wrap { trim: false });
-            frame.render_widget(paragraph, area);
+            if let Some(item) = shop.items.get(selected) {
+                let detail_lines: Vec<Line> =
+                    item.details.lines.iter().map(render_panel_line).collect();
+                let detail_widget = Paragraph::new(detail_lines)
+                    .block(Block::default().title("Details").borders(Borders::NONE))
+                    .wrap(Wrap { trim: false });
+                frame.render_widget(detail_widget, details_area);
+            }
         })?;
 
         if let Event::Key(key) = event::read()? {

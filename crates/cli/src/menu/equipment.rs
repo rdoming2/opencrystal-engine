@@ -347,7 +347,7 @@ fn equipment_allowed(
     }
 }
 
-fn build_equipment_detail(
+pub fn build_equipment_detail(
     runtime: &GameRuntime,
     actor_id: &str,
     slot: &str,

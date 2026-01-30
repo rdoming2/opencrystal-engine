@@ -330,7 +330,7 @@ fn menu_layout_percentages(layout: &MenuLayout) -> (u16, u16) {
     (left_percent, right_percent)
 }
 
-fn render_panel_line(line: &MenuPanelLine) -> Line<'_> {
+pub fn render_panel_line(line: &MenuPanelLine) -> Line<'_> {
     let spans = line
         .spans
         .iter()
@@ -339,7 +339,7 @@ fn render_panel_line(line: &MenuPanelLine) -> Line<'_> {
     Line::from(spans)
 }
 
-fn panel_span_style(style: PanelSpanStyle) -> Style {
+pub fn panel_span_style(style: PanelSpanStyle) -> Style {
     match style {
         PanelSpanStyle::Normal => Style::default().fg(Color::White),
         PanelSpanStyle::Highlight => Style::default()

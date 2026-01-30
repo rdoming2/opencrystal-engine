@@ -407,7 +407,7 @@ fn build_item_targets(
     targets
 }
 
-fn build_item_description(
+pub fn build_item_description(
     runtime: &GameRuntime,
     entry: Option<&InventoryEntry>,
 ) -> Vec<MenuPanelLine> {
