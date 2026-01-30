@@ -379,6 +379,7 @@ in a battle grid from `[0,0]` to `[9,5]` (10x6).
 
 Defines NPC metadata and behavior. Map placement is handled in `maps/*.json`.
 `palette` is optional and sets the terminal color for the NPC glyph.
+`interaction_range` is optional and sets the Manhattan distance at which the NPC can be interacted with (default: 1).
 
 ```json
 {
@@ -391,6 +392,15 @@ Defines NPC metadata and behavior. Map placement is handled in `maps/*.json`.
       "palette": "bright_magenta",
       "dialog": "sky_tinker",
       "behavior": {"type": "roam", "radius": 4, "persist": true}
+    },
+    {
+      "id": "innkeeper",
+      "name": "Coral Innkeeper",
+      "sprite": "innkeeper",
+      "palette": "bright_yellow",
+      "dialog": "innkeeper",
+      "behavior": {"type": "static"},
+      "interaction_range": 2
     }
   ]
 }
@@ -432,6 +442,7 @@ Dialog action types:
 - `open_shop` (field: `shop`)
 - `set_flag` (field: `flag`)
 - `give_item` (fields: `item`, `qty`)
+- `rest_party` (no fields)
 
 ## entities/jobs.json
 

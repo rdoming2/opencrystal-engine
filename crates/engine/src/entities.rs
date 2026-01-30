@@ -309,6 +309,8 @@ pub struct NpcDefinition {
     pub palette: Option<String>,
     pub dialog: String,
     pub behavior: NpcBehavior,
+    #[serde(default)]
+    pub interaction_range: Option<i32>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

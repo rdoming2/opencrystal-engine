@@ -285,6 +285,9 @@ fn handle_dialog_action(
         "give_item" => {
             let _ = &action.item;
         }
+        "rest_party" => {
+            engine::party::rest_party(&mut runtime.party, &runtime.content.rules);
+        }
         _ => {
             println!("Dialog action: {}", action.r#type);
         }
@@ -314,6 +317,10 @@ fn handle_dialog_action_console(runtime: &mut GameRuntime, action: &engine::dial
                 let qty = action.qty.unwrap_or(1);
                 println!("Give item: {} x{}", item, qty);
             }
+        }
+        "rest_party" => {
+            engine::party::rest_party(&mut runtime.party, &runtime.content.rules);
+            println!("Party rested.");
         }
         _ => {
             println!("Dialog action: {}", action.r#type);

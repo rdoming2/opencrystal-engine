@@ -114,13 +114,19 @@ All runtime data is loaded from JSON. Files are organized into top-level categor
 
 - Map triggers (`on_enter`, `trigger: "on_enter"`, `on_step` with zone support).
 - NPC interactions (map NPC `script` event, dialog tree actions).
-- Dialog actions (`start_event`, `open_shop`).
+- Dialog actions (`start_event`, `open_shop`, `rest_party`).
 - Item effects (warp, start battle).
 - Battle results (victory/defeat hooks).
 
 Event execution is handled by `GameRuntime.apply_event_step`, which:
 - Manages state changes (flag setting, item grants, warps to new maps).
 - Returns `EventExecutionResult` for UI requests (dialogs, battles, shops).
+
+### NPC interactions
+
+- NPC interaction uses Manhattan distance (dx + dy) with a configurable `interaction_range` (default: 1).
+- NPCs can be placed behind counters or other obstacles by setting `interaction_range` to 2 or higher.
+- Interaction range must be >= 1; values < 1 are rejected by validation.
 
 ### New game flow
 

@@ -1,4 +1,5 @@
 use crate::events::EventExecutionResult;
+use crate::party::rest_party;
 use crate::runtime::GameRuntime;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
@@ -73,6 +74,10 @@ pub fn apply_dialog_action(
                 let max_stack = runtime.content.rules.inventory.max_stack;
                 runtime.inventory.add_item(item, qty, max_stack);
             }
+            EventExecutionResult::Continue
+        }
+        "rest_party" => {
+            rest_party(&mut runtime.party, &runtime.content.rules);
             EventExecutionResult::Continue
         }
         _ => EventExecutionResult::Continue,

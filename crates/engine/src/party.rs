@@ -5,7 +5,7 @@ use std::path::Path;
 use crate::content::Content;
 use crate::entities::{EquipmentDefinition, JobDefinition};
 use crate::expr::eval_expression;
-use crate::rules::{ExpCurveRules, MagicSystem, PartyCreateRules, PartyMode, Ruleset};
+use crate::rules::{ExpCurveRules, MagicSystem, PartyCreateRules, PartyMode, RulesFile, Ruleset};
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct PartyFile {
@@ -477,6 +477,17 @@ fn compute_equipment_stats(
         }
     }
     stats
+}
+
+pub fn rest_party(party: &mut PartyState, rules: &RulesFile) {
+    for actor in party.roster.values_mut() {
+        let max_hp = actor.derived_stats.get("hp").copied().unwrap_or(0);
+        let max_mp = actor.derived_stats.get("mp").copied().unwrap_or(0);
+        actor.current_hp = max_hp;
+        actor.current_mp = max_mp;
+    }
+    let ruleset = Ruleset::from_file(rules.clone());
+    reset_magic_tier_charges(party, &ruleset);
 }
 
 fn clamp_current_stats(actor: &mut Actor) {

@@ -115,6 +115,8 @@
 - [ ] Implement quest resolver (flag-driven steps and journal updates).
 - [ ] Implement NPC roaming (persisted positions).
 - [ ] Implement event-driven NPC controls (show/hide/move/set_sprite).
+- [x] Implement inn rest feature (dialog action `rest_party`).
+- [x] Add configurable NPC interaction range (default 1 tile).
 
 ## Content + Validation
 - [x] Add missing demo content (town map, shop UI, basic quests).

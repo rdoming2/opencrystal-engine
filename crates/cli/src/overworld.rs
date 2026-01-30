@@ -451,9 +451,21 @@ fn find_npc_dialog(runtime: &GameRuntime, map_id: &str, pos: (i32, i32)) -> Opti
     let index = runtime.content.map_index.get(map_id)?;
     let map = runtime.content.maps.get(*index)?;
     let target = map.npcs.iter().find(|npc| {
-        let dx = (npc.pos[0] - pos.0).abs();
-        let dy = (npc.pos[1] - pos.1).abs();
-        (dx == 1 && dy == 0) || (dx == 0 && dy == 1)
+        let npc_def = runtime
+            .content
+            .npcs
+            .npcs
+            .iter()
+            .find(|def| def.id == npc.id);
+        if let Some(npc_def) = npc_def {
+            let range = npc_def.interaction_range.unwrap_or(1);
+            let dx = (npc.pos[0] - pos.0).abs();
+            let dy = (npc.pos[1] - pos.1).abs();
+            let distance = dx + dy;
+            distance > 0 && distance <= range
+        } else {
+            false
+        }
     })?;
 
     runtime

@@ -706,6 +706,16 @@ pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
                 }
             }
         }
+        for npc in &npcs.npcs {
+            if let Some(range) = npc.interaction_range {
+                if range < 1 {
+                    errors.push(format!(
+                        "npcs.json: npc '{}' has interaction_range {} which must be >= 1",
+                        npc.id, range
+                    ));
+                }
+            }
+        }
     }
 
     if let (Some(items), Some(equipment)) = (&items, &equipment) {
@@ -821,6 +831,7 @@ pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
                                     ));
                                 }
                             }
+                            "rest_party" => {}
                             _ => {
                                 errors.push(format!(
                                     "dialog/{}: unknown action type '{}'",
