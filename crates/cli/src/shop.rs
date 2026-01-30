@@ -30,19 +30,49 @@ pub fn open_shop(
                 let price = item.price;
                 let max_stack = runtime.content.rules.inventory.max_stack;
 
-                if runtime.inventory.currency_amount(currency_id) < price {
-                    continue;
-                }
-                if item.owned >= max_stack {
-                    continue;
-                }
-
-                runtime.inventory.add_currency(currency_id, -price);
-
-                if runtime.content.items.items.iter().any(|i| i.id == item.id) {
-                    runtime.inventory.add_item(&item.id, 1, max_stack);
+                let currency = runtime.inventory.currency_amount(currency_id);
+                // Avoid division by zero if price is 0 (free items)
+                let max_afford = if price > 0 {
+                    currency / price
                 } else {
-                    runtime.inventory.add_equipment(&item.id, 1, max_stack);
+                    max_stack
+                };
+                let max_space = max_stack - item.owned;
+                let limit = max_afford.min(max_space);
+
+                if limit <= 0 {
+                    if max_afford == 0 {
+                        tui::shop::show_info_popup(
+                            session,
+                            &shop,
+                            index,
+                            bindings,
+                            "Insufficient Funds",
+                            "You cannot afford this item.",
+                        )?;
+                    } else {
+                        tui::shop::show_info_popup(
+                            session,
+                            &shop,
+                            index,
+                            bindings,
+                            "Inventory Full",
+                            "You cannot carry any more of this item.",
+                        )?;
+                    }
+                    continue;
+                }
+
+                if let Some(qty) =
+                    tui::shop::show_quantity_picker(session, &shop, index, bindings, limit)?
+                {
+                    runtime.inventory.add_currency(currency_id, -price * qty);
+
+                    if runtime.content.items.items.iter().any(|i| i.id == item.id) {
+                        runtime.inventory.add_item(&item.id, qty, max_stack);
+                    } else {
+                        runtime.inventory.add_equipment(&item.id, qty, max_stack);
+                    }
                 }
             }
             None => break,
