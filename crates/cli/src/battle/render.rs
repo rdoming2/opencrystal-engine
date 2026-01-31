@@ -7,6 +7,7 @@ use tui::battle::{
 use tui::ui::BattleUiFile;
 
 use super::state::{BattleMenuState, BattlePhase};
+use crate::menu::abilities::ability_cost_label;
 use crate::menu::common::{AbilityEntry, InventoryEntry, SpellEntry};
 use crate::menu::magic::spell_cost_label;
 
@@ -182,7 +183,16 @@ pub fn build_battle_command_panel(
                 .collect(),
             rows: ability_entries
                 .iter()
-                .map(|entry| vec![entry.name.clone()])
+                .map(|entry| {
+                    vec![
+                        if entry.usable {
+                            entry.name.clone()
+                        } else {
+                            format!("{} *", entry.name)
+                        },
+                        ability_cost_label(entry),
+                    ]
+                })
                 .collect(),
             selected: menu_state
                 .ability_index

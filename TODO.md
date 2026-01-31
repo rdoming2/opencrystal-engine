@@ -89,12 +89,14 @@
 - [ ] Define status effects schema (buffs/debuffs, durations).
 - [ ] Define elemental affinities and trait interactions.
 - [x] Define skills/abilities schema (non-spell actions).
+- [x] Add ability costs (hp/mp/currency/item/death/random).
 
 ## Magic System
 - [x] Implement job-based spell learnsets (level/tier/item).
 - [x] Track learned spells per actor.
 - [x] Enable menu casting for field magic.
 - [ ] Add global shared tier charge magic style.
+- [x] Support job-based tier charge tables.
 
 ## Progression
 - [x] Implement experience + level-up pipeline.

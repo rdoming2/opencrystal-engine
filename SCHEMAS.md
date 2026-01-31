@@ -536,6 +536,12 @@ Job ability fields:
 - `method`: `level` (other methods TBD).
 - `level`: required when `method` is `level`.
 
+Job magic tier slots:
+
+- `magic_slots`: optional mapping of tier -> per-level charges list.
+- Each tier list is indexed by level (level 1 uses index 0).
+- When present, these charges replace global `magic_tiers` for that job.
+
 Job starting equipment:
 
 - `starting_equipment`: optional default equipment by slot.
@@ -591,6 +597,12 @@ uses (one shared charge per tier per cast).
 
 Abilities define non-MP combat techniques unlocked by jobs.
 
+Ability costs (optional):
+
+- `type`: `mp`, `hp`, `currency`, `item`, `death`, `random`
+- `value`: numeric cost amount (ignored for `death`)
+- `item_id`: required when `type` is `item`
+
 ```json
 {
   "version": 1,
@@ -601,7 +613,8 @@ Abilities define non-MP combat techniques unlocked by jobs.
       "description": "A heavy blow that hits harder than a basic attack.",
       "default_target": "enemy",
       "allowed_targets": ["enemy"],
-      "effect": {"type": "damage", "power": 6}
+      "effect": {"type": "damage", "power": 6},
+      "cost": {"type": "hp", "value": 4}
     }
   ]
 }

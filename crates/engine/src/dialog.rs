@@ -77,7 +77,7 @@ pub fn apply_dialog_action(
             EventExecutionResult::Continue
         }
         "rest_party" => {
-            rest_party(&mut runtime.party, &runtime.content.rules);
+            rest_party(&mut runtime.party, &runtime.content, &runtime.content.rules);
             EventExecutionResult::Continue
         }
         _ => EventExecutionResult::Continue,

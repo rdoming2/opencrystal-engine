@@ -93,6 +93,18 @@ pub fn build_ability_entries(runtime: &GameRuntime) -> Vec<AbilityEntry> {
         else {
             continue;
         };
+        let (cost_type, cost_value, cost_item_id) = if let Some(cost) = &ability.cost {
+            (cost.r#type.clone(), cost.value, cost.item_id.clone())
+        } else {
+            ("none".to_string(), 0, None)
+        };
+        let (usable, reason) = ability_cost_available(
+            runtime,
+            actor,
+            &cost_type,
+            cost_value,
+            cost_item_id.as_deref(),
+        );
         entries.push(AbilityEntry {
             id: ability.id.clone(),
             name: ability.name.clone(),
@@ -100,6 +112,11 @@ pub fn build_ability_entries(runtime: &GameRuntime) -> Vec<AbilityEntry> {
             allowed_targets: ability.allowed_targets.clone(),
             effect_type: ability.effect.r#type.clone(),
             effect_power: ability.effect.power,
+            cost_type,
+            cost_value,
+            cost_item_id,
+            usable,
+            reason,
         });
     }
     entries.sort_by(|left, right| left.name.cmp(&right.name));
@@ -169,6 +186,121 @@ pub fn apply_ability_to_actor(runtime: &mut GameRuntime, entry: &AbilityEntry, a
     }
 }
 
+pub fn ability_cost_available(
+    runtime: &GameRuntime,
+    actor: &engine::party::Actor,
+    cost_type: &str,
+    cost_value: i32,
+    cost_item_id: Option<&str>,
+) -> (bool, Option<String>) {
+    match cost_type {
+        "none" => (true, None),
+        "mp" => {
+            if cost_value <= 0 || actor.current_mp >= cost_value {
+                (true, None)
+            } else {
+                (false, Some("Not enough MP.".to_string()))
+            }
+        }
+        "hp" => {
+            if cost_value <= 0 || actor.current_hp >= cost_value {
+                (true, None)
+            } else {
+                (false, Some("Not enough HP.".to_string()))
+            }
+        }
+        "currency" => {
+            let currency_id = &runtime.content.rules.game.currency.id;
+            let amount = runtime.inventory.currency_amount(currency_id);
+            if cost_value <= 0 || amount >= cost_value {
+                (true, None)
+            } else {
+                (false, Some("Not enough currency.".to_string()))
+            }
+        }
+        "item" => {
+            if let Some(item_id) = cost_item_id {
+                let qty = runtime.inventory.item_qty(item_id);
+                if cost_value <= 0 || qty >= cost_value {
+                    (true, None)
+                } else {
+                    (false, Some("Not enough items.".to_string()))
+                }
+            } else {
+                (false, Some("No item specified.".to_string()))
+            }
+        }
+        "death" => (true, None),
+        "random" => (true, None),
+        _ => (false, Some("Unknown cost type.".to_string())),
+    }
+}
+
+pub fn consume_ability_cost(
+    runtime: &mut GameRuntime,
+    entry: &AbilityEntry,
+    actor_id: &str,
+) -> bool {
+    let Some(actor) = runtime.party.roster.get_mut(actor_id) else {
+        return false;
+    };
+    match entry.cost_type.as_str() {
+        "none" => true,
+        "mp" => {
+            if actor.current_mp >= entry.cost_value {
+                actor.current_mp -= entry.cost_value;
+                true
+            } else {
+                false
+            }
+        }
+        "hp" => {
+            if actor.current_hp >= entry.cost_value {
+                actor.current_hp -= entry.cost_value;
+                true
+            } else {
+                false
+            }
+        }
+        "currency" => {
+            let currency_id = &runtime.content.rules.game.currency.id;
+            let amount = runtime.inventory.currency_amount(currency_id);
+            if amount < entry.cost_value {
+                return false;
+            }
+            runtime
+                .inventory
+                .add_currency(currency_id, -entry.cost_value);
+            true
+        }
+        "item" => {
+            if let Some(item_id) = &entry.cost_item_id {
+                if runtime.inventory.remove_item(item_id, entry.cost_value) {
+                    true
+                } else {
+                    false
+                }
+            } else {
+                false
+            }
+        }
+        "death" => {
+            actor.current_hp = 0;
+            true
+        }
+        "random" => {
+            use rand::Rng;
+            let mut rng = rand::thread_rng();
+            if rng.gen_bool(0.5) {
+                true
+            } else {
+                false
+            }
+        }
+        _ => false,
+    }
+}
+
 pub fn build_battle_ability_entries(runtime: &GameRuntime, actor_id: &str) -> Vec<AbilityEntry> {
     let Some(actor) = runtime.party.roster.get(actor_id) else {
         return Vec::new();
@@ -187,6 +319,18 @@ pub fn build_battle_ability_entries(runtime: &GameRuntime, actor_id: &str) -> Ve
         else {
             continue;
         };
+        let (cost_type, cost_value, cost_item_id) = if let Some(cost) = &ability.cost {
+            (cost.r#type.clone(), cost.value, cost.item_id.clone())
+        } else {
+            ("none".to_string(), 0, None)
+        };
+        let (usable, reason) = ability_cost_available(
+            runtime,
+            actor,
+            &cost_type,
+            cost_value,
+            cost_item_id.as_deref(),
+        );
         entries.push(AbilityEntry {
             id: ability.id.clone(),
             name: ability.name.clone(),
@@ -194,6 +338,11 @@ pub fn build_battle_ability_entries(runtime: &GameRuntime, actor_id: &str) -> Ve
             allowed_targets: ability.allowed_targets.clone(),
             effect_type: ability.effect.r#type.clone(),
             effect_power: ability.effect.power,
+            cost_type,
+            cost_value,
+            cost_item_id,
+            usable,
+            reason,
         });
     }
     entries.sort_by(|left, right| left.name.cmp(&right.name));
@@ -251,12 +400,40 @@ fn ability_list_width(entries: &[AbilityEntry]) -> usize {
 fn build_ability_line(entry: &AbilityEntry, is_selected: bool, width: usize) -> MenuPanelLine {
     let prefix = if is_selected { "> " } else { "  " };
     let label = format!("{:width$}", entry.name, width = width);
+    let cost_text = ability_cost_label(entry);
+    let base_style = if entry.usable {
+        PanelSpanStyle::Normal
+    } else {
+        PanelSpanStyle::Muted
+    };
     let style = if is_selected {
         PanelSpanStyle::Highlight
     } else {
-        PanelSpanStyle::Normal
+        base_style
     };
-    panel_line_spans(vec![panel_span(prefix, style), panel_span(label, style)])
+    panel_line_spans(vec![
+        panel_span(prefix, style),
+        panel_span(label, style),
+        panel_span(cost_text, style),
+    ])
+}
+
+pub fn ability_cost_label(entry: &AbilityEntry) -> String {
+    match entry.cost_type.as_str() {
+        "mp" => format!(" MP {}", entry.cost_value),
+        "hp" => format!(" HP {}", entry.cost_value),
+        "currency" => format!(" Currency {}", entry.cost_value),
+        "item" => {
+            if let Some(item_id) = &entry.cost_item_id {
+                format!(" {} x{}", item_id, entry.cost_value)
+            } else {
+                "".to_string()
+            }
+        }
+        "death" => " Death".to_string(),
+        "random" => " Random".to_string(),
+        _ => "".to_string(),
+    }
 }
 
 fn build_ability_target_panel(
@@ -346,6 +523,78 @@ fn build_ability_description(
         panel_span("  Power: ", PanelSpanStyle::Normal),
         panel_span(entry.effect_power.to_string(), PanelSpanStyle::Accent),
     ]));
+    match entry.cost_type.as_str() {
+        "mp" => {
+            lines.push(panel_line_spans(vec![
+                panel_span("Cost: ", PanelSpanStyle::Normal),
+                panel_span(format!("MP {}", entry.cost_value), PanelSpanStyle::Accent),
+                panel_span("  MP: ", PanelSpanStyle::Normal),
+                panel_span(
+                    format!(
+                        "{}/{}",
+                        actor.current_mp,
+                        actor.derived_stats.get("mp").copied().unwrap_or(0)
+                    ),
+                    PanelSpanStyle::Accent,
+                ),
+            ]));
+        }
+        "hp" => {
+            lines.push(panel_line_spans(vec![
+                panel_span("Cost: ", PanelSpanStyle::Normal),
+                panel_span(format!("HP {}", entry.cost_value), PanelSpanStyle::Accent),
+            ]));
+        }
+        "currency" => {
+            let currency_id = &runtime.content.rules.game.currency.id;
+            let currency_symbol = &runtime.content.rules.game.currency.symbol;
+            let currency_amount = runtime.inventory.currency_amount(currency_id);
+            lines.push(panel_line_spans(vec![
+                panel_span("Cost: ", PanelSpanStyle::Normal),
+                panel_span(
+                    format!("{} {}", currency_symbol, entry.cost_value),
+                    PanelSpanStyle::Accent,
+                ),
+                panel_span(format!("  {}: ", currency_symbol), PanelSpanStyle::Normal),
+                panel_span(format!("{}", currency_amount), PanelSpanStyle::Accent),
+            ]));
+        }
+        "item" => {
+            if let Some(item_id) = &entry.cost_item_id {
+                let item_name = runtime
+                    .content
+                    .items
+                    .items
+                    .iter()
+                    .find(|item| item.id == *item_id)
+                    .map(|item| item.name.as_str())
+                    .unwrap_or(item_id);
+                let item_qty = runtime.inventory.item_qty(item_id);
+                lines.push(panel_line_spans(vec![
+                    panel_span("Cost: ", PanelSpanStyle::Normal),
+                    panel_span(
+                        format!("{} x{}", item_name, entry.cost_value),
+                        PanelSpanStyle::Accent,
+                    ),
+                    panel_span("  Qty: ", PanelSpanStyle::Normal),
+                    panel_span(format!("{}", item_qty), PanelSpanStyle::Accent),
+                ]));
+            }
+        }
+        "death" => {
+            lines.push(panel_line_spans(vec![
+                panel_span("Cost: ", PanelSpanStyle::Normal),
+                panel_span("Death", PanelSpanStyle::Accent),
+            ]));
+        }
+        "random" => {
+            lines.push(panel_line_spans(vec![
+                panel_span("Cost: ", PanelSpanStyle::Normal),
+                panel_span("Random (50% success)", PanelSpanStyle::Accent),
+            ]));
+        }
+        _ => {}
+    }
     let description = runtime
         .content
         .abilities
@@ -358,5 +607,11 @@ fn build_ability_description(
         panel_span("Description: ", PanelSpanStyle::Accent),
         panel_span(description, PanelSpanStyle::Normal),
     ]));
+    if let Some(reason) = &entry.reason {
+        lines.push(panel_line_spans(vec![
+            panel_span("Unavailable: ", PanelSpanStyle::Muted),
+            panel_span(reason.clone(), PanelSpanStyle::Muted),
+        ]));
+    }
     lines
 }

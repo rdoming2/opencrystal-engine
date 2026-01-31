@@ -52,6 +52,8 @@ pub struct JobDefinition {
     pub is_default: bool,
     #[serde(default)]
     pub sort_order: Option<i32>,
+    #[serde(default)]
+    pub magic_slots: Option<HashMap<u32, Vec<i32>>>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -173,6 +175,16 @@ pub struct AbilityDefinition {
     pub default_target: String,
     pub allowed_targets: Vec<String>,
     pub effect: AbilityEffect,
+    #[serde(default)]
+    pub cost: Option<AbilityCost>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct AbilityCost {
+    pub r#type: String,
+    pub value: i32,
+    #[serde(default)]
+    pub item_id: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

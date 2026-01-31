@@ -286,7 +286,7 @@ fn handle_dialog_action(
             let _ = &action.item;
         }
         "rest_party" => {
-            engine::party::rest_party(&mut runtime.party, &runtime.content.rules);
+            engine::party::rest_party(&mut runtime.party, &runtime.content, &runtime.content.rules);
         }
         _ => {
             println!("Dialog action: {}", action.r#type);
@@ -319,7 +319,7 @@ fn handle_dialog_action_console(runtime: &mut GameRuntime, action: &engine::dial
             }
         }
         "rest_party" => {
-            engine::party::rest_party(&mut runtime.party, &runtime.content.rules);
+            engine::party::rest_party(&mut runtime.party, &runtime.content, &runtime.content.rules);
             println!("Party rested.");
         }
         _ => {

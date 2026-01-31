@@ -66,6 +66,11 @@ pub struct AbilityEntry {
     pub allowed_targets: Vec<String>,
     pub effect_type: String,
     pub effect_power: i32,
+    pub cost_type: String,
+    pub cost_value: i32,
+    pub cost_item_id: Option<String>,
+    pub usable: bool,
+    pub reason: Option<String>,
 }
 
 pub fn filter_from_index(index: usize) -> InventoryFilter {

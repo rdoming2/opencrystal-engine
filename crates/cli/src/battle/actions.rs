@@ -157,11 +157,29 @@ pub fn execute_ability_action(
         let Some(actor) = runtime.party.roster.get(actor_id) else {
             return;
         };
+        let (usable, reason) = crate::menu::abilities::ability_cost_available(
+            runtime,
+            actor,
+            &entry.cost_type,
+            entry.cost_value,
+            entry.cost_item_id.as_deref(),
+        );
+        if !usable {
+            super::logic::push_battle_log(
+                &mut battle_state.log,
+                reason.unwrap_or_else(|| "Cannot use ability.".to_string()),
+            );
+            return;
+        }
         (
             actor.name.clone(),
             actor.derived_stats.get("atk").copied().unwrap_or(0),
         )
     };
+    if !crate::menu::abilities::consume_ability_cost(runtime, entry, actor_id) {
+        super::logic::push_battle_log(&mut battle_state.log, "Failed to pay cost.".to_string());
+        return;
+    }
 
     match entry.default_target.as_str() {
         "enemy" => {

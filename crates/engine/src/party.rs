@@ -79,14 +79,26 @@ impl PartyState {
     }
 }
 
-pub fn reset_magic_tier_charges(party: &mut PartyState, rules: &Ruleset) {
+pub fn reset_magic_tier_charges(party: &mut PartyState, content: &Content, rules: &Ruleset) {
     if rules.magic_system != MagicSystem::TierCharges {
         return;
     }
     for actor in party.roster.values_mut() {
         let mut charges = HashMap::new();
-        for tier in &rules.magic_tiers {
-            charges.insert(tier.tier, tier.max_charges.max(0));
+        let job = content.jobs.jobs.iter().find(|job| job.id == actor.job_id);
+        if let Some(job) = job {
+            if let Some(magic_slots) = &job.magic_slots {
+                for (tier, levels) in magic_slots {
+                    let level_index = actor.level.saturating_sub(1) as usize;
+                    let charges_for_level = levels.get(level_index).copied().unwrap_or(0);
+                    charges.insert(*tier, charges_for_level.max(0));
+                }
+            }
+        }
+        if charges.is_empty() {
+            for tier in &rules.magic_tiers {
+                charges.insert(tier.tier, tier.max_charges.max(0));
+            }
         }
         actor.magic_tier_charges = charges;
     }
@@ -479,7 +491,7 @@ fn compute_equipment_stats(
     stats
 }
 
-pub fn rest_party(party: &mut PartyState, rules: &RulesFile) {
+pub fn rest_party(party: &mut PartyState, content: &Content, rules: &RulesFile) {
     for actor in party.roster.values_mut() {
         let max_hp = actor.derived_stats.get("hp").copied().unwrap_or(0);
         let max_mp = actor.derived_stats.get("mp").copied().unwrap_or(0);
@@ -487,7 +499,7 @@ pub fn rest_party(party: &mut PartyState, rules: &RulesFile) {
         actor.current_mp = max_mp;
     }
     let ruleset = Ruleset::from_file(rules.clone());
-    reset_magic_tier_charges(party, &ruleset);
+    reset_magic_tier_charges(party, content, &ruleset);
 }
 
 fn clamp_current_stats(actor: &mut Actor) {
