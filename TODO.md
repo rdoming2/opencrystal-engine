@@ -96,7 +96,7 @@
 - [x] Implement job-based spell learnsets (level/tier/item).
 - [x] Track learned spells per actor.
 - [x] Enable menu casting for field magic.
-- [ ] Add global shared tier charge magic style.
+- [ ] Add global shared MP magic style.
 - [x] Support job-based tier charge tables.
 
 ## Progression
