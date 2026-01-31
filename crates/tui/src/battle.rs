@@ -33,6 +33,7 @@ pub struct BattlePartyView {
     pub mp: i32,
     pub max_mp: i32,
     pub show_mp: bool,
+    pub atb: f32,
     pub status: Vec<String>,
     pub alive: bool,
     pub active: bool,
@@ -495,19 +496,21 @@ fn draw_party_panel(
         }
         let line = if member.show_mp {
             format!(
-                "{} HP {}/{}  MP {}/{}",
+                "{} HP {}/{}  MP {}/{}  ATB: {:.0}%",
                 member.name,
                 member.hp.max(0),
                 member.max_hp.max(1),
                 member.mp.max(0),
-                member.max_mp.max(1)
+                member.max_mp.max(1),
+                member.atb
             )
         } else {
             format!(
-                "{} HP {}/{}",
+                "{} HP {}/{}  ATB: {:.0}%",
                 member.name,
                 member.hp.max(0),
-                member.max_hp.max(1)
+                member.max_hp.max(1),
+                member.atb
             )
         };
         lines.push(Line::from(Span::styled(line, style)));

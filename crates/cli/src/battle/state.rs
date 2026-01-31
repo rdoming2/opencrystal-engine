@@ -51,7 +51,7 @@ impl BattleMenuState {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug)]
 pub enum BattleTurnActor {
     Party(usize),
     Enemy(usize),

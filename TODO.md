@@ -81,15 +81,16 @@
 
 ## Battle System
 - [x] Turn-based flow (command selection, targeting, resolve action).
-- [ ] ATB timers (wait + active modes).
+- [x] ATB timers (wait + active modes).
 - [ ] Status effects and damage formulas (derived stats).
 - [x] Victory/defeat flow (spoils, level-ups, modals).
 - [x] Scan reveals enemy HP.
-- [ ] Define battle rules schema (damage, hit, crit, ATB speed).
+- [x] Define battle rules schema (damage, hit, crit, ATB speed).
 - [ ] Define status effects schema (buffs/debuffs, durations).
 - [ ] Define elemental affinities and trait interactions.
 - [x] Define skills/abilities schema (non-spell actions).
 - [x] Add ability costs (hp/mp/currency/item/death/random).
+- [ ] Add ATB speed setting to main menu.
 
 ## Magic System
 - [x] Implement job-based spell learnsets (level/tier/item).

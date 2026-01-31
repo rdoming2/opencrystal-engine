@@ -19,6 +19,7 @@ pub fn build_battle_render_state(
     spell_entries: &[SpellEntry],
     ability_entries: &[AbilityEntry],
     item_entries: &[InventoryEntry],
+    is_player_turn: bool,
 ) -> BattleRenderState {
     let enemies = battle_state
         .enemies
@@ -45,8 +46,8 @@ pub fn build_battle_render_state(
         .party_order
         .iter()
         .enumerate()
-        .filter_map(|(index, id)| runtime.party.roster.get(id).map(|actor| (index, actor)))
-        .map(|(index, actor)| {
+        .filter_map(|(index, id)| runtime.party.roster.get(id).map(|actor| (index, id, actor)))
+        .map(|(index, id, actor)| {
             let job = runtime
                 .content
                 .jobs
@@ -75,6 +76,7 @@ pub fn build_battle_render_state(
                 mp: actor.current_mp,
                 max_mp: actor.derived_stats.get("mp").copied().unwrap_or(0),
                 show_mp,
+                atb: battle_state.atb_party.get(id).copied().unwrap_or(0.0),
                 status: Vec::new(),
                 alive: actor.current_hp > 0,
                 active: index == battle_state.active_index,
@@ -93,6 +95,7 @@ pub fn build_battle_render_state(
         spell_entries,
         ability_entries,
         item_entries,
+        is_player_turn,
     );
     BattleRenderState {
         enemies,
@@ -140,7 +143,18 @@ pub fn build_battle_command_panel(
     spell_entries: &[SpellEntry],
     ability_entries: &[AbilityEntry],
     item_entries: &[InventoryEntry],
+    is_player_turn: bool,
 ) -> BattleCommandPanelView {
+    if !is_player_turn {
+        return BattleCommandPanelView {
+            mode: BattleCommandPanelMode::Commands,
+            title: String::new(),
+            items: Vec::new(),
+            columns: Vec::new(),
+            rows: Vec::new(),
+            selected: 0,
+        };
+    }
     match menu_state.phase {
         BattlePhase::Magic => BattleCommandPanelView {
             mode: BattleCommandPanelMode::Magic,

@@ -63,7 +63,8 @@ add `unlock_flag` gating for progression-driven unlocks.
     "start_mode": "ff1",
     "party_size": 4,
     "party_reserve_size": 4,
-    "battle_mode": "turn",
+    "battle_mode": "dynamic",
+    "atb_speed": 2.0,
     "magic_system": "mp",
     "start_event": "intro_cutscene",
     "start_location": {
@@ -705,7 +706,7 @@ Use `allowed_jobs` only for item-specific overrides (e.g., a katana requiring Sa
     {
       "id": "imp",
       "name": "Imp",
-      "stats": {"hp": 12, "mp": 0, "str": 3, "int": 1},
+      "stats": {"hp": 12, "mp": 0, "str": 3, "int": 1, "agi": 1},
       "traits": ["beast"],
       "sprite": {
         "glyph": "i",

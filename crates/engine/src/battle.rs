@@ -6,12 +6,22 @@ use crate::encounters::EncounterMember;
 use crate::entities::{EnemyArt, EnemyDefinition, EnemyLoot, EnemySprite};
 use crate::party::{Actor, PartyState};
 
+#[derive(Clone, Debug, PartialEq)]
+pub enum BattleMode {
+    Turn,
+    Dynamic,
+    DynamicWait,
+}
+
 #[derive(Clone, Debug)]
 pub struct BattleState {
     pub party_order: Vec<String>,
     pub enemies: Vec<BattleEnemy>,
     pub active_index: usize,
     pub log: Vec<String>,
+    pub atb_party: HashMap<String, f32>,
+    pub atb_enemy: Vec<f32>,
+    pub mode: BattleMode,
 }
 
 #[derive(Clone, Debug)]
@@ -98,11 +108,29 @@ pub fn build_battle_state(
         })
         .collect::<Vec<_>>();
 
+    let mode = match content.rules.game.battle_mode {
+        crate::rules::BattleMode::Turn => BattleMode::Turn,
+        crate::rules::BattleMode::Dynamic => BattleMode::Dynamic,
+        crate::rules::BattleMode::DynamicWait => BattleMode::DynamicWait,
+    };
+
+    let mut rng = rand::thread_rng();
+    let atb_party = party_order
+        .iter()
+        .map(|id| (id.clone(), rng.gen_range(0.0..10.0)))
+        .collect();
+    let atb_enemy = (0..enemies.len())
+        .map(|_| rng.gen_range(0.0..10.0))
+        .collect();
+
     BattleState {
         party_order,
         enemies,
         active_index: 0,
         log: Vec::new(),
+        atb_party,
+        atb_enemy,
+        mode,
     }
 }
 

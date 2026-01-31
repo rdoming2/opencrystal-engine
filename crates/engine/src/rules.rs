@@ -45,6 +45,8 @@ pub struct GameRules {
     pub job_change_enabled: bool,
     pub job_change_flag: String,
     pub currency: Currency,
+    #[serde(default = "default_atb_speed")]
+    pub atb_speed: f32,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -95,6 +97,7 @@ pub struct Ruleset {
     pub inventory: InventoryRules,
     pub systems: HashMap<String, bool>,
     pub magic_tiers: Vec<MagicTierRules>,
+    pub atb_speed: f32,
 }
 
 impl Ruleset {
@@ -119,6 +122,7 @@ impl Ruleset {
             inventory: InventoryRules::default(),
             systems: HashMap::new(),
             magic_tiers: Vec::new(),
+            atb_speed: 2.0,
         }
     }
 
@@ -138,6 +142,7 @@ impl Ruleset {
             inventory: file.inventory,
             systems: file.systems,
             magic_tiers: file.magic_tiers,
+            atb_speed: file.game.atb_speed,
         }
     }
 }
@@ -159,8 +164,8 @@ pub enum StartMode {
 #[serde(rename_all = "snake_case")]
 pub enum BattleMode {
     Turn,
-    AtbWait,
-    AtbActive,
+    DynamicWait,
+    Dynamic,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
@@ -259,4 +264,8 @@ fn default_max_level() -> u32 {
 
 fn default_inventory_stack() -> i32 {
     99
+}
+
+fn default_atb_speed() -> f32 {
+    2.0
 }

@@ -187,8 +187,8 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
 
 - Supports three timing modes:
   - Turn-based (no ATB)
-  - ATB with wait (pause in menus)
-  - ATB active (continues during menus)
+  - Dynamic Wait (ATB with pause in menus)
+  - Dynamic (ATB active, continues during menus)
 - Turn order ranks all actors by speed each round (party + enemies).
 - Enemy selection tied to list on the left column.
 - Visual feedback highlights enemy in battlefield and list simultaneously.
@@ -277,13 +277,21 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
 ```json
 {
   "version": 1,
-  "game": {
+"game": {
     "title": "OpenCrystal",
     "start_mode": "ff1",
     "party_size": 4,
     "party_reserve_size": 4,
-    "battle_mode": "turn",
+    "battle_mode": "dynamic",
+    "atb_speed": 2.0,
     "magic_system": "mp",
+    "start_event": "intro_cutscene",
+    "start_location": {
+      "world": "gaia",
+      "map": "overworld_gaia",
+      "x": 20,
+      "y": 14
+    },
     "job_change_enabled": false,
     "job_change_flag": "world.job_change_unlocked",
     "currency": {"id": "gil", "name": "G", "symbol": "G"}

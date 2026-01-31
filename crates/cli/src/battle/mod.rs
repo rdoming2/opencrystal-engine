@@ -6,9 +6,10 @@ pub mod state;
 use std::thread::sleep;
 use std::time::{Duration, Instant};
 
+use self::logic::update_atb;
 use engine::battle::{
-    build_battle_state, collect_rewards, is_enemies_defeated, is_party_defeated, BattleResult,
-    BattleState, LevelUpDiff,
+    build_battle_state, collect_rewards, is_enemies_defeated, is_party_defeated, BattleMode,
+    BattleResult, BattleState, LevelUpDiff,
 };
 use engine::party::gain_exp;
 use engine::rules::Ruleset;
@@ -63,7 +64,15 @@ pub fn run_battle(
     push_battle_log(&mut battle_state.log, "A battle begins!");
 
     let mut menu_state = BattleMenuState::new();
-    let mut turn_state = BattleTurnState::new(build_turn_order(runtime, &battle_state));
+    let mut turn_state = if matches!(
+        battle_state.mode,
+        BattleMode::Dynamic | BattleMode::DynamicWait
+    ) {
+        BattleTurnState::new(Vec::new())
+    } else {
+        BattleTurnState::new(build_turn_order(runtime, &battle_state))
+    };
+    let mut last_tick = Instant::now();
     let mut last_actor_id: Option<String> = None;
     let mut battle_result: Option<BattleResult> = None;
     let mut victory_state: Option<VictoryState> = None;
@@ -82,6 +91,7 @@ pub fn run_battle(
                     &empty_spells,
                     &empty_abilities,
                     &empty_items,
+                    false,
                 );
                 pause_after_action(
                     session,
@@ -114,46 +124,59 @@ pub fn run_battle(
             }
         }
 
-        if turn_state.order.is_empty() || turn_state.index >= turn_state.order.len() {
-            turn_state.reset(build_turn_order(runtime, &battle_state));
-        }
-        if turn_state.order.is_empty() {
-            return Ok(BattleOutcome::Defeat);
-        }
+        let now = Instant::now();
+        let delta = now.duration_since(last_tick).as_secs_f32();
+        last_tick = now;
 
-        let current_turn = turn_state.order.get(turn_state.index).cloned();
-        let Some(current_turn) = current_turn else {
-            return Ok(BattleOutcome::Defeat);
-        };
+        if matches!(battle_state.mode, BattleMode::Turn) {
+            if turn_state.order.is_empty() || turn_state.index >= turn_state.order.len() {
+                turn_state.reset(build_turn_order(runtime, &battle_state));
+            }
+            if turn_state.order.is_empty() {
+                return Ok(BattleOutcome::Defeat);
+            }
+        } else {
+            // ATB Logic
+            let paused = if battle_state.mode == BattleMode::DynamicWait {
+                matches!(
+                    menu_state.phase,
+                    BattlePhase::Magic
+                        | BattlePhase::Abilities
+                        | BattlePhase::Items
+                        | BattlePhase::TargetEnemy
+                        | BattlePhase::TargetParty
+                )
+            } else {
+                false
+            };
 
-        let mut actor_id = battle_state
-            .party_order
-            .get(battle_state.active_index)
-            .cloned()
-            .unwrap_or_default();
+            if !paused {
+                let new_ready = update_atb(runtime, &mut battle_state, delta);
+                turn_state.order.extend(new_ready);
+            }
 
-        if !matches!(menu_state.phase, BattlePhase::Victory | BattlePhase::Defeat) {
-            match current_turn {
-                BattleTurnActor::Party(party_index) => {
-                    let Some(current_id) = battle_state.party_order.get(party_index).cloned()
-                    else {
-                        advance_turn(&mut menu_state, &mut turn_state);
-                        continue;
-                    };
-                    if let Some(actor) = runtime.party.roster.get(&current_id) {
-                        if actor.current_hp <= 0 {
-                            advance_turn(&mut menu_state, &mut turn_state);
-                            continue;
-                        }
+            // Process ready enemies immediately for Dynamic modes
+            if matches!(
+                battle_state.mode,
+                BattleMode::Dynamic | BattleMode::DynamicWait
+            ) && !paused
+            {
+                let mut enemy_indices = Vec::new();
+                turn_state.order.retain(|actor| {
+                    if let BattleTurnActor::Enemy(index) = actor {
+                        enemy_indices.push(*index);
+                        false
+                    } else {
+                        true
                     }
-                    battle_state.active_index = party_index;
-                    if last_actor_id.as_deref() != Some(current_id.as_str()) {
-                        menu_state.reset_for_actor();
-                        last_actor_id = Some(current_id.clone());
+                });
+
+                for enemy_index in enemy_indices {
+                    // Reset ATB
+                    if enemy_index < battle_state.atb_enemy.len() {
+                        battle_state.atb_enemy[enemy_index] = 0.0;
                     }
-                    actor_id = current_id;
-                }
-                BattleTurnActor::Enemy(enemy_index) => {
+
                     if let Some(target_index) =
                         enemy_take_turn(runtime, &mut battle_state, enemy_index, rng)
                     {
@@ -165,6 +188,7 @@ pub fn run_battle(
                             &[],
                             &[],
                             &[],
+                            false,
                         );
                         pause_after_action(
                             session,
@@ -177,8 +201,75 @@ pub fn run_battle(
                             vec![target_index],
                         )?;
                     }
-                    advance_turn(&mut menu_state, &mut turn_state);
-                    continue;
+                }
+            }
+        }
+
+        let current_turn = if matches!(
+            battle_state.mode,
+            BattleMode::Dynamic | BattleMode::DynamicWait
+        ) {
+            turn_state.order.first().cloned()
+        } else {
+            turn_state.order.get(turn_state.index).cloned()
+        };
+
+        let mut actor_id = battle_state
+            .party_order
+            .get(battle_state.active_index)
+            .cloned()
+            .unwrap_or_default();
+
+        if let Some(current_turn) = current_turn {
+            if !matches!(menu_state.phase, BattlePhase::Victory | BattlePhase::Defeat) {
+                match current_turn {
+                    BattleTurnActor::Party(party_index) => {
+                        let Some(current_id) = battle_state.party_order.get(party_index).cloned()
+                        else {
+                            advance_turn(&mut menu_state, &mut turn_state, &mut battle_state);
+                            continue;
+                        };
+                        if let Some(actor) = runtime.party.roster.get(&current_id) {
+                            if actor.current_hp <= 0 {
+                                advance_turn(&mut menu_state, &mut turn_state, &mut battle_state);
+                                continue;
+                            }
+                        }
+                        battle_state.active_index = party_index;
+                        if last_actor_id.as_deref() != Some(current_id.as_str()) {
+                            menu_state.reset_for_actor();
+                            last_actor_id = Some(current_id.clone());
+                        }
+                        actor_id = current_id;
+                    }
+                    BattleTurnActor::Enemy(enemy_index) => {
+                        if let Some(target_index) =
+                            enemy_take_turn(runtime, &mut battle_state, enemy_index, rng)
+                        {
+                            let render_state = build_battle_render_state(
+                                runtime,
+                                &battle_state,
+                                &menu_state,
+                                battle_ui,
+                                &[],
+                                &[],
+                                &[],
+                                false,
+                            );
+                            pause_after_action(
+                                session,
+                                battle_ui,
+                                bindings,
+                                &render_state,
+                                vec![enemy_index],
+                                Vec::new(),
+                                Vec::new(),
+                                vec![target_index],
+                            )?;
+                        }
+                        advance_turn(&mut menu_state, &mut turn_state, &mut battle_state);
+                        continue;
+                    }
                 }
             }
         }
@@ -194,6 +285,7 @@ pub fn run_battle(
             &spell_entries,
             &ability_entries,
             &item_entries,
+            current_turn.is_some(),
         );
 
         if menu_state.phase == BattlePhase::Victory {
@@ -228,7 +320,13 @@ pub fn run_battle(
             draw_battle(session, battle_ui, &render_state)?;
         }
 
-        let Some(action) = read_action(bindings) else {
+        let action = if crossterm::event::poll(Duration::from_millis(16))? {
+            read_action(bindings)
+        } else {
+            None
+        };
+
+        let Some(action) = action else {
             continue;
         };
 
@@ -238,6 +336,15 @@ pub fn run_battle(
             })? {
                 return Err(std::io::Error::new(std::io::ErrorKind::Interrupted, "quit"));
             }
+            continue;
+        }
+
+        let is_player_turn = current_turn
+            .as_ref()
+            .map(|actor| matches!(actor, BattleTurnActor::Party(_)))
+            .unwrap_or(false);
+
+        if !is_player_turn && matches!(menu_state.phase, BattlePhase::Command) {
             continue;
         }
 
@@ -344,6 +451,7 @@ pub fn run_battle(
                                 &spell_entries,
                                 &ability_entries,
                                 &item_entries,
+                                false,
                             );
                             pause_after_action(
                                 session,
@@ -355,7 +463,7 @@ pub fn run_battle(
                                 Vec::new(),
                                 Vec::new(),
                             )?;
-                            advance_turn(&mut menu_state, &mut turn_state);
+                            advance_turn(&mut menu_state, &mut turn_state, &mut battle_state);
                         }
                         None => {}
                     }
@@ -415,6 +523,7 @@ pub fn run_battle(
                                 &spell_entries,
                                 &ability_entries,
                                 &item_entries,
+                                false,
                             );
                             pause_after_action(
                                 session,
@@ -426,7 +535,7 @@ pub fn run_battle(
                                 Vec::new(),
                                 (0..battle_state.party_order.len()).collect::<Vec<_>>(),
                             )?;
-                            advance_turn(&mut menu_state, &mut turn_state);
+                            advance_turn(&mut menu_state, &mut turn_state, &mut battle_state);
                         }
                         _ => {
                             menu_state.phase = BattlePhase::TargetParty;
@@ -493,6 +602,7 @@ pub fn run_battle(
                                 &spell_entries,
                                 &ability_entries,
                                 &item_entries,
+                                false,
                             );
                             let party_indices =
                                 (0..battle_state.party_order.len()).collect::<Vec<_>>();
@@ -506,7 +616,7 @@ pub fn run_battle(
                                 Vec::new(),
                                 party_indices,
                             )?;
-                            advance_turn(&mut menu_state, &mut turn_state);
+                            advance_turn(&mut menu_state, &mut turn_state, &mut battle_state);
                         }
                         _ => {
                             menu_state.phase = BattlePhase::TargetParty;
@@ -571,6 +681,7 @@ pub fn run_battle(
                                 &spell_entries,
                                 &ability_entries,
                                 &item_entries,
+                                false,
                             );
                             let party_indices =
                                 (0..battle_state.party_order.len()).collect::<Vec<_>>();
@@ -584,7 +695,7 @@ pub fn run_battle(
                                 Vec::new(),
                                 party_indices,
                             )?;
-                            advance_turn(&mut menu_state, &mut turn_state);
+                            advance_turn(&mut menu_state, &mut turn_state, &mut battle_state);
                         }
                         "enemy" => {
                             menu_state.phase = BattlePhase::TargetEnemy;
@@ -659,6 +770,7 @@ pub fn run_battle(
                                     &spell_entries,
                                     &ability_entries,
                                     &item_entries,
+                                    false,
                                 );
                                 pause_after_action(
                                     session,
@@ -688,6 +800,7 @@ pub fn run_battle(
                                     &spell_entries,
                                     &ability_entries,
                                     &item_entries,
+                                    false,
                                 );
                                 pause_after_action(
                                     session,
@@ -717,6 +830,7 @@ pub fn run_battle(
                                     &spell_entries,
                                     &ability_entries,
                                     &item_entries,
+                                    false,
                                 );
                                 pause_after_action(
                                     session,
@@ -753,6 +867,7 @@ pub fn run_battle(
                                         &spell_entries,
                                         &ability_entries,
                                         &item_entries,
+                                        false,
                                     );
                                     pause_after_action(
                                         session,
@@ -780,7 +895,7 @@ pub fn run_battle(
                             was_alive,
                             menu_state.enemy_index,
                         )?;
-                        advance_turn(&mut menu_state, &mut turn_state);
+                        advance_turn(&mut menu_state, &mut turn_state, &mut battle_state);
                     }
                 }
                 _ => {}
@@ -840,6 +955,7 @@ pub fn run_battle(
                                 &spell_entries,
                                 &ability_entries,
                                 &item_entries,
+                                false,
                             );
                             pause_after_action(
                                 session,
@@ -869,6 +985,7 @@ pub fn run_battle(
                                 &spell_entries,
                                 &ability_entries,
                                 &item_entries,
+                                false,
                             );
                             pause_after_action(
                                 session,
@@ -905,6 +1022,7 @@ pub fn run_battle(
                                     &spell_entries,
                                     &ability_entries,
                                     &item_entries,
+                                    false,
                                 );
                                 pause_after_action(
                                     session,
@@ -920,7 +1038,7 @@ pub fn run_battle(
                         }
                         PendingBattleAction::Attack => {}
                     }
-                    advance_turn(&mut menu_state, &mut turn_state);
+                    advance_turn(&mut menu_state, &mut turn_state, &mut battle_state);
                 }
                 _ => {}
             },
@@ -1065,6 +1183,7 @@ fn pause_on_enemy_defeat(
             spell_entries,
             ability_entries,
             item_entries,
+            false,
         );
         pause_after_action(
             session,
