@@ -62,7 +62,7 @@
   - [x] Battle dialog overlay.
 - [ ] Menu + progress UI.
   - [ ] Status menu panels from `ui/progress.json`.
-  - [ ] Journal/quest display.
+  - [x] Journal/quest display.
   - [ ] Party management UI.
 - [x] Main menu UI.
   - [x] Two-pane layout (left list, right detail pane).
@@ -116,7 +116,7 @@
 - [ ] Implement on_step trigger with zone support.
 - [ ] Implement NPC script event triggers.
 - [ ] Move WorldState from CLI to GameRuntime.
-- [ ] Implement quest resolver (flag-driven steps and journal updates).
+- [x] Implement quest resolver (flag-driven steps and journal updates).
 - [ ] Implement NPC roaming (persisted positions).
 - [ ] Implement event-driven NPC controls (show/hide/move/set_sprite).
 - [x] Implement inn rest feature (dialog action `rest_party`).

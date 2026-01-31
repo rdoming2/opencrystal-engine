@@ -2,6 +2,7 @@ pub mod abilities;
 pub mod common;
 pub mod equipment;
 pub mod inventory;
+pub mod journal;
 pub mod magic;
 pub mod status;
 
@@ -31,6 +32,7 @@ use self::inventory::{
     apply_item_to_targets, build_inventory_entries, build_items_panel, item_targets_for_entry,
     panel_line,
 };
+use self::journal::{build_journal_detail_panel, build_journal_panel};
 use self::magic::{
     apply_spell_to_targets, build_magic_panel, build_spell_entries, selected_spell_targets,
     spell_targets_for_entry,
@@ -129,7 +131,7 @@ pub fn run_menu_loop(
                         } else if runtime.menu_state.detail_target > 0 {
                             runtime.menu_state.detail_target -= 1;
                         }
-                    } else if submenu_action == "equipment" {
+                    } else if submenu_action == "journal" {
                         if runtime.menu_state.detail_selection > 0 {
                             runtime.menu_state.detail_selection -= 1;
                         }
@@ -197,6 +199,15 @@ pub fn run_menu_loop(
                         if runtime.menu_state.detail_selection + 1 < limit {
                             runtime.menu_state.detail_selection += 1;
                         }
+                    } else if submenu_action == "journal" {
+                        let mut all_quest_states = Vec::new();
+                        for quest_file in &runtime.content.quests {
+                            let quest_states = quest_file.resolve_quests(&runtime.flags);
+                            all_quest_states.extend(quest_states);
+                        }
+                        if runtime.menu_state.detail_selection + 1 < all_quest_states.len() {
+                            runtime.menu_state.detail_selection += 1;
+                        }
                     }
                 }
                 Action::Confirm => {
@@ -240,6 +251,13 @@ pub fn run_menu_loop(
                                         runtime.menu_state.detail_selection = 0;
                                         runtime.menu_state.detail_actor = 0;
                                         runtime.menu_state.detail_target = 0;
+                                    }
+                                    "journal" => {
+                                        runtime.menu_state.focus = MenuFocus::Detail;
+                                        runtime.menu_state.active_submenu =
+                                            Some(entry.action.clone());
+                                        runtime.menu_state.detail_page = 0;
+                                        runtime.menu_state.detail_selection = 0;
                                     }
                                     _ => {
                                         runtime.menu_state.focus = MenuFocus::Detail;
@@ -385,6 +403,17 @@ pub fn run_menu_loop(
                             runtime.menu_state.detail_page = 0;
                             runtime.menu_state.detail_selection = runtime.menu_state.detail_slot;
                         }
+                    } else if submenu_action == "journal" {
+                        if runtime.menu_state.detail_page == 0 {
+                            let mut all_quest_states = Vec::new();
+                            for quest_file in &runtime.content.quests {
+                                let quest_states = quest_file.resolve_quests(&runtime.flags);
+                                all_quest_states.extend(quest_states);
+                            }
+                            if !all_quest_states.is_empty() {
+                                runtime.menu_state.detail_page = 1;
+                            }
+                        }
                     }
                 }
                 Action::Cancel | Action::Menu => {
@@ -403,6 +432,9 @@ pub fn run_menu_loop(
                         {
                             runtime.menu_state.detail_page = 0;
                             runtime.menu_state.detail_target = 0;
+                        } else if submenu_action == "journal" && runtime.menu_state.detail_page > 0
+                        {
+                            runtime.menu_state.detail_page = 0;
                         } else {
                             runtime.menu_state.focus = MenuFocus::List;
                             runtime.menu_state.active_submenu = None;
@@ -474,6 +506,15 @@ pub fn run_menu_loop(
                             runtime.menu_state.detail_page = 0;
                             runtime.menu_state.detail_selection = 0;
                             runtime.menu_state.detail_target = 0;
+                        }
+                    } else if matches!(focus, MenuPane::Detail) && submenu_action == "journal" {
+                        if runtime.menu_state.detail_page > 0 {
+                            runtime.menu_state.detail_page = if runtime.menu_state.detail_page == 1
+                            {
+                                2
+                            } else {
+                                1
+                            };
                         }
                     }
                 }
@@ -574,6 +615,17 @@ fn menu_detail_panel(
     if action == "abilities" {
         return build_abilities_panel(runtime);
     }
+    if action == "journal" {
+        let lines = if page == 0 {
+            build_journal_panel(runtime, runtime.menu_state.detail_selection)
+        } else {
+            build_journal_detail_panel(runtime, runtime.menu_state.detail_selection, page - 1)
+        };
+        return MenuPanelView {
+            title: "Journal".to_string(),
+            lines,
+        };
+    }
     MenuPanelView {
         title: label.to_string(),
         lines: vec![
@@ -648,6 +700,15 @@ fn menu_footer_text(focus: MenuPane, submenu: &str, page: usize) -> &'static str
                     "Confirm: pick slot  Left/Right: actor  Cancel: back"
                 } else {
                     "Confirm: equip  Left/Right: actor  Cancel: back"
+                }
+            }
+            "journal" => {
+                if page == 0 {
+                    "Confirm: details  Cancel: back"
+                } else if page == 1 {
+                    "Left/Right: history  Cancel: back"
+                } else {
+                    "Left/Right: steps  Cancel: back"
                 }
             }
             _ => "Cancel: back",

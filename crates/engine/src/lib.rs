@@ -7,6 +7,7 @@ pub mod events;
 pub mod expr;
 pub mod inventory;
 pub mod menu;
+pub mod quests;
 
 pub mod io;
 pub mod maps;

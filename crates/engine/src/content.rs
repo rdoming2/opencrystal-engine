@@ -11,6 +11,7 @@ use crate::entities::{
 use crate::events::EventFile;
 use crate::maps::MapFile;
 use crate::party::PartyFile;
+use crate::quests::QuestsFile;
 use crate::rules::{PartyMode, RulesFile};
 use crate::stats::StatsFile;
 use crate::world::WorldsFile;
@@ -33,6 +34,7 @@ pub struct Content {
     pub maps: Vec<MapFile>,
     pub events: Vec<EventFile>,
     pub dialogs: Vec<DialogFile>,
+    pub quests: Vec<QuestsFile>,
     pub map_index: HashMap<String, usize>,
     pub event_index: HashMap<String, usize>,
     pub dialog_index: HashMap<String, usize>,
@@ -196,6 +198,12 @@ impl Content {
             &mut errors,
             "dialog",
         );
+        let quests = load_dir(
+            content_dir.join("quests"),
+            QuestsFile::load,
+            &mut errors,
+            "quests",
+        );
 
         if !errors.is_empty() {
             return Err(errors);
@@ -249,6 +257,7 @@ impl Content {
             maps,
             events,
             dialogs,
+            quests,
             map_index,
             event_index,
             dialog_index,

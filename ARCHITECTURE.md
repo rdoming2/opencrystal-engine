@@ -212,9 +212,17 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
 
 ### Journal system
 
-- Optional journaling/quest tracking via rules.json.
-- Journal entries driven by events.
-- Quest resolver maps flags to quest step visibility/completion based on a defined convention.
+- Optional journaling/quest tracking via rules.json (`systems.journal`).
+- Quest definitions loaded from `quests/*.json` with categories and step trees.
+- Categories define display labels and sort order (e.g., main, side, faction, bounty).
+- Quests reference a category and contain ordered steps with optional substeps.
+- Quest progress tracked via flags using `quest.<quest_id>.<step_id>` naming convention.
+- Quest visibility: a quest appears when any of its step flags are set.
+- Step visibility: a step is visible when its flag is set or a previous step is complete.
+- Step completion: a step is complete when its flag is set.
+- History entries derived from completed steps in the order they appear in the quest definition.
+- Substeps follow the same visibility/completion rules as parent steps.
+- Flag namespaces: `quest.*` for quests, `map.*` for map state, `system.*` for features, `vehicle.*` for vehicles, `dungeon.*` for dungeons.
 
 ### Save system
 

@@ -267,63 +267,22 @@ fn handle_dialog_action(
     bindings: &InputBindings,
     action: &engine::dialog::DialogAction,
 ) -> std::io::Result<bool> {
-    match action.r#type.as_str() {
-        "start_event" => {
-            if let Some(event_id) = &action.event {
-                runtime.queue_event(event_id);
-            }
+    let result = engine::dialog::apply_dialog_action(runtime, action);
+    match result {
+        engine::events::EventExecutionResult::OpenShop { shop_id } => {
+            open_shop(runtime, session, bindings, &shop_id)?;
+            Ok(true)
         }
-        "open_shop" => {
-            if let Some(shop) = &action.shop {
-                open_shop(runtime, session, bindings, shop)?;
-                return Ok(true);
-            }
-        }
-        "set_flag" => {
-            let _ = &action.flag;
-        }
-        "give_item" => {
-            let _ = &action.item;
-        }
-        "rest_party" => {
-            engine::party::rest_party(&mut runtime.party, &runtime.content, &runtime.content.rules);
-        }
-        _ => {
-            println!("Dialog action: {}", action.r#type);
-        }
+        _ => Ok(false),
     }
-    Ok(false)
 }
 
 fn handle_dialog_action_console(runtime: &mut GameRuntime, action: &engine::dialog::DialogAction) {
-    match action.r#type.as_str() {
-        "start_event" => {
-            if let Some(event_id) = &action.event {
-                runtime.queue_event(event_id);
-            }
+    let result = engine::dialog::apply_dialog_action(runtime, action);
+    match result {
+        engine::events::EventExecutionResult::OpenShop { shop_id } => {
+            println!("Open shop: {}", shop_id);
         }
-        "open_shop" => {
-            if let Some(shop) = &action.shop {
-                println!("Open shop: {}", shop);
-            }
-        }
-        "set_flag" => {
-            if let Some(flag) = &action.flag {
-                println!("Set flag: {}", flag);
-            }
-        }
-        "give_item" => {
-            if let Some(item) = &action.item {
-                let qty = action.qty.unwrap_or(1);
-                println!("Give item: {} x{}", item, qty);
-            }
-        }
-        "rest_party" => {
-            engine::party::rest_party(&mut runtime.party, &runtime.content, &runtime.content.rules);
-            println!("Party rested.");
-        }
-        _ => {
-            println!("Dialog action: {}", action.r#type);
-        }
+        _ => {}
     }
 }

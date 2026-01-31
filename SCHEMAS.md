@@ -823,6 +823,124 @@ Example steps:
 }
 ```
 
+## quests/*.json
+
+Quest definitions for the Journal system. Quests are organized by categories with
+configurable sort order. Each quest has a title, category reference, and a tree of
+steps with optional substeps. Quest progress is tracked via flags using the
+`quest.<quest_id>.<step_id>` naming convention.
+
+```json
+{
+  "version": 1,
+  "categories": [
+    {
+      "id": "main",
+      "label": "Main Quests",
+      "sort_order": 10
+    },
+    {
+      "id": "side",
+      "label": "Side Quests",
+      "sort_order": 20
+    }
+  ],
+  "quests": [
+    {
+      "id": "tide_shards",
+      "title": "Shards of the Tide",
+      "category_id": "main",
+      "steps": [
+        {
+          "id": "started",
+          "text": "Speak with the Harbor Historian about the Tide Crystal shards.",
+          "flag": "quest.tide_shards.started",
+          "substeps": []
+        },
+        {
+          "id": "find_shards",
+          "text": "Find the Tide shards in the harbor caves.",
+          "flag": "quest.tide_shards.find_shards",
+          "substeps": [
+            {
+              "id": "cave_1",
+              "text": "Search the northern cave.",
+              "flag": "quest.tide_shards.cave_1"
+            },
+            {
+              "id": "cave_2",
+              "text": "Search the southern cave.",
+              "flag": "quest.tide_shards.cave_2"
+            }
+          ]
+        },
+        {
+          "id": "return_shards",
+          "text": "Return the shards to the Harbor Historian.",
+          "flag": "quest.tide_shards.return_shards",
+          "substeps": []
+        }
+      ]
+    },
+    {
+      "id": "lost_cat",
+      "title": "The Lost Cat",
+      "category_id": "side",
+      "steps": [
+        {
+          "id": "find_cat",
+          "text": "Find the missing cat in the alley.",
+          "flag": "quest.lost_cat.find_cat",
+          "substeps": []
+        },
+        {
+          "id": "return_cat",
+          "text": "Return the cat to the innkeeper.",
+          "flag": "quest.lost_cat.return_cat",
+          "substeps": []
+        }
+      ]
+    }
+  ]
+}
+```
+
+Quest category fields:
+
+- `id`: unique category identifier (lowercase snake_case).
+- `label`: display name shown in the Journal UI.
+- `sort_order`: numeric order for category display (lower values appear first).
+
+Quest fields:
+
+- `id`: unique quest identifier (lowercase snake_case).
+- `title`: display name shown in the Journal UI.
+- `category_id`: references a category `id` from the `categories` list.
+- `steps`: ordered list of quest steps.
+
+Quest step fields:
+
+- `id`: unique step identifier within the quest (lowercase snake_case).
+- `text`: description shown in the Journal UI.
+- `flag`: flag name that tracks step completion (format: `quest.<quest_id>.<step_id>`).
+- `substeps`: optional nested steps for multi-part objectives.
+
+Flag naming conventions:
+
+- Quest flags use the format `quest.<quest_id>.<step_id>` for step completion.
+- Map/environmental flags use `map.<map_id>.<event_id>` (e.g., `map.town.bridge_repaired`).
+- System flags use `system.<feature_id>` (e.g., `system.fast_travel_unlocked`).
+- Vehicle flags use `vehicle.<vehicle_id>` (e.g., `vehicle.airship_unlocked`).
+- Dungeon flags use `dungeon.<dungeon_id>` (e.g., `dungeon.ember_cleared`).
+
+Quest visibility and completion rules:
+
+- A quest becomes visible when any of its step flags are set.
+- A step is visible when its flag is set or when a previous step in the same quest is complete.
+- A step is complete when its flag is set.
+- Substeps follow the same visibility/completion rules as parent steps.
+- History entries are derived from completed steps in the order they appear in the quest definition.
+
 ## ui/progress.json
 
 Configurable menu panels for progress stats.

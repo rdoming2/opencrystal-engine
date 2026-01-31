@@ -11,6 +11,7 @@ use crate::entities::{
 use crate::events::EventFile;
 use crate::maps::MapFile;
 use crate::party::PartyFile;
+use crate::quests::QuestsFile;
 use crate::rules::{PartyMode, RulesFile};
 use crate::stats::StatsFile;
 use crate::world::WorldsFile;
@@ -166,6 +167,7 @@ pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
     let maps = load_map_files(content_dir.join("maps"), &mut errors);
     let events = load_event_files(content_dir.join("events"), &mut errors);
     let dialogs = load_dialog_files(content_dir.join("dialog"), &mut errors);
+    let quests = load_quest_files(content_dir.join("quests"), &mut errors);
 
     let map_ids: HashSet<String> = maps.iter().map(|map| map.id.clone()).collect();
     let map_dims: HashMap<&str, (u32, u32)> = maps
@@ -845,6 +847,48 @@ pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
         }
     }
 
+    // Validate quest files
+    for quest_file in &quests {
+        let category_ids: HashSet<&str> = quest_file
+            .categories
+            .iter()
+            .map(|cat| cat.id.as_str())
+            .collect();
+
+        // Check for duplicate category IDs
+        let mut seen_categories = HashSet::new();
+        for category in &quest_file.categories {
+            if !seen_categories.insert(&category.id) {
+                errors.push(format!("quests: duplicate category id '{}'", category.id));
+            }
+        }
+
+        // Check for duplicate quest IDs
+        let mut seen_quests = HashSet::new();
+        for quest in &quest_file.quests {
+            if !seen_quests.insert(&quest.id) {
+                errors.push(format!("quests: duplicate quest id '{}'", quest.id));
+            }
+        }
+
+        // Validate quest category references
+        for quest in &quest_file.quests {
+            if !category_ids.contains(quest.category_id.as_str()) {
+                errors.push(format!(
+                    "quests: quest '{}' references unknown category '{}'",
+                    quest.id, quest.category_id
+                ));
+            }
+        }
+
+        // Validate step flag format
+        for quest in &quest_file.quests {
+            for step in &quest.steps {
+                validate_step_flags(&mut errors, &quest.id, step, 0);
+            }
+        }
+    }
+
     errors
 }
 
@@ -979,4 +1023,59 @@ fn validate_map(map: &MapFile) -> Result<(), String> {
         }
     }
     Ok(())
+}
+
+fn validate_step_flags(
+    errors: &mut Vec<String>,
+    quest_id: &str,
+    step: &crate::quests::QuestStep,
+    depth: usize,
+) {
+    // Check flag format: should be quest.<quest_id>.<step_id>
+    if !step.flag.starts_with("quest.") {
+        errors.push(format!(
+            "quests: quest '{}' step '{}' has invalid flag format '{}', should be 'quest.<quest_id>.<step_id>'",
+            quest_id, step.id, step.flag
+        ));
+    }
+
+    // Check for duplicate step IDs within the same quest
+    let mut seen_step_ids = HashSet::new();
+    if !seen_step_ids.insert(&step.id) {
+        errors.push(format!(
+            "quests: quest '{}' has duplicate step id '{}'",
+            quest_id, step.id
+        ));
+    }
+
+    // Validate substeps recursively
+    for substep in &step.substeps {
+        validate_step_flags(errors, quest_id, substep, depth + 1);
+    }
+}
+
+fn load_quest_files(dir: PathBuf, errors: &mut Vec<String>) -> Vec<QuestsFile> {
+    let mut files = Vec::new();
+    let entries = match fs::read_dir(&dir) {
+        Ok(entries) => entries,
+        Err(err) => {
+            if err.kind() != std::io::ErrorKind::NotFound {
+                errors.push(format!("{}: {}", dir.display(), err));
+            }
+            return files;
+        }
+    };
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.extension().and_then(|ext| ext.to_str()) != Some("json") {
+            continue;
+        }
+        match QuestsFile::load(&path) {
+            Ok(file) => files.push(file),
+            Err(err) => errors.push(err),
+        }
+    }
+
+    files
 }
