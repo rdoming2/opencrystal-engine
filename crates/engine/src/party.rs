@@ -79,6 +79,19 @@ impl PartyState {
     }
 }
 
+pub fn get_actor_max_charges(content: &Content, actor: &Actor, tier: u32) -> i32 {
+    let job = content.jobs.jobs.iter().find(|job| job.id == actor.job_id);
+    if let Some(job) = job {
+        if let Some(magic_slots) = &job.magic_slots {
+            if let Some(levels) = magic_slots.get(&tier) {
+                let level_index = actor.level.saturating_sub(1) as usize;
+                return levels.get(level_index).copied().unwrap_or(0).max(0);
+            }
+        }
+    }
+    0
+}
+
 pub fn reset_magic_tier_charges(party: &mut PartyState, content: &Content, rules: &Ruleset) {
     if rules.magic_system != MagicSystem::TierCharges {
         return;
@@ -91,13 +104,10 @@ pub fn reset_magic_tier_charges(party: &mut PartyState, content: &Content, rules
                 for (tier, levels) in magic_slots {
                     let level_index = actor.level.saturating_sub(1) as usize;
                     let charges_for_level = levels.get(level_index).copied().unwrap_or(0);
-                    charges.insert(*tier, charges_for_level.max(0));
+                    if charges_for_level > 0 {
+                        charges.insert(*tier, charges_for_level.max(0));
+                    }
                 }
-            }
-        }
-        if charges.is_empty() {
-            for tier in &rules.magic_tiers {
-                charges.insert(tier.tier, tier.max_charges.max(0));
             }
         }
         actor.magic_tier_charges = charges;

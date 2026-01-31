@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use engine::party::get_actor_max_charges;
 use engine::rules::MagicSystem;
 use engine::runtime::GameRuntime;
 use tui::menu::{MenuPanelLine, MenuPanelView, PanelSpanStyle};
@@ -113,14 +114,7 @@ pub fn build_spell_entries(runtime: &GameRuntime) -> Vec<SpellEntry> {
                 .get(&spell.tier)
                 .copied()
                 .unwrap_or(0);
-            let max = runtime
-                .content
-                .rules
-                .magic_tiers
-                .iter()
-                .find(|tier| tier.tier == spell.tier)
-                .map(|tier| tier.max_charges)
-                .unwrap_or(0);
+            let max = get_actor_max_charges(&runtime.content, actor, spell.tier);
             (current, max)
         } else {
             (-1, -1)
@@ -343,14 +337,7 @@ pub fn build_battle_spell_entries(runtime: &GameRuntime, actor_id: &str) -> Vec<
                 .get(&spell.tier)
                 .copied()
                 .unwrap_or(0);
-            let max = runtime
-                .content
-                .rules
-                .magic_tiers
-                .iter()
-                .find(|tier| tier.tier == spell.tier)
-                .map(|tier| tier.max_charges)
-                .unwrap_or(0);
+            let max = get_actor_max_charges(&runtime.content, actor, spell.tier);
             (current, max)
         } else {
             (-1, -1)
@@ -441,14 +428,23 @@ fn magic_header_line(runtime: &GameRuntime, actor: &engine::party::Actor) -> Men
             ])
         }
         MagicSystem::TierCharges => {
+            let job = runtime
+                .content
+                .jobs
+                .jobs
+                .iter()
+                .find(|job| job.id == actor.job_id);
             let mut tiers = Vec::new();
-            for tier in &runtime.content.rules.magic_tiers {
-                let current = actor
-                    .magic_tier_charges
-                    .get(&tier.tier)
-                    .copied()
-                    .unwrap_or(0);
-                tiers.push(format!("T{} {}/{}", tier.tier, current, tier.max_charges));
+            if let Some(job) = job {
+                if let Some(magic_slots) = &job.magic_slots {
+                    for tier in magic_slots.keys() {
+                        let current = actor.magic_tier_charges.get(tier).copied().unwrap_or(0);
+                        let max = get_actor_max_charges(&runtime.content, actor, *tier);
+                        if max > 0 {
+                            tiers.push(format!("T{} {}/{}", tier, current, max));
+                        }
+                    }
+                }
             }
             let charge_text = if tiers.is_empty() {
                 "No charges".to_string()
@@ -662,21 +658,16 @@ fn build_spell_description(
                 .get(&entry.tier)
                 .copied()
                 .unwrap_or(0);
-            let max = runtime
-                .content
-                .rules
-                .magic_tiers
-                .iter()
-                .find(|tier| tier.tier == entry.tier)
-                .map(|tier| tier.max_charges)
-                .unwrap_or(0);
-            lines.push(panel_line_spans(vec![
-                panel_span("Charges: ", PanelSpanStyle::Normal),
-                panel_span(
-                    format!("T{} {}/{}", entry.tier, current, max),
-                    PanelSpanStyle::Accent,
-                ),
-            ]));
+            let max = get_actor_max_charges(&runtime.content, actor, entry.tier);
+            if max > 0 {
+                lines.push(panel_line_spans(vec![
+                    panel_span("Charges: ", PanelSpanStyle::Normal),
+                    panel_span(
+                        format!("T{} {}/{}", entry.tier, current, max),
+                        PanelSpanStyle::Accent,
+                    ),
+                ]));
+            }
         }
     }
     let allowed_targets = if entry.allowed_targets.is_empty() {

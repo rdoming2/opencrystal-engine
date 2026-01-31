@@ -6,6 +6,7 @@ pub mod magic;
 pub mod status;
 
 use engine::menu::MenuFocus;
+use engine::party::get_actor_max_charges;
 use engine::runtime::GameRuntime;
 use tui::input::{Action, InputBindings};
 use tui::menu::{MenuEntryView, MenuPane, MenuPanelLine, MenuPanelView};
@@ -692,22 +693,31 @@ fn build_party_summary(runtime: &GameRuntime) -> Vec<MenuPanelLine> {
                 .map(|job| job.name.as_str())
                 .unwrap_or(actor.job_id.as_str());
             let summary_line = if magic_system == engine::rules::MagicSystem::TierCharges {
+                let job = runtime
+                    .content
+                    .jobs
+                    .jobs
+                    .iter()
+                    .find(|job| job.id == actor.job_id);
                 let mut tiers = Vec::new();
-                for tier in &runtime.content.rules.magic_tiers {
-                    let current = actor
-                        .magic_tier_charges
-                        .get(&tier.tier)
-                        .copied()
-                        .unwrap_or(0);
-                    tiers.push(format!("T{} {}/{}", tier.tier, current, tier.max_charges));
+                if let Some(job) = job {
+                    if let Some(magic_slots) = &job.magic_slots {
+                        for tier in magic_slots.keys() {
+                            let current = actor.magic_tier_charges.get(tier).copied().unwrap_or(0);
+                            let max = get_actor_max_charges(&runtime.content, actor, *tier);
+                            if max > 0 {
+                                tiers.push(format!("T{} {}/{}", tier, current, max));
+                            }
+                        }
+                    }
                 }
                 let charge_text = if tiers.is_empty() {
-                    "No charges".to_string()
+                    "".to_string()
                 } else {
-                    tiers.join("  ")
+                    format!("  {}", tiers.join("  "))
                 };
                 format!(
-                    "{}  Lv{}  HP {}/{}  {}",
+                    "{}  Lv{}  HP {}/{}{}",
                     actor.name, actor.level, actor.current_hp, max_hp, charge_text
                 )
             } else {

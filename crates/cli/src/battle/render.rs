@@ -190,7 +190,7 @@ pub fn build_battle_command_panel(
                         } else {
                             format!("{} *", entry.name)
                         },
-                        ability_cost_label(entry),
+                        ability_cost_label_for_battle(runtime, entry),
                     ]
                 })
                 .collect(),
@@ -242,6 +242,16 @@ pub fn build_battle_command_panel(
                 .command_index
                 .min(battle_ui.panels.commands.items.len().saturating_sub(1)),
         },
+    }
+}
+
+fn ability_cost_label_for_battle(runtime: &GameRuntime, entry: &AbilityEntry) -> String {
+    match entry.cost_type.as_str() {
+        "currency" => format!(
+            " {} {}",
+            runtime.content.rules.game.currency.symbol, entry.cost_value
+        ),
+        _ => ability_cost_label(entry),
     }
 }
 
