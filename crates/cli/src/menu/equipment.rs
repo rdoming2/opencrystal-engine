@@ -313,7 +313,7 @@ fn build_equipment_entries(
     entries
 }
 
-fn build_equipped_counts(runtime: &GameRuntime) -> HashMap<String, i32> {
+pub fn build_equipped_counts(runtime: &GameRuntime) -> HashMap<String, i32> {
     let mut map = HashMap::new();
     for actor in runtime.party.roster.values() {
         for item_id in actor.equipment.values() {

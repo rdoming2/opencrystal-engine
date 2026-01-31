@@ -5,7 +5,9 @@ use std::path::Path;
 use crate::content::Content;
 use crate::entities::{EquipmentDefinition, JobDefinition};
 use crate::expr::eval_expression;
-use crate::rules::{ExpCurveRules, MagicSystem, PartyCreateRules, PartyMode, RulesFile, Ruleset};
+use crate::rules::{
+    ExpCurveRules, MagicAcquisition, MagicSystem, PartyCreateRules, PartyMode, RulesFile, Ruleset,
+};
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct PartyFile {
@@ -44,6 +46,7 @@ pub struct Actor {
     pub derived_stats: HashMap<String, i32>,
     pub equipment: HashMap<String, String>,
     pub spells: Vec<String>,
+    pub equipped_spells: Vec<String>,
     pub magic_tier_charges: HashMap<u32, i32>,
 }
 
@@ -111,6 +114,15 @@ pub fn reset_magic_tier_charges(party: &mut PartyState, content: &Content, rules
             }
         }
         actor.magic_tier_charges = charges;
+    }
+}
+
+pub fn learn_spell_event(party: &mut PartyState, member: &str, spell: &str) {
+    if let Some(actor) = party.roster.get_mut(member) {
+        if !actor.spells.iter().any(|s| s == spell) {
+            actor.spells.push(spell.to_string());
+            actor.spells.sort_unstable();
+        }
     }
 }
 
@@ -268,13 +280,18 @@ fn build_actor(
         derived_stats,
         equipment,
         spells: actor.spells.clone(),
+        equipped_spells: Vec::new(),
         magic_tier_charges: HashMap::new(),
     };
+    update_equipped_spells(content, &mut built);
     learn_job_spells(content, &mut built);
     built
 }
 
 fn learn_job_spells(content: &Content, actor: &mut Actor) {
+    if content.rules.game.magic_acquisition != MagicAcquisition::Level {
+        return;
+    }
     let Some(job) = content.jobs.jobs.iter().find(|job| job.id == actor.job_id) else {
         return;
     };
@@ -356,6 +373,21 @@ fn apply_equipment_modifiers(
     }
 }
 
+pub fn update_equipped_spells(content: &Content, actor: &mut Actor) {
+    let equipment_lookup = build_equipment_lookup(content);
+    let mut spells = HashSet::new();
+    for item_id in actor.equipment.values() {
+        if let Some(item) = equipment_lookup.get(item_id.as_str()) {
+            for spell in &item.spells {
+                spells.insert(spell.clone());
+            }
+        }
+    }
+    let mut sorted = spells.into_iter().collect::<Vec<_>>();
+    sorted.sort_unstable();
+    actor.equipped_spells = sorted;
+}
+
 pub fn recompute_derived_stats(content: &Content, actor: &mut Actor) {
     let job = content.jobs.jobs.iter().find(|job| job.id == actor.job_id);
     let equipment_lookup = build_equipment_lookup(content);
@@ -368,6 +400,7 @@ pub fn recompute_derived_stats(content: &Content, actor: &mut Actor) {
         &equipment_lookup,
     );
     clamp_current_stats(actor);
+    update_equipped_spells(content, actor);
 }
 
 pub fn exp_for_level(curve: &ExpCurveRules, level: u32) -> Option<i32> {

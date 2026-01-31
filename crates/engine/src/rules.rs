@@ -40,6 +40,8 @@ pub struct GameRules {
     pub party_reserve_size: usize,
     pub battle_mode: BattleMode,
     pub magic_system: MagicSystem,
+    #[serde(default = "default_magic_acquisition")]
+    pub magic_acquisition: MagicAcquisition,
     pub start_event: Option<String>,
     pub start_location: StartLocation,
     pub job_change_enabled: bool,
@@ -89,6 +91,7 @@ pub struct Ruleset {
     pub party_reserve_size: usize,
     pub battle_mode: BattleMode,
     pub magic_system: MagicSystem,
+    pub magic_acquisition: MagicAcquisition,
     pub start_event: Option<String>,
     pub start_location: StartLocation,
     pub party_mode: PartyMode,
@@ -109,6 +112,7 @@ impl Ruleset {
             party_reserve_size: 4,
             battle_mode: BattleMode::Turn,
             magic_system: MagicSystem::Mp,
+            magic_acquisition: MagicAcquisition::Level,
             start_event: Some("intro_cutscene".to_string()),
             start_location: StartLocation {
                 world: "gaia".to_string(),
@@ -134,6 +138,7 @@ impl Ruleset {
             party_reserve_size: file.game.party_reserve_size,
             battle_mode: file.game.battle_mode,
             magic_system: file.game.magic_system,
+            magic_acquisition: file.game.magic_acquisition,
             start_event: file.game.start_event,
             start_location: file.game.start_location,
             party_mode: file.party_mode,
@@ -177,6 +182,14 @@ pub enum MagicSystem {
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
+pub enum MagicAcquisition {
+    Level,
+    Item,
+    Equip,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
 pub enum PartyMode {
     Create,
     Predefined,
@@ -206,6 +219,10 @@ impl Default for PartyCreateRules {
 
 fn default_party_mode() -> PartyMode {
     PartyMode::Predefined
+}
+
+fn default_magic_acquisition() -> MagicAcquisition {
+    MagicAcquisition::Level
 }
 
 fn default_party_level() -> u32 {

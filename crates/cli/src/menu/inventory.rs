@@ -228,6 +228,12 @@ pub fn apply_item_to_actor(
     item: &engine::entities::ItemDefinition,
     actor_id: &str,
 ) {
+    if item.effect.r#type == "learn_spell" {
+        if let Some(spell) = &item.effect.target {
+            engine::party::learn_spell_event(&mut runtime.party, actor_id, spell);
+        }
+        return;
+    }
     let Some(actor) = runtime.party.roster.get_mut(actor_id) else {
         return;
     };
@@ -400,6 +406,31 @@ fn build_item_targets(
                     .get(id)
                     .map(|actor| actor.current_hp <= 0)
                     .unwrap_or(false)
+            });
+        }
+        "learn_spell" => {
+            let spell_id = item.effect.target.as_deref().unwrap_or("");
+            targets.retain(|id| {
+                let Some(actor) = runtime.party.roster.get(id) else {
+                    return false;
+                };
+                if actor.spells.iter().any(|s| s == spell_id) {
+                    return false;
+                }
+                let Some(job) = runtime
+                    .content
+                    .jobs
+                    .jobs
+                    .iter()
+                    .find(|j| j.id == actor.job_id)
+                else {
+                    return false;
+                };
+                job.spells.iter().any(|s| {
+                    s.id == spell_id
+                        && s.method == "item"
+                        && (s.item.is_none() || s.item.as_deref() == Some(item.id.as_str()))
+                })
             });
         }
         _ => {}

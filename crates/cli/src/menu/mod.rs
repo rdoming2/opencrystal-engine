@@ -4,6 +4,7 @@ pub mod equipment;
 pub mod inventory;
 pub mod journal;
 pub mod magic;
+pub mod magic_equip;
 pub mod status;
 
 use engine::menu::MenuFocus;
@@ -36,6 +37,10 @@ use self::journal::{build_journal_detail_panel, build_journal_panel};
 use self::magic::{
     apply_spell_to_targets, build_magic_panel, build_spell_entries, selected_spell_targets,
     spell_targets_for_entry,
+};
+use self::magic_equip::{
+    build_magic_equip_panel, magic_equip_entries_for_menu, magic_equip_slot_for_menu,
+    magic_equip_slots_for_menu,
 };
 use self::status::build_status_panel;
 
@@ -135,6 +140,10 @@ pub fn run_menu_loop(
                         if runtime.menu_state.detail_selection > 0 {
                             runtime.menu_state.detail_selection -= 1;
                         }
+                    } else if submenu_action == "magic_equip" {
+                        if runtime.menu_state.detail_selection > 0 {
+                            runtime.menu_state.detail_selection -= 1;
+                        }
                     }
                 }
                 Action::MoveDown => {
@@ -208,6 +217,15 @@ pub fn run_menu_loop(
                         if runtime.menu_state.detail_selection + 1 < all_quest_states.len() {
                             runtime.menu_state.detail_selection += 1;
                         }
+                    } else if submenu_action == "magic_equip" {
+                        let limit = if runtime.menu_state.detail_page == 0 {
+                            magic_equip_slots_for_menu(runtime).len()
+                        } else {
+                            magic_equip_entries_for_menu(runtime).len()
+                        };
+                        if runtime.menu_state.detail_selection + 1 < limit {
+                            runtime.menu_state.detail_selection += 1;
+                        }
                     }
                 }
                 Action::Confirm => {
@@ -235,6 +253,15 @@ pub fn run_menu_loop(
                                         runtime.menu_state.detail_target = 0;
                                     }
                                     "equipment" => {
+                                        runtime.menu_state.focus = MenuFocus::Detail;
+                                        runtime.menu_state.active_submenu =
+                                            Some(entry.action.clone());
+                                        runtime.menu_state.detail_page = 0;
+                                        runtime.menu_state.detail_selection = 0;
+                                        runtime.menu_state.detail_actor = 0;
+                                        runtime.menu_state.detail_slot = 0;
+                                    }
+                                    "magic_equip" => {
                                         runtime.menu_state.focus = MenuFocus::Detail;
                                         runtime.menu_state.active_submenu =
                                             Some(entry.action.clone());
@@ -403,6 +430,27 @@ pub fn run_menu_loop(
                             runtime.menu_state.detail_page = 0;
                             runtime.menu_state.detail_selection = runtime.menu_state.detail_slot;
                         }
+                    } else if submenu_action == "magic_equip" {
+                        if runtime.menu_state.detail_page == 0 {
+                            runtime.menu_state.detail_slot = runtime.menu_state.detail_selection;
+                            runtime.menu_state.detail_page = 1;
+                            runtime.menu_state.detail_selection = 0;
+                        } else {
+                            let entries = magic_equip_entries_for_menu(runtime);
+                            if let Some(entry) = entries.get(runtime.menu_state.detail_selection) {
+                                if entry.usable {
+                                    let slot = magic_equip_slot_for_menu(runtime);
+                                    if let Some(slot) = slot {
+                                        let actor_id = detail_actor_id(runtime);
+                                        if let Some(actor_id) = actor_id {
+                                            equip_item(runtime, &actor_id, &slot, entry);
+                                        }
+                                    }
+                                }
+                            }
+                            runtime.menu_state.detail_page = 0;
+                            runtime.menu_state.detail_selection = runtime.menu_state.detail_slot;
+                        }
                     } else if submenu_action == "journal" {
                         if runtime.menu_state.detail_page == 0 {
                             let mut all_quest_states = Vec::new();
@@ -419,6 +467,11 @@ pub fn run_menu_loop(
                 Action::Cancel | Action::Menu => {
                     if matches!(focus, MenuPane::Detail) {
                         if submenu_action == "equipment" && runtime.menu_state.detail_page == 1 {
+                            runtime.menu_state.detail_page = 0;
+                            runtime.menu_state.detail_selection = runtime.menu_state.detail_slot;
+                        } else if submenu_action == "magic_equip"
+                            && runtime.menu_state.detail_page == 1
+                        {
                             runtime.menu_state.detail_page = 0;
                             runtime.menu_state.detail_selection = runtime.menu_state.detail_slot;
                         } else if submenu_action == "items" && runtime.menu_state.detail_page == 1 {
@@ -464,6 +517,20 @@ pub fn run_menu_loop(
                             runtime.menu_state.detail_selection = 0;
                         }
                     } else if matches!(focus, MenuPane::Detail) && submenu_action == "equipment" {
+                        let actor_count = runtime.party.active.len();
+                        if actor_count > 0 {
+                            runtime.menu_state.detail_actor = if matches!(action, Action::MoveRight)
+                            {
+                                (runtime.menu_state.detail_actor + 1) % actor_count
+                            } else if runtime.menu_state.detail_actor == 0 {
+                                actor_count - 1
+                            } else {
+                                runtime.menu_state.detail_actor - 1
+                            };
+                            runtime.menu_state.detail_page = 0;
+                            runtime.menu_state.detail_selection = 0;
+                        }
+                    } else if matches!(focus, MenuPane::Detail) && submenu_action == "magic_equip" {
                         let actor_count = runtime.party.active.len();
                         if actor_count > 0 {
                             runtime.menu_state.detail_actor = if matches!(action, Action::MoveRight)
@@ -609,6 +676,9 @@ fn menu_detail_panel(
     if action == "equipment" {
         return build_equipment_panel(runtime);
     }
+    if action == "magic_equip" {
+        return build_magic_equip_panel(runtime);
+    }
     if action == "magic" {
         return build_magic_panel(runtime);
     }
@@ -696,6 +766,13 @@ fn menu_footer_text(focus: MenuPane, submenu: &str, page: usize) -> &'static str
                 }
             }
             "equipment" => {
+                if page == 0 {
+                    "Confirm: pick slot  Left/Right: actor  Cancel: back"
+                } else {
+                    "Confirm: equip  Left/Right: actor  Cancel: back"
+                }
+            }
+            "magic_equip" => {
                 if page == 0 {
                     "Confirm: pick slot  Left/Right: actor  Cancel: back"
                 } else {

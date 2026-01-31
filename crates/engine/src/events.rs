@@ -33,6 +33,8 @@ pub struct EventStep {
     pub pos: Option<[i32; 2]>,
     pub sprite: Option<String>,
     pub dialog: Option<String>,
+    pub spell: Option<String>,
+    pub member: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -192,6 +194,12 @@ pub fn apply_event_step(runtime: &mut GameRuntime, step: &EventStep) -> EventExe
                     }
                     _ => {}
                 }
+            }
+            EventExecutionResult::Continue
+        }
+        "learn_spell" => {
+            if let (Some(member), Some(spell)) = (&step.member, &step.spell) {
+                crate::party::learn_spell_event(&mut runtime.party, member, spell);
             }
             EventExecutionResult::Continue
         }

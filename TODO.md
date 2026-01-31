@@ -96,6 +96,8 @@
 - [x] Implement job-based spell learnsets (level/tier/item).
 - [x] Track learned spells per actor.
 - [x] Enable menu casting for field magic.
+- [x] Add item-based spell learning (learn_spell items).
+- [x] Add Magic Equip slots and menu (spell-granting equipment).
 - [ ] Add global shared MP magic style.
 - [x] Support job-based tier charge tables.
 
@@ -121,6 +123,7 @@
 - [ ] Implement event-driven NPC controls (show/hide/move/set_sprite).
 - [x] Implement inn rest feature (dialog action `rest_party`).
 - [x] Add configurable NPC interaction range (default 1 tile).
+- [x] Add event action to teach spells (learn_spell).
 
 ## Content + Validation
 - [x] Add missing demo content (town map, shop UI, basic quests).

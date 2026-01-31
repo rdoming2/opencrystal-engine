@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use engine::party::get_actor_max_charges;
-use engine::rules::MagicSystem;
+use engine::rules::{MagicAcquisition, MagicSystem};
 use engine::runtime::GameRuntime;
 use tui::menu::{MenuPanelLine, MenuPanelView, PanelSpanStyle};
 
@@ -465,19 +465,22 @@ fn magic_header_line(runtime: &GameRuntime, actor: &engine::party::Actor) -> Men
 fn collect_spell_ids(runtime: &GameRuntime, actor: &engine::party::Actor) -> Vec<String> {
     let mut ids = Vec::new();
     ids.extend(actor.spells.clone());
-    let job = runtime
-        .content
-        .jobs
-        .jobs
-        .iter()
-        .find(|job| job.id == actor.job_id);
-    if let Some(job) = job {
-        for spell in &job.spells {
-            if !job_spell_available(runtime, actor, spell) {
-                continue;
-            }
-            if !ids.contains(&spell.id) {
-                ids.push(spell.id.clone());
+    ids.extend(actor.equipped_spells.clone());
+    if runtime.content.rules.game.magic_acquisition == MagicAcquisition::Level {
+        let job = runtime
+            .content
+            .jobs
+            .jobs
+            .iter()
+            .find(|job| job.id == actor.job_id);
+        if let Some(job) = job {
+            for spell in &job.spells {
+                if !job_spell_available(runtime, actor, spell) {
+                    continue;
+                }
+                if !ids.contains(&spell.id) {
+                    ids.push(spell.id.clone());
+                }
             }
         }
     }

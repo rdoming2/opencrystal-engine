@@ -49,8 +49,9 @@ absolute XP totals per level or `mode: "formula"` with a formula string (use
 `lvl` in the formula). `max_level` caps progression.
 
 `inventory` seeds starting inventory and sets `max_stack` for items/equipment.
+`magic_acquisition` defines how spells are obtained (`level`, `item`, `equip`).
 `systems` toggles whether a gameplay system/menu is enabled at all. It should be
-used for global availability (e.g., disabling materia). Menu entries can still
+used for global availability (e.g., disabling magic equip). Menu entries can still
 add `unlock_flag` gating for progression-driven unlocks.
 `magic_tiers` defines per-tier charge limits when `magic_system` is
 `tier_charges`. Charges are tracked per character (not a shared party pool).
@@ -66,6 +67,7 @@ add `unlock_flag` gating for progression-driven unlocks.
     "battle_mode": "dynamic",
     "atb_speed": 2.0,
     "magic_system": "mp",
+    "magic_acquisition": "level",
     "start_event": "intro_cutscene",
     "start_location": {
       "world": "gaia",
@@ -108,6 +110,7 @@ add `unlock_flag` gating for progression-driven unlocks.
     "save": true,
     "settings": true,
     "summons": false,
+    "magic_equip": false,
     "materia": false
   },
   "magic_tiers": [
@@ -543,6 +546,11 @@ Job magic tier slots:
 - Each tier list is indexed by level (level 1 uses index 0).
 - When present, these charges replace global `magic_tiers` for that job.
 
+Job magic equip slots:
+
+- `magic_equip_progression`: optional mapping of level -> slot count.
+  - Example: `{ "1": 1, "10": 2 }` grants 1 slot at level 1 and 2 slots at level 10.
+
 Job starting equipment:
 
 - `starting_equipment`: optional default equipment by slot.
@@ -627,7 +635,8 @@ Item usage defines where and how items can be used. `context` values: `field`,
 `battle`, or `both`. `target` values: `self`, `ally`, `party`, `enemy`.
 
 `description` is optional text displayed in item menus.
-Common effect types: `heal_hp`, `heal_mp`, `revive`, `warp`.
+Common effect types: `heal_hp`, `heal_mp`, `revive`, `warp`, `learn_spell`.
+`learn_spell` uses `effect.target` to specify the spell ID to teach.
 
 ```json
 {
@@ -651,6 +660,13 @@ Common effect types: `heal_hp`, `heal_mp`, `revive`, `warp`.
         "target": "world_map",
         "destination": {"map": "overworld_gaia", "pos": [20, 14]}
       }
+    },
+    {
+      "id": "tome_fire",
+      "name": "Tome of Fire",
+      "type": "consumable",
+      "usage": {"context": "field", "target": "ally"},
+      "effect": {"type": "learn_spell", "target": "fire"}
     }
   ]
 }
@@ -680,6 +696,8 @@ Common effect types: `heal_hp`, `heal_mp`, `revive`, `warp`.
 Equipment categories should align with job equipment lists (e.g., job weapons list
 contains categories like "sword", "staff", while `slot` describes where it equips).
 Use `allowed_jobs` only for item-specific overrides (e.g., a katana requiring Samurai).
+`spells` (optional) lists spell IDs granted while the equipment is equipped. For
+Magic Equip items, use `slot: "magic"` and include the spells they should grant.
 
 ```json
 {
@@ -691,10 +709,15 @@ Use `allowed_jobs` only for item-specific overrides (e.g., a katana requiring Sa
       "category": "sword",
       "slot": "weapon",
       "allowed_jobs": null,
-      "stats": {"str": 2}
+      "stats": {"str": 2},
+      "spells": ["fire"]
     }
   ]
 }
+
+Equipment spells:
+
+- `spells`: list of spell IDs provided by the equipment while equipped.
 ```
 
 ## entities/enemies.json
@@ -775,6 +798,7 @@ Supported event step types:
 - `require_flags` (fields: `flags` list)
 - `give_item` (fields: `item`, `qty`)
 - `give_equipment` (fields: `item`, `qty`)
+- `learn_spell` (fields: `member`, `spell`)
 - `warp` (fields: `target` with `map` and `pos`)
 - `start_battle` (fields: `encounter`, `formation`)
 - `open_shop` (fields: `shop`)
@@ -795,6 +819,14 @@ Example steps:
   "type": "give_equipment",
   "item": "bronze_sword",
   "qty": 1
+}
+```
+
+```json
+{
+  "type": "learn_spell",
+  "member": "alric",
+  "spell": "fire"
 }
 ```
 

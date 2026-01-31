@@ -54,6 +54,14 @@ pub struct JobDefinition {
     pub sort_order: Option<i32>,
     #[serde(default)]
     pub magic_slots: Option<HashMap<u32, Vec<i32>>>,
+    #[serde(default)]
+    pub magic_equip_progression: Option<MagicEquipProgression>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct MagicEquipProgression {
+    #[serde(default)]
+    pub slots: HashMap<u32, i32>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -244,6 +252,8 @@ pub struct EquipmentDefinition {
     pub slot: String,
     pub allowed_jobs: Option<Vec<String>>,
     pub stats: HashMap<String, i32>,
+    #[serde(default)]
+    pub spells: Vec<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

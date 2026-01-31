@@ -116,6 +116,7 @@ All runtime data is loaded from JSON. Files are organized into top-level categor
 - NPC interactions (map NPC `script` event, dialog tree actions).
 - Dialog actions (`start_event`, `open_shop`, `rest_party`).
 - Item effects (warp, start battle).
+- Spell learn events (direct grants).
 - Battle results (victory/defeat hooks).
 
 Event execution is handled by `GameRuntime.apply_event_step`, which:
@@ -171,6 +172,8 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
 
 - Magic schools are data-driven (white/black in demo; expandable to blue/time/etc).
 - Spell unlocks are configured per job.
+- Magic acquisition can be `level`, `item` (spellbooks teach), or `equip` (magic items grant spells while equipped).
+- Magic Equip slots are defined per job progression and use equipment `slot: "magic"` for equippable spell items.
 - Magic system mode can switch between MP and tier charges.
 - Menu casting supports field-friendly spells (heal/revive); damage stays battle-only.
 - Tier charges are tracked per character and shared across spells of the same tier.
@@ -209,6 +212,7 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
 - Menu entries are optional and can be gated by rules `systems` toggles and optional
   unlock flags (e.g., Summons, Materia, Job Change, Journal, Save).
 - Custom status/progress panels are handled via configurable menu panels in `ui/menu.json`.
+- Magic Equip is an optional submenu for equipping spell-granting items.
 
 ### Journal system
 
@@ -268,6 +272,7 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
     - `inventory.rs`: item management and usage
     - `equipment.rs`: equipment management and stat previews
     - `magic.rs`: spell casting and MP/charge management
+    - `magic_equip.rs`: magic equip slots and spell items
     - `abilities.rs`: ability system
   - `battle/`: complete battle system
     - `mod.rs`: main battle loop and encounters
@@ -293,6 +298,7 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
     "battle_mode": "dynamic",
     "atb_speed": 2.0,
     "magic_system": "mp",
+    "magic_acquisition": "level",
     "start_event": "intro_cutscene",
     "start_location": {
       "world": "gaia",
@@ -326,6 +332,7 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
     "save": true,
     "settings": true,
     "summons": false,
+    "magic_equip": false,
     "materia": false
   },
   "magic_tiers": [
