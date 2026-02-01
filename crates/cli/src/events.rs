@@ -1,11 +1,11 @@
 use engine::runtime::{GameRuntime, GameState};
 use tui::dialog::show_dialog;
 use tui::input::InputBindings;
-use tui::overworld::{show_dialog_on_map, MapView};
+use tui::overworld::{MapView, show_dialog_on_map};
 use tui::session::TuiSession;
 use tui::ui::{BattleUiFile, DialogUiFile};
 
-use crate::battle::{run_event_battle_with_result, BattleOutcome};
+use crate::battle::{BattleOutcome, run_event_battle_with_result};
 use crate::dialog::{run_dialog, run_dialog_on_map, show_dialog_console};
 use crate::overworld::build_map_view;
 use crate::shop::open_shop;

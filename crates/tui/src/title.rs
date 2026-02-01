@@ -1,11 +1,11 @@
 use std::io;
 
 use crossterm::event::{self, Event};
+use ratatui::Frame;
 use ratatui::layout::{Alignment, Constraint, Direction, Layout};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph};
-use ratatui::Frame;
 
 use crate::dialog::confirm_quit;
 use crate::input::{Action, InputBindings};

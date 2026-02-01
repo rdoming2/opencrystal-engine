@@ -2,13 +2,15 @@ pub mod abilities;
 pub mod common;
 pub mod equipment;
 pub mod inventory;
+pub mod jobs;
 pub mod journal;
 pub mod magic;
 pub mod magic_equip;
 pub mod status;
 
 use engine::menu::MenuFocus;
-use engine::party::get_actor_max_charges;
+use engine::party::{get_actor_max_charges, job_jp};
+use engine::rules::JobProgressionMode;
 use engine::runtime::GameRuntime;
 use tui::input::{Action, InputBindings};
 use tui::menu::{MenuEntryView, MenuPane, MenuPanelLine, MenuPanelView};
@@ -22,8 +24,8 @@ use self::abilities::{
     selected_ability_targets,
 };
 use self::common::{
-    filter_from_index, next_filter_index, prev_filter_index, sort_from_index, toggle_sort_index,
-    InventoryKind, MenuEntryState,
+    InventoryKind, MenuEntryState, filter_from_index, next_filter_index, prev_filter_index,
+    sort_from_index, toggle_sort_index,
 };
 use self::equipment::{
     build_equipment_panel, detail_actor_id, equip_item, equipment_entries_for_menu,
@@ -32,6 +34,10 @@ use self::equipment::{
 use self::inventory::{
     apply_item_to_targets, build_inventory_entries, build_items_panel, item_targets_for_entry,
     panel_line,
+};
+use self::jobs::{
+    JobMenuOption, apply_learn_purchase, apply_primary_change, apply_secondary_change,
+    build_job_picker, build_jobs_dashboard, build_learn_panel, job_menu_options, learnable_count,
 };
 use self::journal::{build_journal_detail_panel, build_journal_panel};
 use self::magic::{
@@ -144,6 +150,20 @@ pub fn run_menu_loop(
                         if runtime.menu_state.detail_selection > 0 {
                             runtime.menu_state.detail_selection -= 1;
                         }
+                    } else if submenu_action == "jobs" {
+                        if runtime.menu_state.detail_page == 0 {
+                            if runtime.menu_state.detail_slot > 0 {
+                                runtime.menu_state.detail_slot -= 1;
+                            }
+                        } else if runtime.menu_state.detail_page == 1 {
+                            if runtime.menu_state.detail_selection > 0 {
+                                runtime.menu_state.detail_selection -= 1;
+                            }
+                        } else if runtime.menu_state.detail_page == 2 {
+                            if runtime.menu_state.detail_target > 0 {
+                                runtime.menu_state.detail_target -= 1;
+                            }
+                        }
                     }
                 }
                 Action::MoveDown => {
@@ -226,6 +246,25 @@ pub fn run_menu_loop(
                         if runtime.menu_state.detail_selection + 1 < limit {
                             runtime.menu_state.detail_selection += 1;
                         }
+                    } else if submenu_action == "jobs" {
+                        if runtime.menu_state.detail_page == 0 {
+                            let options = job_menu_options(runtime);
+                            let limit = options.len();
+                            if runtime.menu_state.detail_slot + 1 < limit {
+                                runtime.menu_state.detail_slot += 1;
+                            }
+                        } else if runtime.menu_state.detail_page == 1 {
+                            if runtime.menu_state.detail_selection + 1
+                                < runtime.content.jobs.jobs.len()
+                            {
+                                runtime.menu_state.detail_selection += 1;
+                            }
+                        } else if runtime.menu_state.detail_page == 2 {
+                            let entries = learnable_count(runtime);
+                            if runtime.menu_state.detail_target + 1 < entries {
+                                runtime.menu_state.detail_target += 1;
+                            }
+                        }
                     }
                 }
                 Action::Confirm => {
@@ -286,6 +325,15 @@ pub fn run_menu_loop(
                                         runtime.menu_state.detail_page = 0;
                                         runtime.menu_state.detail_selection = 0;
                                     }
+                                    "jobs" => {
+                                        runtime.menu_state.focus = MenuFocus::Detail;
+                                        runtime.menu_state.active_submenu =
+                                            Some(entry.action.clone());
+                                        runtime.menu_state.detail_page = 0;
+                                        runtime.menu_state.detail_slot = 0;
+                                        runtime.menu_state.detail_selection = 0;
+                                        runtime.menu_state.detail_target = 0;
+                                    }
                                     _ => {
                                         runtime.menu_state.focus = MenuFocus::Detail;
                                         runtime.menu_state.active_submenu =
@@ -293,6 +341,8 @@ pub fn run_menu_loop(
                                         runtime.menu_state.detail_page = 0;
                                     }
                                 }
+                            } else if submenu_action == "jobs" {
+                                apply_secondary_change(runtime);
                             }
                         }
                     } else if submenu_action == "items" {
@@ -462,6 +512,42 @@ pub fn run_menu_loop(
                                 runtime.menu_state.detail_page = 1;
                             }
                         }
+                    } else if submenu_action == "jobs" {
+                        if runtime.menu_state.detail_page == 0 {
+                            let options = job_menu_options(runtime);
+                            let selected = runtime
+                                .menu_state
+                                .detail_slot
+                                .min(options.len().saturating_sub(1));
+                            if let Some(option) = options.get(selected) {
+                                match option {
+                                    JobMenuOption::Primary | JobMenuOption::Secondary => {
+                                        runtime.menu_state.detail_page = 1;
+                                        runtime.menu_state.detail_selection = 0;
+                                    }
+                                    JobMenuOption::Learn => {
+                                        runtime.menu_state.detail_page = 2;
+                                        runtime.menu_state.detail_target = 0;
+                                    }
+                                }
+                            }
+                        } else if runtime.menu_state.detail_page == 1 {
+                            let options = job_menu_options(runtime);
+                            let selected = runtime
+                                .menu_state
+                                .detail_slot
+                                .min(options.len().saturating_sub(1));
+                            if let Some(option) = options.get(selected) {
+                                match option {
+                                    JobMenuOption::Primary => apply_primary_change(runtime),
+                                    JobMenuOption::Secondary => apply_secondary_change(runtime),
+                                    JobMenuOption::Learn => {}
+                                }
+                            }
+                            runtime.menu_state.detail_page = 0;
+                        } else if runtime.menu_state.detail_page == 2 {
+                            apply_learn_purchase(runtime);
+                        }
                     }
                 }
                 Action::Cancel | Action::Menu => {
@@ -488,6 +574,10 @@ pub fn run_menu_loop(
                         } else if submenu_action == "journal" && runtime.menu_state.detail_page > 0
                         {
                             runtime.menu_state.detail_page = 0;
+                        } else if submenu_action == "jobs" && runtime.menu_state.detail_page > 0 {
+                            runtime.menu_state.detail_page = 0;
+                            runtime.menu_state.detail_target = 0;
+                            runtime.menu_state.detail_selection = 0;
                         } else {
                             runtime.menu_state.focus = MenuFocus::List;
                             runtime.menu_state.active_submenu = None;
@@ -583,6 +673,36 @@ pub fn run_menu_loop(
                                 1
                             };
                         }
+                    } else if matches!(focus, MenuPane::Detail) && submenu_action == "jobs" {
+                        if runtime.menu_state.detail_page == 0 {
+                            let actor_count = runtime.party.active.len();
+                            if actor_count > 0 {
+                                runtime.menu_state.detail_actor =
+                                    if matches!(action, Action::MoveRight) {
+                                        (runtime.menu_state.detail_actor + 1) % actor_count
+                                    } else if runtime.menu_state.detail_actor == 0 {
+                                        actor_count - 1
+                                    } else {
+                                        runtime.menu_state.detail_actor - 1
+                                    };
+                                runtime.menu_state.detail_page = 0;
+                                runtime.menu_state.detail_selection = 0;
+                            }
+                        } else if runtime.menu_state.detail_page == 2 {
+                            // Learn view navigation
+                            let jobs = runtime.content.jobs.jobs.len();
+                            if jobs > 0 {
+                                runtime.menu_state.detail_selection =
+                                    if matches!(action, Action::MoveRight) {
+                                        (runtime.menu_state.detail_selection + 1) % jobs
+                                    } else if runtime.menu_state.detail_selection == 0 {
+                                        jobs - 1
+                                    } else {
+                                        runtime.menu_state.detail_selection - 1
+                                    };
+                                runtime.menu_state.detail_target = 0;
+                            }
+                        }
                     }
                 }
                 Action::Pause => {
@@ -592,6 +712,17 @@ pub fn run_menu_loop(
                     {
                         runtime.menu_state.detail_sort =
                             toggle_sort_index(runtime.menu_state.detail_sort);
+                    }
+                }
+                Action::Learn => {
+                    if matches!(focus, MenuPane::Detail)
+                        && submenu_action == "jobs"
+                        && runtime.menu_state.detail_page == 0
+                        && runtime.content.rules.job_system.progression_mode
+                            == JobProgressionMode::JobPoints
+                    {
+                        runtime.menu_state.detail_page = 2;
+                        runtime.menu_state.detail_target = 0;
                     }
                 }
                 Action::Quit => {
@@ -678,6 +809,15 @@ fn menu_detail_panel(
     }
     if action == "magic_equip" {
         return build_magic_equip_panel(runtime);
+    }
+    if action == "jobs" {
+        if page == 2 {
+            return build_learn_panel(runtime);
+        }
+        if page == 1 {
+            return build_job_picker(runtime);
+        }
+        return build_jobs_dashboard(runtime);
     }
     if action == "magic" {
         return build_magic_panel(runtime);
@@ -788,6 +928,15 @@ fn menu_footer_text(focus: MenuPane, submenu: &str, page: usize) -> &'static str
                     "Left/Right: steps  Cancel: back"
                 }
             }
+            "jobs" => {
+                if page == 0 {
+                    "Confirm: select  Left/Right: actor  Cancel: back"
+                } else if page == 1 {
+                    "Confirm: equip  Cancel: back"
+                } else {
+                    "Confirm: purchase  Cancel: back"
+                }
+            }
             _ => "Cancel: back",
         },
     }
@@ -867,6 +1016,9 @@ fn build_party_summary(runtime: &GameRuntime) -> Vec<MenuPanelLine> {
             };
             lines.push(panel_line(summary_line));
             lines.push(panel_line(format!("Job: {}", job_name)));
+            if runtime.content.rules.job_system.progression_mode == JobProgressionMode::JobPoints {
+                lines.push(panel_line(format!("JP {}", job_jp(actor, &actor.job_id))));
+            }
             lines.push(panel_line(""));
         }
     }

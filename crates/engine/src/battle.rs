@@ -35,6 +35,7 @@ pub struct BattleEnemy {
     pub loot: Vec<EnemyLoot>,
     pub exp: i32,
     pub currency: i32,
+    pub jp: i32,
     pub pos: (i32, i32),
     pub current_hp: i32,
     pub current_mp: i32,
@@ -45,6 +46,7 @@ pub struct BattleEnemy {
 pub struct BattleRewards {
     pub exp: i32,
     pub currency: i32,
+    pub jp: i32,
     pub items: HashMap<String, i32>,
 }
 
@@ -193,6 +195,7 @@ pub fn collect_rewards(enemies: &[BattleEnemy], rng: &mut impl Rng) -> BattleRew
     for enemy in enemies {
         rewards.exp += enemy.exp.max(0);
         rewards.currency += enemy.currency.max(0);
+        rewards.jp += enemy.jp.max(0);
         for loot in &enemy.loot {
             if loot.chance <= 0.0 {
                 continue;
@@ -219,6 +222,7 @@ fn build_enemy(enemy: &EnemyDefinition, pos: [i32; 2]) -> BattleEnemy {
         loot: enemy.loot.clone(),
         exp: enemy.exp,
         currency: enemy.currency,
+        jp: enemy.jp,
         pos: (pos[0], pos[1]),
         current_hp: max_hp.max(1),
         current_mp: max_mp.max(0),

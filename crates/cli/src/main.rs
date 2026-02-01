@@ -11,17 +11,17 @@ use std::env;
 use std::path::PathBuf;
 
 use engine::{
+    Engine,
     content::Content,
     party::PartyState,
     rules::{PartyMode, Ruleset},
     runtime::GameRuntime,
     world::WorldState,
-    Engine,
 };
 use tui::input::{InputBindings, InputFile};
 use tui::renderer::RenderMode;
 use tui::session::TuiSession;
-use tui::title::{run_title, TitleAction};
+use tui::title::{TitleAction, run_title};
 use tui::ui::{BattleUiFile, DialogUiFile, MenuUiFile, ProgressUiFile, TitleUiFile};
 
 use crate::dialog::default_dialog_ui;

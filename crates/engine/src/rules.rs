@@ -19,6 +19,8 @@ pub struct RulesFile {
     pub systems: HashMap<String, bool>,
     pub render: RenderRules,
     pub stats: StatsRules,
+    #[serde(default)]
+    pub job_system: JobSystemRules,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -64,6 +66,16 @@ pub struct StatsRules {
     pub track: Vec<String>,
 }
 
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct JobSystemRules {
+    #[serde(default = "default_job_progression_mode")]
+    pub progression_mode: JobProgressionMode,
+    #[serde(default = "default_secondary_job_enabled")]
+    pub secondary_jobs: bool,
+    #[serde(default)]
+    pub job_exp_curve: ExpCurveRules,
+}
+
 #[derive(Clone, Debug)]
 pub struct Ruleset {
     pub title: String,
@@ -80,6 +92,7 @@ pub struct Ruleset {
     pub inventory: InventoryRules,
     pub systems: HashMap<String, bool>,
     pub atb_speed: f32,
+    pub job_system: JobSystemRules,
 }
 
 impl Ruleset {
@@ -104,6 +117,7 @@ impl Ruleset {
             inventory: InventoryRules::default(),
             systems: HashMap::new(),
             atb_speed: 2.0,
+            job_system: JobSystemRules::default(),
         }
     }
 
@@ -123,6 +137,7 @@ impl Ruleset {
             inventory: file.inventory,
             systems: file.systems,
             atb_speed: file.game.atb_speed,
+            job_system: file.job_system,
         }
     }
 }
@@ -162,6 +177,14 @@ pub enum PartyMode {
     Create,
     Preset,
     PresetRename,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum JobProgressionMode {
+    Character,
+    Job,
+    JobPoints,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -249,4 +272,22 @@ fn default_inventory_stack() -> i32 {
 
 fn default_atb_speed() -> f32 {
     2.0
+}
+
+fn default_job_progression_mode() -> JobProgressionMode {
+    JobProgressionMode::Character
+}
+
+fn default_secondary_job_enabled() -> bool {
+    false
+}
+
+impl Default for JobSystemRules {
+    fn default() -> Self {
+        Self {
+            progression_mode: default_job_progression_mode(),
+            secondary_jobs: default_secondary_job_enabled(),
+            job_exp_curve: ExpCurveRules::default(),
+        }
+    }
 }

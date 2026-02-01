@@ -1,14 +1,15 @@
 use std::collections::HashMap;
 use std::io::{self, ErrorKind};
 
+use ratatui::Frame;
 use ratatui::layout::Alignment;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
-use ratatui::Frame;
 
 use crate::dialog::{
-    centered_dialog_width_for_area, confirm_quit, dialog_inner_width, draw_centered_dialog_overlay,
-    draw_choice_box, draw_dialog_overlay, paginate_lines, wait_for_continue, ChoiceView,
+    ChoiceView, centered_dialog_width_for_area, confirm_quit, dialog_inner_width,
+    draw_centered_dialog_overlay, draw_choice_box, draw_dialog_overlay, paginate_lines,
+    wait_for_continue,
 };
 use crate::input::{Action, InputBindings};
 use crate::session::TuiSession;

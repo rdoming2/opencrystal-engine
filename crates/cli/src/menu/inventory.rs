@@ -2,8 +2,8 @@ use engine::runtime::GameRuntime;
 use tui::menu::{MenuPanelLine, MenuPanelSpan, MenuPanelView, PanelSpanStyle};
 
 use super::common::{
-    filter_from_index, sort_from_index, InventoryEntry, InventoryFilter, InventoryKind,
-    InventorySort,
+    InventoryEntry, InventoryFilter, InventoryKind, InventorySort, filter_from_index,
+    sort_from_index,
 };
 use super::equipment::build_equipped_map;
 

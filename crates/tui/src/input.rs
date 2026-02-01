@@ -16,6 +16,7 @@ pub enum Action {
     Menu,
     Pause,
     Quit,
+    Learn,
 }
 
 #[derive(Clone, Debug)]
@@ -82,6 +83,7 @@ impl InputBindings {
         key_map.insert(KeyCode::Esc, Action::Menu);
         key_map.insert(KeyCode::Char(' '), Action::Pause);
         key_map.insert(KeyCode::Char('q'), Action::Quit);
+        key_map.insert(KeyCode::Char('l'), Action::Learn);
         Self { key_map }
     }
 }
@@ -97,6 +99,7 @@ fn action_from_id(id: &str) -> Option<Action> {
         "menu" => Some(Action::Menu),
         "pause" => Some(Action::Pause),
         "quit" => Some(Action::Quit),
+        "learn" => Some(Action::Learn),
         _ => None,
     }
 }

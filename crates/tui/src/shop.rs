@@ -1,15 +1,15 @@
 use std::io::{self, ErrorKind};
 
 use crossterm::event::{self, Event};
+use ratatui::Frame;
 use ratatui::layout::{Alignment, Constraint, Direction, Layout};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, Paragraph, Wrap};
-use ratatui::Frame;
 
 use crate::dialog::confirm_quit;
 use crate::input::{Action, InputBindings};
-use crate::menu::{render_panel_line, MenuPanelView};
+use crate::menu::{MenuPanelView, render_panel_line};
 use crate::session::TuiSession;
 use crate::utils::centered_rect;
 

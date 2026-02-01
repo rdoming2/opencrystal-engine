@@ -467,19 +467,23 @@ fn collect_spell_ids(runtime: &GameRuntime, actor: &engine::party::Actor) -> Vec
     ids.extend(actor.spells.clone());
     ids.extend(actor.equipped_spells.clone());
     if runtime.content.rules.game.magic_acquisition == MagicAcquisition::Level {
-        let job = runtime
-            .content
-            .jobs
-            .jobs
-            .iter()
-            .find(|job| job.id == actor.job_id);
-        if let Some(job) = job {
-            for spell in &job.spells {
-                if !job_spell_available(runtime, actor, spell) {
-                    continue;
-                }
-                if !ids.contains(&spell.id) {
-                    ids.push(spell.id.clone());
+        let job_ids = std::iter::once(actor.job_id.as_str())
+            .chain(actor.secondary_job_id.iter().map(|id| id.as_str()));
+        for job_id in job_ids {
+            if let Some(job) = runtime
+                .content
+                .jobs
+                .jobs
+                .iter()
+                .find(|job| job.id == job_id)
+            {
+                for spell in &job.spells {
+                    if !job_spell_available(runtime, actor, spell) {
+                        continue;
+                    }
+                    if !ids.contains(&spell.id) {
+                        ids.push(spell.id.clone());
+                    }
                 }
             }
         }

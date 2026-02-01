@@ -3,7 +3,7 @@ use crate::events::{EventExecutionResult, EventStep};
 use crate::inventory::InventoryState;
 use crate::maps::MapState;
 use crate::menu::{MenuFocus, MenuState};
-use crate::party::{reset_magic_tier_charges, PartyState};
+use crate::party::{PartyState, reset_magic_tier_charges};
 use crate::rules::Ruleset;
 use crate::world::WorldState;
 use std::collections::{HashMap, HashSet};

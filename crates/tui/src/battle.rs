@@ -1,11 +1,11 @@
 use std::collections::HashMap;
 use std::io;
 
+use ratatui::Frame;
 use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, Paragraph, Wrap};
-use ratatui::Frame;
 
 use crate::session::TuiSession;
 use crate::ui::{BattleUiFile, Breakpoint};

@@ -33,6 +33,13 @@ pub struct ActorDefinition {
     pub spells: Vec<String>,
 }
 
+#[derive(Clone, Debug, Default)]
+pub struct JobProgress {
+    pub level: u32,
+    pub exp: i32,
+    pub jp: i32,
+}
+
 #[derive(Clone, Debug)]
 pub struct Actor {
     pub id: String,
@@ -48,6 +55,9 @@ pub struct Actor {
     pub spells: Vec<String>,
     pub equipped_spells: Vec<String>,
     pub magic_tier_charges: HashMap<u32, i32>,
+    pub secondary_job_id: Option<String>,
+    pub job_progress: HashMap<String, JobProgress>,
+    pub unlocked_abilities: HashSet<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -253,7 +263,7 @@ fn build_actor(
     let base_stats = if !actor.base_stats.is_empty() {
         actor.base_stats.clone()
     } else if let Some(job) = job {
-        job.stats.clone()
+        build_job_base_stats(content, job, actor.level)
     } else {
         HashMap::new()
     };
@@ -296,6 +306,20 @@ fn build_actor(
         spells: actor.spells.clone(),
         equipped_spells: Vec::new(),
         magic_tier_charges: HashMap::new(),
+        secondary_job_id: None,
+        job_progress: {
+            let mut progress = HashMap::new();
+            progress.insert(
+                actor.job_id.clone(),
+                JobProgress {
+                    level: actor.level,
+                    exp: 0,
+                    jp: 0,
+                },
+            );
+            progress
+        },
+        unlocked_abilities: HashSet::new(),
     };
     update_equipped_spells(content, &mut built);
     learn_job_spells(content, &mut built);
@@ -438,25 +462,92 @@ pub fn exp_for_level(curve: &ExpCurveRules, level: u32) -> Option<i32> {
 }
 
 pub fn gain_exp(content: &Content, rules: &Ruleset, actor: &mut Actor, amount: i32) -> u32 {
-    actor.exp = actor.exp.saturating_add(amount);
-    let max_level = rules.exp_curve.max_level.max(1);
-    let mut levels_gained = 0;
-    while actor.level < max_level {
-        let next_level = actor.level + 1;
-        let required = match exp_for_level(&rules.exp_curve, next_level) {
-            Some(required) => required,
-            None => break,
-        };
-        if actor.exp < required {
-            break;
+    match rules.job_system.progression_mode {
+        crate::rules::JobProgressionMode::Job => {
+            // Apply EXP to the current job's level
+            let job_id = actor.job_id.clone();
+            let progress = actor
+                .job_progress
+                .entry(job_id.clone())
+                .or_insert_with(JobProgress::default);
+            progress.exp = progress.exp.saturating_add(amount);
+            let max_level = rules.job_system.job_exp_curve.max_level.max(1);
+            let mut levels_gained = 0;
+            while progress.level < max_level {
+                let next_level = progress.level + 1;
+                let required = match exp_for_level(&rules.job_system.job_exp_curve, next_level) {
+                    Some(required) => required,
+                    None => break,
+                };
+                if progress.exp < required {
+                    break;
+                }
+                progress.level = next_level;
+                levels_gained += 1;
+            }
+            // Sync actor level to job level for display
+            actor.level = progress.level;
+            // Recalculate stats based on job level
+            if let Some(job) = content.jobs.jobs.iter().find(|job| job.id == job_id) {
+                actor.base_stats = build_job_base_stats(content, job, progress.level);
+                recompute_derived_stats(content, actor);
+            }
+            levels_gained
         }
-        actor.level = next_level;
-        apply_growth(content, actor);
-        levels_gained += 1;
+        crate::rules::JobProgressionMode::JobPoints => {
+            // Apply EXP to character level (unchanged)
+            actor.exp = actor.exp.saturating_add(amount);
+            let max_level = rules.exp_curve.max_level.max(1);
+            let mut levels_gained = 0;
+            while actor.level < max_level {
+                let next_level = actor.level + 1;
+                let required = match exp_for_level(&rules.exp_curve, next_level) {
+                    Some(required) => required,
+                    None => break,
+                };
+                if actor.exp < required {
+                    break;
+                }
+                actor.level = next_level;
+                apply_growth(content, actor);
+                levels_gained += 1;
+            }
+            learn_job_spells(content, actor);
+            recompute_derived_stats(content, actor);
+            levels_gained
+        }
+        crate::rules::JobProgressionMode::Character => {
+            // Apply EXP to character level (unchanged)
+            actor.exp = actor.exp.saturating_add(amount);
+            let max_level = rules.exp_curve.max_level.max(1);
+            let mut levels_gained = 0;
+            while actor.level < max_level {
+                let next_level = actor.level + 1;
+                let required = match exp_for_level(&rules.exp_curve, next_level) {
+                    Some(required) => required,
+                    None => break,
+                };
+                if actor.exp < required {
+                    break;
+                }
+                actor.level = next_level;
+                apply_growth(content, actor);
+                levels_gained += 1;
+            }
+            learn_job_spells(content, actor);
+            recompute_derived_stats(content, actor);
+            levels_gained
+        }
     }
-    learn_job_spells(content, actor);
-    recompute_derived_stats(content, actor);
-    levels_gained
+}
+
+pub fn gain_jp(actor: &mut Actor, amount: i32) {
+    let job_id = actor.job_id.clone();
+    let progress = actor
+        .job_progress
+        .entry(job_id)
+        .or_insert_with(JobProgress::default);
+    progress.jp = progress.jp.saturating_add(amount);
 }
 
 fn apply_growth(content: &Content, actor: &mut Actor) {
@@ -546,6 +637,108 @@ fn compute_equipment_stats(
         }
     }
     stats
+}
+
+fn build_job_base_stats(
+    content: &Content,
+    job: &JobDefinition,
+    target_level: u32,
+) -> HashMap<String, i32> {
+    if target_level == 0 {
+        return HashMap::new();
+    }
+    let base_stats = content
+        .stats
+        .stats
+        .base
+        .iter()
+        .map(|stat| stat.id.clone())
+        .collect::<Vec<_>>();
+    let mut stats = job.stats.clone();
+    // Apply growth from level 1 to target_level
+    for level in 1..target_level {
+        match job.growth.mode.as_str() {
+            "formula" => {
+                let mut vars = HashMap::new();
+                for (stat, value) in &stats {
+                    vars.insert(stat.clone(), *value as f64);
+                }
+                for stat in &base_stats {
+                    if let Some(formula) = job.growth.per_level.get(stat) {
+                        if let Ok(result) = eval_expression(formula, &vars) {
+                            let delta = result.floor() as i32;
+                            let entry = stats.entry(stat.clone()).or_insert(0);
+                            *entry += delta;
+                        }
+                    }
+                }
+            }
+            "table" => {
+                let level_index = level as usize;
+                for stat in &base_stats {
+                    if let Some(table) = job.growth.tables.get(stat) {
+                        if let Some(value) = table.get(level_index) {
+                            stats.insert(stat.clone(), *value);
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    stats
+}
+
+pub fn job_level(actor: &Actor, job_id: &str) -> u32 {
+    actor
+        .job_progress
+        .get(job_id)
+        .map(|progress| progress.level)
+        .unwrap_or(actor.level)
+}
+
+pub fn job_jp(actor: &Actor, job_id: &str) -> i32 {
+    actor
+        .job_progress
+        .get(job_id)
+        .map(|progress| progress.jp)
+        .unwrap_or(0)
+}
+
+pub fn set_primary_job(actor: &mut Actor, job_id: &str, content: &Content) {
+    if actor.job_id == job_id {
+        return;
+    }
+    actor.job_id = job_id.to_string();
+    let progress = actor
+        .job_progress
+        .entry(job_id.to_string())
+        .or_insert_with(JobProgress::default);
+    progress.level = actor.level;
+
+    if let Some(job) = content.jobs.jobs.iter().find(|job| job.id == job_id) {
+        actor.base_stats = build_job_base_stats(content, job, actor.level);
+        recompute_derived_stats(content, actor);
+    }
+}
+
+pub fn set_secondary_job(actor: &mut Actor, job_id: Option<String>) {
+    if job_id.as_deref() == Some(&actor.job_id) {
+        actor.secondary_job_id = None;
+    } else {
+        actor.secondary_job_id = job_id;
+    }
+}
+
+pub fn unlock_ability(actor: &mut Actor, ability_id: &str) {
+    actor.unlocked_abilities.insert(ability_id.to_string());
+}
+
+pub fn unlock_spell(actor: &mut Actor, spell_id: &str) {
+    if !actor.spells.iter().any(|s| s == spell_id) {
+        actor.spells.push(spell_id.to_string());
+        actor.spells.sort_unstable();
+    }
 }
 
 pub fn rest_party(party: &mut PartyState, content: &Content, rules: &RulesFile) {

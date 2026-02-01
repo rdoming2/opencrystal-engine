@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
-use engine::party::{actor_magic_tiers, exp_for_level, get_actor_max_charges};
-use engine::rules::MagicSystem;
+use engine::party::{actor_magic_tiers, exp_for_level, get_actor_max_charges, job_jp};
+use engine::rules::{JobProgressionMode, MagicSystem};
 use engine::runtime::GameRuntime;
 use tui::menu::{MenuPanelLine, MenuPanelSpan, PanelSpanStyle};
 
@@ -51,6 +51,11 @@ pub fn build_status_panel(runtime: &GameRuntime, page: usize) -> Vec<MenuPanelLi
                 };
                 lines.push(panel_line(status_line));
                 lines.push(panel_line(format!("Job: {}", job_name)));
+                if runtime.content.rules.job_system.progression_mode
+                    == JobProgressionMode::JobPoints
+                {
+                    lines.push(panel_line(format!("JP {}", job_jp(actor, &actor.job_id))));
+                }
                 lines.push(panel_line(format!(
                     "EXP {} (next {})",
                     actor.exp, exp_remaining

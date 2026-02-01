@@ -3,13 +3,13 @@ use std::collections::HashMap;
 use engine::runtime::{GameRuntime, GameState};
 use tui::input::{Action, InputBindings};
 use tui::overworld::{
-    draw_overworld, draw_overworld_with_tooltip, show_centered_dialog_on_map, MapView, NpcView,
-    TileRender, TransitionView,
+    MapView, NpcView, TileRender, TransitionView, draw_overworld, draw_overworld_with_tooltip,
+    show_centered_dialog_on_map,
 };
 use tui::session::TuiSession;
 use tui::ui::{BattleUiFile, DialogUiFile, MenuUiFile};
 
-use crate::battle::{try_start_random_battle, BattleOutcome};
+use crate::battle::{BattleOutcome, try_start_random_battle};
 use crate::dialog::run_dialog_on_map;
 use crate::events::run_event_loop;
 use crate::menu::run_menu_loop;

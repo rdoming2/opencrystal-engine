@@ -1,10 +1,10 @@
 use std::io;
 
+use ratatui::Frame;
 use ratatui::layout::{Alignment, Constraint, Direction, Layout};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
-use ratatui::Frame;
 
 use crate::session::TuiSession;
 use crate::ui::{MenuLayout, MenuUiFile};

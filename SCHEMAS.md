@@ -125,6 +125,22 @@ Tier charges are defined within each job's `magic_slots`; `magic_system` `tier_c
 }
 ```
 
+## job_system
+
+Describes how the job system tracks progression beyond the standard
+experience curve. Put this object in `rules.json` alongside `exp_curve`
+to enable job-specific leveling, JP spending, and optional secondary jobs.
+
+- `progression_mode` selects `character` (baseline XP), `job` (per-job
+  XP/levels), or `job_points` (global XP plus job-specific JP).
+- `job_exp_curve` defines thresholds when `job` mode is active.
+- `secondary_jobs` toggles the secondary job slot exposed by the Job
+  menu.
+
+Spells and abilities can declare `unlock_level` or `jp_cost` inside the
+job definitions so that the menu and progression logic know whether they
+unlock automatically or need JP spending.
+
 ## party.json
 
 Defines the roster used in `predefined` party mode. For `create` mode, this file
@@ -439,6 +455,10 @@ Growth formulas can reference current base stats (e.g., `vit`, `int`) as inputs.
 Growth expressions follow the same syntax as `stats.json` formulas and apply to
 base stats only.
 
+Jobs may also include flavor fields such as an optional `description` and a
+list of `magic_schools`. The latter is used by the Job menu to explain what
+schools a job can draw from when a secondary job occupies the same actor.
+
 Growth modes:
 
 - `formula`: per-level delta formulas for each base stat (all base stats required).
@@ -519,11 +539,18 @@ Job spell fields:
 - `level`: required when `method` is `level`.
 - `tier`: required when `method` is `tier` (FF1-style learn/buy).
 - `item`: required when `method` is `item` (spellbook).
+- `unlock_level`: optional level that automatically grants the spell in
+  `character` or `job` progression modes.
+- `jp_cost`: optional job points cost used for purchasing the spell in
+  `job_points` mode.
 
 Job ability fields:
 
 - `method`: `level` (other methods TBD).
 - `level`: required when `method` is `level`.
+- `unlock_level`: optional level that unlocks the ability automatically
+  for linear progression modes.
+- `jp_cost`: optional job points cost for manual unlocks in `job_points` mode.
 
 Job magic tier slots:
 

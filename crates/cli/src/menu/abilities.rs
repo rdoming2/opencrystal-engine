@@ -291,11 +291,7 @@ pub fn consume_ability_cost(
         "random" => {
             use rand::Rng;
             let mut rng = rand::thread_rng();
-            if rng.gen_bool(0.5) {
-                true
-            } else {
-                false
-            }
+            if rng.gen_bool(0.5) { true } else { false }
         }
         _ => false,
     }
@@ -359,19 +355,23 @@ fn ability_header_line(actor: &engine::party::Actor) -> MenuPanelLine {
 
 fn collect_ability_ids(runtime: &GameRuntime, actor: &engine::party::Actor) -> Vec<String> {
     let mut ids = Vec::new();
-    let job = runtime
-        .content
-        .jobs
-        .jobs
-        .iter()
-        .find(|job| job.id == actor.job_id);
-    if let Some(job) = job {
-        for ability in &job.abilities {
-            if !job_ability_available(actor, ability) {
-                continue;
-            }
-            if !ids.contains(&ability.id) {
-                ids.push(ability.id.clone());
+    let job_ids = std::iter::once(actor.job_id.as_str())
+        .chain(actor.secondary_job_id.iter().map(|id| id.as_str()));
+    for job_id in job_ids {
+        if let Some(job) = runtime
+            .content
+            .jobs
+            .jobs
+            .iter()
+            .find(|job| job.id == job_id)
+        {
+            for ability in &job.abilities {
+                if !job_ability_available(actor, ability) {
+                    continue;
+                }
+                if !ids.contains(&ability.id) {
+                    ids.push(ability.id.clone());
+                }
             }
         }
     }

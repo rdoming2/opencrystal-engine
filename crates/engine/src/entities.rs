@@ -56,6 +56,10 @@ pub struct JobDefinition {
     pub magic_slots: Option<HashMap<u32, Vec<i32>>>,
     #[serde(default)]
     pub magic_equip_progression: Option<MagicEquipProgression>,
+    #[serde(default)]
+    pub description: Option<String>,
+    #[serde(default)]
+    pub magic_schools: Vec<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -89,6 +93,10 @@ pub struct JobSpell {
     pub tier: Option<u32>,
     #[serde(default)]
     pub item: Option<String>,
+    #[serde(default)]
+    pub unlock_level: Option<u32>,
+    #[serde(default)]
+    pub jp_cost: Option<i32>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -97,6 +105,10 @@ pub struct JobAbility {
     pub method: String,
     #[serde(default)]
     pub level: Option<u32>,
+    #[serde(default)]
+    pub unlock_level: Option<u32>,
+    #[serde(default)]
+    pub jp_cost: Option<i32>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -274,6 +286,8 @@ pub struct EnemyDefinition {
     pub exp: i32,
     #[serde(default)]
     pub currency: i32,
+    #[serde(default)]
+    pub jp: i32,
     pub loot: Vec<EnemyLoot>,
 }
 

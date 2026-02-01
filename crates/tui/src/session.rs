@@ -1,12 +1,12 @@
 use std::io::{self, Stdout};
 
-use crossterm::terminal::{
-    disable_raw_mode, enable_raw_mode, Clear as TermClear, ClearType, EnterAlternateScreen,
-    LeaveAlternateScreen,
-};
 use crossterm::ExecutableCommand;
-use ratatui::backend::CrosstermBackend;
+use crossterm::terminal::{
+    Clear as TermClear, ClearType, EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode,
+    enable_raw_mode,
+};
 use ratatui::Terminal;
+use ratatui::backend::CrosstermBackend;
 
 pub struct TuiSession {
     terminal: Terminal<CrosstermBackend<Stdout>>,
