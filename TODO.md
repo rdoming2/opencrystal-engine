@@ -15,7 +15,7 @@
   - [x] Predefined party loading.
   - [x] Create-mode party builder.
   - [x] Create-mode job selection.
-  - [ ] Rename menu/action for story joins.
+  - [ ] Rename menu/action for story joins and preset_rename mode, plus a `party_join` flow that respects preset/preset_rename rename rules when new members join.
 
 - [x] Event state.
 - [ ] Implement event executor.

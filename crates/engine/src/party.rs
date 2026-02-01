@@ -69,7 +69,9 @@ impl PartyState {
     pub fn from_content(content: &Content, rules: &Ruleset) -> Self {
         match rules.party_mode {
             PartyMode::Create => Self::empty(),
-            PartyMode::Predefined => build_predefined_party(content, rules.party_size),
+            PartyMode::Preset | PartyMode::PresetRename => {
+                build_predefined_party(content, rules.party_size)
+            }
         }
     }
 
@@ -93,6 +95,18 @@ pub fn get_actor_max_charges(content: &Content, actor: &Actor, tier: u32) -> i32
         }
     }
     0
+}
+
+pub fn actor_magic_tiers(content: &Content, actor: &Actor) -> Vec<u32> {
+    let job = content.jobs.jobs.iter().find(|job| job.id == actor.job_id);
+    if let Some(job) = job {
+        if let Some(magic_slots) = &job.magic_slots {
+            let mut tiers = magic_slots.keys().copied().collect::<Vec<_>>();
+            tiers.sort();
+            return tiers;
+        }
+    }
+    Vec::new()
 }
 
 pub fn reset_magic_tier_charges(party: &mut PartyState, content: &Content, rules: &Ruleset) {
@@ -190,7 +204,7 @@ fn build_created_party(
         let starting_equipment = job
             .map(|job| job.starting_equipment.clone())
             .filter(|equipment| !equipment.is_empty())
-            .unwrap_or_else(|| create_rules.starting_equipment.clone());
+            .unwrap_or_else(HashMap::new);
         let actor = ActorDefinition {
             id: actor_id.clone(),
             name,

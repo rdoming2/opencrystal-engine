@@ -173,12 +173,30 @@ fn run_play(args: Vec<String>) {
     match action {
         TitleAction::NewGame => {
             if let Some(session) = session_guard.as_mut() {
-                if rules.party_mode == PartyMode::Create {
-                    if let Err(err) =
-                        run_party_create_flow(session, &mut runtime, &rules, &input_bindings)
-                    {
-                        if err.kind() == std::io::ErrorKind::Interrupted {
-                            return;
+                match rules.party_mode {
+                    PartyMode::Create => {
+                        if let Err(err) =
+                            run_party_create_flow(session, &mut runtime, &rules, &input_bindings)
+                        {
+                            if err.kind() == std::io::ErrorKind::Interrupted {
+                                return;
+                            }
+                        }
+                    }
+                    PartyMode::Preset => {
+                        runtime.party = PartyState::from_content(&runtime.content, &rules);
+                    }
+                    PartyMode::PresetRename => {
+                        runtime.party = PartyState::from_content(&runtime.content, &rules);
+                        if let Err(err) = party::run_preset_rename_flow(
+                            session,
+                            &mut runtime,
+                            &rules,
+                            &input_bindings,
+                        ) {
+                            if err.kind() == std::io::ErrorKind::Interrupted {
+                                return;
+                            }
                         }
                     }
                 }
@@ -213,12 +231,17 @@ fn run_play(args: Vec<String>) {
                     }
                 }
             } else {
-                if rules.party_mode == PartyMode::Create {
-                    runtime.party = PartyState::from_created(
-                        &runtime.content,
-                        &rules,
-                        default_party_names(&rules),
-                    );
+                match rules.party_mode {
+                    PartyMode::Create => {
+                        runtime.party = PartyState::from_created(
+                            &runtime.content,
+                            &rules,
+                            default_party_names(&runtime, &rules),
+                        );
+                    }
+                    PartyMode::Preset | PartyMode::PresetRename => {
+                        runtime.party = PartyState::from_content(&runtime.content, &rules);
+                    }
                 }
                 runtime.start_new_game(&rules);
                 run_event_loop_console(&mut runtime, &dialog_ui);

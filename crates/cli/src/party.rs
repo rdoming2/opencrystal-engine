@@ -15,13 +15,8 @@ pub fn run_party_create_flow(
     bindings: &tui::input::InputBindings,
 ) -> std::io::Result<()> {
     let max_len = rules.party_create.name_length;
-    let jobs_enabled = rules.systems.get("jobs").copied().unwrap_or(false);
-    let job_options = if jobs_enabled {
-        build_available_jobs(runtime)
-    } else {
-        Vec::new()
-    };
-    if jobs_enabled && job_options.is_empty() {
+    let job_options = build_available_jobs(runtime);
+    if job_options.is_empty() {
         return Err(std::io::Error::new(
             std::io::ErrorKind::InvalidData,
             "no jobs available for party creation",
@@ -45,34 +40,67 @@ pub fn run_party_create_flow(
             Some(name) => name,
             None => return Err(std::io::Error::new(std::io::ErrorKind::Interrupted, "quit")),
         };
-        let job_id = if jobs_enabled {
-            let labels = job_options
-                .iter()
-                .map(|job| job.name.clone())
-                .collect::<Vec<_>>();
-            match tui::dialog::prompt_choice(
-                session,
-                bindings,
-                "Choose Job",
-                "Select a job:",
-                &labels,
-                default_job_index,
-            )? {
-                Some(selection) => job_options[selection].id.clone(),
-                None => return Err(std::io::Error::new(std::io::ErrorKind::Interrupted, "quit")),
-            }
-        } else {
-            rules.party_create.default_job.clone()
-        };
+        let job_id;
+        let labels = job_options
+            .iter()
+            .map(|job| job.name.clone())
+            .collect::<Vec<_>>();
+        match tui::dialog::prompt_choice(
+            session,
+            bindings,
+            "Choose Job",
+            "Select a job:",
+            &labels,
+            default_job_index,
+        )? {
+            Some(selection) => job_id = job_options[selection].id.clone(),
+            None => return Err(std::io::Error::new(std::io::ErrorKind::Interrupted, "quit")),
+        }
         members.push((name, job_id));
     }
     runtime.party = PartyState::from_created(&runtime.content, rules, members);
     Ok(())
 }
 
-pub fn default_party_names(rules: &Ruleset) -> Vec<(String, String)> {
+pub fn run_preset_rename_flow(
+    session: &mut tui::session::TuiSession,
+    runtime: &mut engine::runtime::GameRuntime,
+    rules: &Ruleset,
+    _bindings: &tui::input::InputBindings,
+) -> std::io::Result<()> {
     let max_len = rules.party_create.name_length;
-    let default_job = rules.party_create.default_job.clone();
+
+    // Prompt to rename each active party member
+    for (_index, member_id) in runtime.party.active.iter().enumerate() {
+        if let Some(actor) = runtime.party.roster.get_mut(member_id) {
+            let prompt = format!("Rename {}:", actor.name);
+            let name = match tui::dialog::prompt_text(
+                session,
+                "Rename Party",
+                &prompt,
+                &actor.name,
+                max_len,
+            )? {
+                Some(name) => name,
+                None => return Err(std::io::Error::new(std::io::ErrorKind::Interrupted, "quit")),
+            };
+            actor.name = name;
+        }
+    }
+
+    Ok(())
+}
+
+pub fn default_party_names(
+    runtime: &engine::runtime::GameRuntime,
+    rules: &Ruleset,
+) -> Vec<(String, String)> {
+    let max_len = rules.party_create.name_length;
+    let job_options = build_available_jobs(runtime);
+    let default_job = job_options
+        .first()
+        .map(|job| job.id.clone())
+        .unwrap_or_else(|| "".to_string());
     (1..=rules.party_size)
         .map(|index| {
             let name = format!("Hero {}", index);

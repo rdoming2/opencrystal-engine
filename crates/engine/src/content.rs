@@ -120,7 +120,7 @@ impl Content {
 
         let rules = load_single(content_dir.join("rules.json"), RulesFile::load, &mut errors);
         let party = match rules.as_ref().map(|file| &file.party_mode) {
-            Some(PartyMode::Predefined) => {
+            Some(PartyMode::Preset) | Some(PartyMode::PresetRename) => {
                 load_single(content_dir.join("party.json"), PartyFile::load, &mut errors)
             }
             Some(PartyMode::Create) => {

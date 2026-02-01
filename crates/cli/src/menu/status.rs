@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use engine::party::exp_for_level;
+use engine::party::{actor_magic_tiers, exp_for_level, get_actor_max_charges};
 use engine::rules::MagicSystem;
 use engine::runtime::GameRuntime;
 use tui::menu::{MenuPanelLine, MenuPanelSpan, PanelSpanStyle};
@@ -28,13 +28,10 @@ pub fn build_status_panel(runtime: &GameRuntime, page: usize) -> Vec<MenuPanelLi
                 let exp_remaining = exp_next.saturating_sub(actor.exp);
                 let status_line = if magic_system == MagicSystem::TierCharges {
                     let mut tiers = Vec::new();
-                    for tier in &runtime.content.rules.magic_tiers {
-                        let current = actor
-                            .magic_tier_charges
-                            .get(&tier.tier)
-                            .copied()
-                            .unwrap_or(0);
-                        tiers.push(format!("T{} {}/{}", tier.tier, current, tier.max_charges));
+                    for tier in actor_magic_tiers(&runtime.content, actor) {
+                        let current = actor.magic_tier_charges.get(&tier).copied().unwrap_or(0);
+                        let max = get_actor_max_charges(&runtime.content, actor, tier);
+                        tiers.push(format!("T{} {}/{}", tier, current, max));
                     }
                     let charge_text = if tiers.is_empty() {
                         "No charges".to_string()

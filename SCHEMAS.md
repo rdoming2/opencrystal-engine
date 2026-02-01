@@ -39,10 +39,12 @@ Configurable input bindings.
 
 Global rules and feature flags.
 
-`party_mode` controls party creation mode (`create` or `predefined`).
-`party_create` provides defaults for create mode (default job, name length, and
-starter equipment). When `systems.jobs` is false, job selection is skipped and
-`default_job` is used for all members.
+`party_mode` controls the opening flow:
+- `create`: Present the character creation UI with naming and job selection.
+- `preset`: Load the preset roster from `party.json` and skip the create UI.
+- `preset_rename`: Same as `preset` but prompts to rename starting characters (and future recruits) through the rename helper.
+`party_create` provides defaults for create mode (starting level and name length).
+Job selection always shows unlocked jobs; `systems.jobs` only gates job-related UI (job menu/change screens) and does not disable job usage entirely.
 
 `exp_curve` defines the XP thresholds for leveling. Use `mode: "table"` with
 absolute XP totals per level or `mode: "formula"` with a formula string (use
@@ -53,15 +55,13 @@ absolute XP totals per level or `mode: "formula"` with a formula string (use
 `systems` toggles whether a gameplay system/menu is enabled at all. It should be
 used for global availability (e.g., disabling magic equip). Menu entries can still
 add `unlock_flag` gating for progression-driven unlocks.
-`magic_tiers` defines per-tier charge limits when `magic_system` is
-`tier_charges`. Charges are tracked per character (not a shared party pool).
+Tier charges are defined within each job's `magic_slots`; `magic_system` `tier_charges` uses those definitions per actor.
 
 ```json
 {
   "version": 1,
   "game": {
     "title": "OpenCrystal",
-    "start_mode": "ff1",
     "party_size": 4,
     "party_reserve_size": 4,
     "battle_mode": "dynamic",
@@ -75,19 +75,12 @@ add `unlock_flag` gating for progression-driven unlocks.
       "x": 20,
       "y": 14
     },
-    "job_change_enabled": false,
-    "job_change_flag": "world.job_change_unlocked",
     "currency": {"id": "gil", "name": "G", "symbol": "G"}
   },
-  "party_mode": "predefined",
+  "party_mode": "create",
   "party_create": {
-    "default_job": "shallot_knight",
     "starting_level": 1,
-    "name_length": 12,
-    "starting_equipment": {
-      "weapon": "bronze_sword",
-      "armor": "bronze_armor"
-    }
+    "name_length": 12
   },
   "exp_curve": {
     "mode": "table",
@@ -107,21 +100,13 @@ add `unlock_flag` gating for progression-driven unlocks.
     "party": true,
     "jobs": true,
     "journal": true,
+    "fast_travel": true,
+    "overworld_map": true,
     "save": true,
     "settings": true,
     "summons": false,
     "magic_equip": false,
     "materia": false
-  },
-  "magic_tiers": [
-    {"tier": 1, "max_charges": 3},
-    {"tier": 2, "max_charges": 2},
-    {"tier": 3, "max_charges": 1}
-  ],
-  "features": {
-    "journal": true,
-    "fast_travel": true,
-    "overworld_map": true
   },
   "render": {
     "min_art_width": 110,
@@ -544,7 +529,7 @@ Job magic tier slots:
 
 - `magic_slots`: optional mapping of tier -> per-level charges list.
 - Each tier list is indexed by level (level 1 uses index 0).
-- When present, these charges replace global `magic_tiers` for that job.
+- When present, these charges define the actor's tier limits for that job (there is no global `magic_tiers`).
 
 Job magic equip slots:
 

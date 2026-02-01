@@ -17,9 +17,6 @@ pub struct RulesFile {
     pub inventory: InventoryRules,
     #[serde(default)]
     pub systems: HashMap<String, bool>,
-    #[serde(default)]
-    pub magic_tiers: Vec<MagicTierRules>,
-    pub features: FeatureRules,
     pub render: RenderRules,
     pub stats: StatsRules,
 }
@@ -35,7 +32,6 @@ pub struct StartLocation {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct GameRules {
     pub title: String,
-    pub start_mode: StartMode,
     pub party_size: usize,
     pub party_reserve_size: usize,
     pub battle_mode: BattleMode,
@@ -44,8 +40,6 @@ pub struct GameRules {
     pub magic_acquisition: MagicAcquisition,
     pub start_event: Option<String>,
     pub start_location: StartLocation,
-    pub job_change_enabled: bool,
-    pub job_change_flag: String,
     pub currency: Currency,
     #[serde(default = "default_atb_speed")]
     pub atb_speed: f32,
@@ -56,19 +50,6 @@ pub struct Currency {
     pub id: String,
     pub name: String,
     pub symbol: String,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct FeatureRules {
-    pub journal: bool,
-    pub fast_travel: bool,
-    pub overworld_map: bool,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct MagicTierRules {
-    pub tier: u32,
-    pub max_charges: i32,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -86,7 +67,6 @@ pub struct StatsRules {
 #[derive(Clone, Debug)]
 pub struct Ruleset {
     pub title: String,
-    pub start_mode: StartMode,
     pub party_size: usize,
     pub party_reserve_size: usize,
     pub battle_mode: BattleMode,
@@ -99,7 +79,6 @@ pub struct Ruleset {
     pub exp_curve: ExpCurveRules,
     pub inventory: InventoryRules,
     pub systems: HashMap<String, bool>,
-    pub magic_tiers: Vec<MagicTierRules>,
     pub atb_speed: f32,
 }
 
@@ -107,7 +86,6 @@ impl Ruleset {
     pub fn demo() -> Self {
         Self {
             title: "OpenCrystal".to_string(),
-            start_mode: StartMode::Ff1,
             party_size: 4,
             party_reserve_size: 4,
             battle_mode: BattleMode::Turn,
@@ -120,12 +98,11 @@ impl Ruleset {
                 x: 20,
                 y: 14,
             },
-            party_mode: PartyMode::Predefined,
+            party_mode: PartyMode::Create,
             party_create: PartyCreateRules::default(),
             exp_curve: ExpCurveRules::default(),
             inventory: InventoryRules::default(),
             systems: HashMap::new(),
-            magic_tiers: Vec::new(),
             atb_speed: 2.0,
         }
     }
@@ -133,7 +110,6 @@ impl Ruleset {
     pub fn from_file(file: RulesFile) -> Self {
         Self {
             title: file.game.title,
-            start_mode: file.game.start_mode,
             party_size: file.game.party_size,
             party_reserve_size: file.game.party_reserve_size,
             battle_mode: file.game.battle_mode,
@@ -146,7 +122,6 @@ impl Ruleset {
             exp_curve: file.exp_curve,
             inventory: file.inventory,
             systems: file.systems,
-            magic_tiers: file.magic_tiers,
             atb_speed: file.game.atb_speed,
         }
     }
@@ -156,13 +131,6 @@ impl RulesFile {
     pub fn load(path: impl AsRef<std::path::Path>) -> Result<Self, String> {
         crate::io::load_json(path)
     }
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case")]
-pub enum StartMode {
-    Ff1,
-    Preset,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -192,33 +160,29 @@ pub enum MagicAcquisition {
 #[serde(rename_all = "snake_case")]
 pub enum PartyMode {
     Create,
-    Predefined,
+    Preset,
+    PresetRename,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct PartyCreateRules {
-    pub default_job: String,
     #[serde(default = "default_party_level")]
     pub starting_level: u32,
     #[serde(default = "default_name_length")]
     pub name_length: usize,
-    #[serde(default)]
-    pub starting_equipment: HashMap<String, String>,
 }
 
 impl Default for PartyCreateRules {
     fn default() -> Self {
         Self {
-            default_job: "shallot_knight".to_string(),
             starting_level: default_party_level(),
             name_length: default_name_length(),
-            starting_equipment: HashMap::new(),
         }
     }
 }
 
 fn default_party_mode() -> PartyMode {
-    PartyMode::Predefined
+    PartyMode::Create
 }
 
 fn default_magic_acquisition() -> MagicAcquisition {

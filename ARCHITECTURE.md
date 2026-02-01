@@ -132,6 +132,10 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
 ### New game flow
 
 - Title "New Game" can enqueue `rules.json` `game.start_event` for opening cutscenes.
+- `party_mode` controls the opening flow:
+  - `create`: Shows character creation screen with naming and job choice.
+  - `preset`: Loads the preset roster from `party.json` and skips the create UI.
+  - `preset_rename`: Same as `preset` but shows rename prompts for initial characters and future recruits.
 
 ### Vehicles
 
@@ -144,7 +148,8 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
 - Party creation modes (`party_mode`):
   - `create`: name + job selection; job list filtered by job `unlock_flag` and preselects
     the job marked `is_default`. If `systems.jobs` is disabled, job selection is skipped.
-  - `predefined`: roster-driven party (FF5/FF6 style) with optional job menu.
+  - `preset`: roster-driven party (FF5/FF6 style) that skips menu-based creation.
+  - `preset_rename`: same as `preset` but immediately offers rename prompts for new characters.
 - Experience curves are configurable via `exp_curve` (table or formula).
 - Derived stat formulas can reference `lvl` for level scaling.
 - Job change is disabled by default; unlockable via event flag.
@@ -290,9 +295,8 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
 ```json
 {
   "version": 1,
-"game": {
+  "game": {
     "title": "OpenCrystal",
-    "start_mode": "ff1",
     "party_size": 4,
     "party_reserve_size": 4,
     "battle_mode": "dynamic",
@@ -306,11 +310,9 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
       "x": 20,
       "y": 14
     },
-    "job_change_enabled": false,
-    "job_change_flag": "world.job_change_unlocked",
     "currency": {"id": "gil", "name": "G", "symbol": "G"}
   },
-  "party_mode": "predefined",
+  "party_mode": "create",
   "exp_curve": {
     "mode": "table",
     "table": [0, 10, 30, 60, 100],
@@ -329,21 +331,13 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
     "party": true,
     "jobs": true,
     "journal": true,
+    "fast_travel": true,
+    "overworld_map": true,
     "save": true,
     "settings": true,
     "summons": false,
     "magic_equip": false,
     "materia": false
-  },
-  "magic_tiers": [
-    {"tier": 1, "max_charges": 3},
-    {"tier": 2, "max_charges": 2},
-    {"tier": 3, "max_charges": 1}
-  ],
-  "features": {
-    "journal": true,
-    "fast_travel": true,
-    "overworld_map": true
   },
   "render": {
     "min_art_width": 110,

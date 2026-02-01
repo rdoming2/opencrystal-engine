@@ -55,7 +55,7 @@ pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
 
     let rules = load_single(&rules_path, |path| RulesFile::load(path), &mut errors);
     let party = match rules.as_ref().map(|file| &file.party_mode) {
-        Some(PartyMode::Predefined) => load_single(
+        Some(PartyMode::Preset) | Some(PartyMode::PresetRename) => load_single(
             &content_dir.join("party.json"),
             |path| PartyFile::load(path),
             &mut errors,
@@ -128,22 +128,6 @@ pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
                 errors.push(format!(
                     "rules.json: exp_curve has unknown mode '{}'",
                     other
-                ));
-            }
-        }
-
-        let mut magic_tiers = HashSet::new();
-        for tier in &rules.magic_tiers {
-            if tier.tier == 0 {
-                errors.push("rules.json: magic_tiers tier must be > 0".to_string());
-            }
-            if tier.max_charges < 0 {
-                errors.push("rules.json: magic_tiers max_charges must be >= 0".to_string());
-            }
-            if !magic_tiers.insert(tier.tier) {
-                errors.push(format!(
-                    "rules.json: magic_tiers tier '{}' is duplicated",
-                    tier.tier
                 ));
             }
         }
@@ -512,30 +496,21 @@ pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
         }
     }
 
+    if let Some(jobs) = &jobs {
+        if jobs.jobs.is_empty() {
+            errors.push("jobs.json: must define at least one job".to_string());
+        }
+    }
+
     if let (Some(rules), Some(jobs)) = (&rules, &jobs) {
         if rules.party_mode == PartyMode::Create {
-            let default_job = rules.party_create.default_job.as_str();
-            if !jobs.jobs.iter().any(|job| job.id == default_job) {
-                errors.push(format!(
-                    "rules.json: party_create.default_job '{}' not found in jobs.json",
-                    default_job
-                ));
-            }
-            let default_count = jobs.jobs.iter().filter(|job| job.is_default).count();
-            if default_count == 0 {
+            let default_jobs: Vec<_> = jobs.jobs.iter().filter(|job| job.is_default).collect();
+            if default_jobs.is_empty() {
                 errors.push("jobs.json: create mode requires a default job".to_string());
-            } else if default_count > 1 {
+            } else if default_jobs.len() > 1 {
                 errors.push("jobs.json: create mode requires a single default job".to_string());
-            }
-            let default_entry = jobs.jobs.iter().find(|job| job.id == default_job);
-            if let Some(job) = default_entry {
-                if !job.is_default {
-                    errors.push(format!(
-                        "rules.json: party_create.default_job '{}' must be marked is_default",
-                        default_job
-                    ));
-                }
-                if job
+            } else if let Some(default_job) = default_jobs.first() {
+                if default_job
                     .unlock_flag
                     .as_ref()
                     .map(|flag| !flag.trim().is_empty())
@@ -543,7 +518,7 @@ pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
                 {
                     errors.push(format!(
                         "jobs.json: default job '{}' cannot be gated by unlock_flag",
-                        default_job
+                        default_job.id
                     ));
                 }
             }

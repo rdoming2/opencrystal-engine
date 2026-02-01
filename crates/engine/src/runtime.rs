@@ -90,7 +90,11 @@ impl GameRuntime {
     }
 
     pub fn start_new_game(&mut self, rules: &Ruleset) {
-        if rules.party_mode == crate::rules::PartyMode::Predefined || self.party.roster.is_empty() {
+        if matches!(
+            rules.party_mode,
+            crate::rules::PartyMode::Preset | crate::rules::PartyMode::PresetRename
+        ) || self.party.roster.is_empty()
+        {
             self.party = PartyState::from_content(&self.content, rules);
         }
         reset_magic_tier_charges(&mut self.party, &self.content, rules);

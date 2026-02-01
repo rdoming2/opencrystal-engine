@@ -114,19 +114,28 @@ Each snippet corresponds to an existing schema.
   "version": 1,
   "game": {
     "title": "OpenCrystal",
-    "start_mode": "ff1",
     "party_size": 4,
     "party_reserve_size": 4,
     "battle_mode": "turn",
     "magic_system": "mp",
-    "job_change_enabled": false,
-    "job_change_flag": "world.job_change_unlocked",
     "currency": {"id": "gil", "name": "G", "symbol": "G"}
   },
-  "features": {
+  "party_mode": "create",
+  "systems": {
+    "items": true,
+    "magic": true,
+    "equipment": true,
+    "status": true,
+    "party": true,
+    "jobs": true,
     "journal": true,
     "fast_travel": true,
-    "overworld_map": true
+    "overworld_map": true,
+    "save": true,
+    "settings": true,
+    "summons": false,
+    "magic_equip": false,
+    "materia": false
   },
   "render": {
     "min_art_width": 110,
