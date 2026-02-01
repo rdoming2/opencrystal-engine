@@ -6,7 +6,8 @@ use crate::content::Content;
 use crate::entities::{EquipmentDefinition, JobDefinition};
 use crate::expr::eval_expression;
 use crate::rules::{
-    ExpCurveRules, MagicAcquisition, MagicSystem, PartyCreateRules, PartyMode, RulesFile, Ruleset,
+    ExpCurveRules, JobProgressionMode, MagicAcquisition, MagicSystem, PartyCreateRules, PartyMode,
+    RulesFile, Ruleset,
 };
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -309,10 +310,16 @@ fn build_actor(
         secondary_job_id: None,
         job_progress: {
             let mut progress = HashMap::new();
+            let starting_job_level =
+                if content.rules.job_system.progression_mode == JobProgressionMode::JobPoints {
+                    1
+                } else {
+                    actor.level
+                };
             progress.insert(
                 actor.job_id.clone(),
                 JobProgress {
-                    level: actor.level,
+                    level: starting_job_level,
                     exp: 0,
                     jp: 0,
                 },
@@ -334,10 +341,21 @@ fn learn_job_spells(content: &Content, actor: &mut Actor) {
         return;
     };
     let mut learned: HashSet<String> = actor.spells.iter().cloned().collect();
+    let current_level =
+        if content.rules.job_system.progression_mode == JobProgressionMode::JobPoints {
+            job_level(actor, &actor.job_id)
+        } else {
+            actor.level
+        };
     for spell in &job.spells {
+        if content.rules.job_system.progression_mode == JobProgressionMode::JobPoints
+            && spell.jp_cost.unwrap_or(0) > 0
+        {
+            continue;
+        }
         let unlocks = match spell.method.as_str() {
-            "level" => spell.level.unwrap_or(0) <= actor.level,
-            "tier" => spell.tier.unwrap_or(0) <= actor.level,
+            "level" => spell.level.unwrap_or(0) <= current_level,
+            "tier" => spell.tier.unwrap_or(0) <= current_level,
             _ => false,
         };
         if unlocks {
@@ -541,13 +559,38 @@ pub fn gain_exp(content: &Content, rules: &Ruleset, actor: &mut Actor, amount: i
     }
 }
 
-pub fn gain_jp(actor: &mut Actor, amount: i32) {
+pub fn gain_jp(content: &Content, rules: &Ruleset, actor: &mut Actor, amount: i32) {
+    if rules.job_system.progression_mode != JobProgressionMode::JobPoints {
+        return;
+    }
     let job_id = actor.job_id.clone();
     let progress = actor
         .job_progress
-        .entry(job_id)
+        .entry(job_id.clone())
         .or_insert_with(JobProgress::default);
+    if progress.level == 0 {
+        progress.level = 1;
+    }
     progress.jp = progress.jp.saturating_add(amount);
+    progress.exp = progress.exp.saturating_add(amount);
+
+    let max_level = rules.job_system.job_exp_curve.max_level.max(1);
+    while progress.level < max_level {
+        let next_level = progress.level + 1;
+        let required = match exp_for_level(&rules.job_system.job_exp_curve, next_level) {
+            Some(required) => required,
+            None => break,
+        };
+        if progress.exp < required {
+            break;
+        }
+        progress.level = next_level;
+    }
+
+    if let Some(job) = content.jobs.jobs.iter().find(|job| job.id == job_id) {
+        actor.base_stats = build_job_base_stats(content, job, actor.level);
+        recompute_derived_stats(content, actor);
+    }
 }
 
 fn apply_growth(content: &Content, actor: &mut Actor) {
@@ -714,7 +757,13 @@ pub fn set_primary_job(actor: &mut Actor, job_id: &str, content: &Content) {
         .job_progress
         .entry(job_id.to_string())
         .or_insert_with(JobProgress::default);
-    progress.level = actor.level;
+    if content.rules.job_system.progression_mode == JobProgressionMode::JobPoints {
+        if progress.level == 0 {
+            progress.level = 1;
+        }
+    } else {
+        progress.level = actor.level;
+    }
 
     if let Some(job) = content.jobs.jobs.iter().find(|job| job.id == job_id) {
         actor.base_stats = build_job_base_stats(content, job, actor.level);

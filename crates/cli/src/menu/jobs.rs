@@ -1,3 +1,4 @@
+use engine::entities::JobDefinition;
 use engine::party::{
     job_jp, job_level, set_primary_job, set_secondary_job, unlock_ability, unlock_spell,
 };
@@ -180,6 +181,98 @@ fn panel_line(content: impl Into<String>) -> MenuPanelLine {
     }
 }
 
+#[derive(Clone, Debug)]
+struct LearnEntry {
+    kind: &'static str,
+    id: String,
+    cost: i32,
+    locked: bool,
+    label: String,
+}
+
+fn build_learn_entries(actor: &engine::party::Actor, job: &JobDefinition) -> Vec<LearnEntry> {
+    let mut entries = Vec::new();
+    let current_level = job_level(actor, &job.id);
+
+    for spell in &job.spells {
+        let is_learned = actor.spells.iter().any(|s| s == &spell.id);
+        if is_learned {
+            continue;
+        }
+        let jp_cost = spell.jp_cost.unwrap_or(0);
+        let unlock_level = spell.unlock_level.unwrap_or(0);
+        let level_locked = unlock_level > 0 && current_level < unlock_level;
+
+        if jp_cost > 0 {
+            let label = if level_locked {
+                format!("{} (Locked Lv {})", spell.id, unlock_level)
+            } else {
+                format!("{} (JP {})", spell.id, jp_cost)
+            };
+            entries.push(LearnEntry {
+                kind: "spell",
+                id: spell.id.clone(),
+                cost: jp_cost,
+                locked: level_locked,
+                label,
+            });
+        } else if unlock_level > 0 {
+            let label = if level_locked {
+                format!("{} (Locked Lv {})", spell.id, unlock_level)
+            } else {
+                format!("{} (Lv {})", spell.id, unlock_level)
+            };
+            entries.push(LearnEntry {
+                kind: "spell",
+                id: spell.id.clone(),
+                cost: 0,
+                locked: level_locked,
+                label,
+            });
+        }
+    }
+
+    for ability in &job.abilities {
+        let is_learned = actor.unlocked_abilities.contains(&ability.id);
+        if is_learned {
+            continue;
+        }
+        let jp_cost = ability.jp_cost.unwrap_or(0);
+        let unlock_level = ability.unlock_level.unwrap_or(0);
+        let level_locked = unlock_level > 0 && current_level < unlock_level;
+
+        if jp_cost > 0 {
+            let label = if level_locked {
+                format!("{} (Locked Lv {})", ability.id, unlock_level)
+            } else {
+                format!("{} (JP {})", ability.id, jp_cost)
+            };
+            entries.push(LearnEntry {
+                kind: "ability",
+                id: ability.id.clone(),
+                cost: jp_cost,
+                locked: level_locked,
+                label,
+            });
+        } else if unlock_level > 0 {
+            let label = if level_locked {
+                format!("{} (Locked Lv {})", ability.id, unlock_level)
+            } else {
+                format!("{} (Lv {})", ability.id, unlock_level)
+            };
+            entries.push(LearnEntry {
+                kind: "ability",
+                id: ability.id.clone(),
+                cost: 0,
+                locked: level_locked,
+                label,
+            });
+        }
+    }
+
+    entries
+}
+
 pub fn apply_primary_change(runtime: &mut GameRuntime) {
     if runtime.party.active.is_empty() {
         return;
@@ -259,43 +352,9 @@ pub fn build_learn_panel(runtime: &GameRuntime) -> MenuPanelView {
         lines.push(panel_line(format!("{} - Learn Abilities", job.name)));
         lines.push(panel_line(""));
 
-        let mut learnables = Vec::new();
-
-        // Collect spells
-        for spell in &job.spells {
-            let is_learned = actor
-                .map(|a| a.spells.iter().any(|s| s == &spell.id))
-                .unwrap_or(false);
-            let jp_cost = spell.jp_cost.unwrap_or(0);
-            let unlock_level = spell.unlock_level.unwrap_or(0);
-            let job_level = actor.map(|a| job_level(a, &job.id)).unwrap_or(1);
-
-            if !is_learned {
-                if jp_cost > 0 {
-                    learnables.push(format!("{} (JP {})", spell.id, jp_cost));
-                } else if unlock_level > 0 && job_level >= unlock_level {
-                    learnables.push(format!("{} (Lv {})", spell.id, unlock_level));
-                }
-            }
-        }
-
-        // Collect abilities
-        for ability in &job.abilities {
-            let is_learned = actor
-                .map(|a| a.unlocked_abilities.contains(&ability.id))
-                .unwrap_or(false);
-            let jp_cost = ability.jp_cost.unwrap_or(0);
-            let unlock_level = ability.unlock_level.unwrap_or(0);
-            let job_level = actor.map(|a| job_level(a, &job.id)).unwrap_or(1);
-
-            if !is_learned {
-                if jp_cost > 0 {
-                    learnables.push(format!("{} (JP {})", ability.id, jp_cost));
-                } else if unlock_level > 0 && job_level >= unlock_level {
-                    learnables.push(format!("{} (Lv {})", ability.id, unlock_level));
-                }
-            }
-        }
+        let learnables = actor
+            .map(|actor| build_learn_entries(actor, job))
+            .unwrap_or_default();
 
         if learnables.is_empty() {
             lines.push(panel_line("No abilities to learn."));
@@ -306,7 +365,7 @@ pub fn build_learn_panel(runtime: &GameRuntime) -> MenuPanelView {
                 .min(learnables.len().saturating_sub(1));
             for (index, learnable) in learnables.iter().enumerate() {
                 let prefix = if index == learn_selection { "> " } else { "  " };
-                lines.push(panel_line(format!("{}{}", prefix, learnable)));
+                lines.push(panel_line(format!("{}{}", prefix, learnable.label)));
             }
         }
 
@@ -346,36 +405,7 @@ pub fn learnable_count(runtime: &GameRuntime) -> usize {
         return 0;
     };
 
-    let mut learnables = 0;
-    for spell in &job.spells {
-        let is_learned = actor.spells.iter().any(|s| s == &spell.id);
-        let jp_cost = spell.jp_cost.unwrap_or(0);
-        let unlock_level = spell.unlock_level.unwrap_or(0);
-        let current_level = job_level(actor, &job.id);
-        if !is_learned {
-            if jp_cost > 0 {
-                learnables += 1;
-            } else if unlock_level > 0 && current_level >= unlock_level {
-                learnables += 1;
-            }
-        }
-    }
-
-    for ability in &job.abilities {
-        let is_learned = actor.unlocked_abilities.contains(&ability.id);
-        let jp_cost = ability.jp_cost.unwrap_or(0);
-        let unlock_level = ability.unlock_level.unwrap_or(0);
-        let current_level = job_level(actor, &job.id);
-        if !is_learned {
-            if jp_cost > 0 {
-                learnables += 1;
-            } else if unlock_level > 0 && current_level >= unlock_level {
-                learnables += 1;
-            }
-        }
-    }
-
-    learnables
+    build_learn_entries(actor, job).len()
 }
 
 pub fn apply_learn_purchase(runtime: &mut GameRuntime) {
@@ -401,62 +431,33 @@ pub fn apply_learn_purchase(runtime: &mut GameRuntime) {
         return;
     };
 
-    let mut learnables = Vec::new();
-
-    // Collect spells
-    for spell in &job.spells {
-        let is_learned = actor.spells.iter().any(|s| s == &spell.id);
-        let jp_cost = spell.jp_cost.unwrap_or(0);
-        let unlock_level = spell.unlock_level.unwrap_or(0);
-        let job_level = job_level(actor, &job.id);
-
-        if !is_learned {
-            if jp_cost > 0 {
-                learnables.push(("spell", spell.id.clone(), jp_cost));
-            } else if unlock_level > 0 && job_level >= unlock_level {
-                learnables.push(("spell", spell.id.clone(), 0));
-            }
-        }
-    }
-
-    // Collect abilities
-    for ability in &job.abilities {
-        let is_learned = actor.unlocked_abilities.contains(&ability.id);
-        let jp_cost = ability.jp_cost.unwrap_or(0);
-        let unlock_level = ability.unlock_level.unwrap_or(0);
-        let job_level = job_level(actor, &job.id);
-
-        if !is_learned {
-            if jp_cost > 0 {
-                learnables.push(("ability", ability.id.clone(), jp_cost));
-            } else if unlock_level > 0 && job_level >= unlock_level {
-                learnables.push(("ability", ability.id.clone(), 0));
-            }
-        }
-    }
+    let learnables = build_learn_entries(actor, job);
 
     let learn_selection = runtime
         .menu_state
         .detail_target
         .min(learnables.len().saturating_sub(1));
 
-    if let Some((kind, id, cost)) = learnables.get(learn_selection) {
+    if let Some(entry) = learnables.get(learn_selection) {
+        if entry.locked {
+            return;
+        }
         let current_jp = job_jp(actor, &job.id);
-        if *cost > 0 && current_jp < *cost {
+        if entry.cost > 0 && current_jp < entry.cost {
             return; // Not enough JP
         }
 
-        if *cost > 0 {
+        if entry.cost > 0 {
             let progress = actor
                 .job_progress
                 .entry(job.id.clone())
                 .or_insert_with(engine::party::JobProgress::default);
-            progress.jp = progress.jp.saturating_sub(*cost);
+            progress.jp = progress.jp.saturating_sub(entry.cost);
         }
 
-        match *kind {
-            "spell" => unlock_spell(actor, id),
-            "ability" => unlock_ability(actor, id),
+        match entry.kind {
+            "spell" => unlock_spell(actor, &entry.id),
+            "ability" => unlock_ability(actor, &entry.id),
             _ => {}
         }
     }

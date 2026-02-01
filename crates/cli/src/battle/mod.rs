@@ -8,14 +8,14 @@ use std::time::{Duration, Instant};
 
 use self::logic::update_atb;
 use engine::battle::{
-    build_battle_state, collect_rewards, is_enemies_defeated, is_party_defeated, BattleMode,
-    BattleResult, BattleState, LevelUpDiff,
+    BattleMode, BattleResult, BattleState, LevelUpDiff, build_battle_state, collect_rewards,
+    is_enemies_defeated, is_party_defeated,
 };
 use engine::party::gain_exp;
 use engine::rules::{JobProgressionMode, Ruleset};
 use engine::runtime::GameRuntime;
 use rand::Rng;
-use tui::battle::{draw_battle, draw_battle_frame, BattleRenderState};
+use tui::battle::{BattleRenderState, draw_battle, draw_battle_frame};
 use tui::dialog::confirm_quit;
 use tui::input::{Action, InputBindings};
 use tui::session::TuiSession;
@@ -27,9 +27,9 @@ use self::actions::{
 use self::logic::{advance_turn, build_turn_order, enemy_take_turn, push_battle_log};
 use self::render::build_battle_render_state;
 use self::state::{
-    enemy_target_indices, ensure_valid_index, party_target_indices, party_target_rule,
-    set_initial_enemy_target, set_initial_party_target, step_target_index, BattleMenuState,
-    BattlePhase, BattleTurnActor, BattleTurnState, PendingBattleAction, TargetRule, VictoryState,
+    BattleMenuState, BattlePhase, BattleTurnActor, BattleTurnState, PendingBattleAction,
+    TargetRule, VictoryState, enemy_target_indices, ensure_valid_index, party_target_indices,
+    party_target_rule, set_initial_enemy_target, set_initial_party_target, step_target_index,
 };
 use crate::menu::abilities::build_battle_ability_entries;
 use crate::menu::common::{AbilityEntry, InventoryEntry, SpellEntry};
@@ -1266,8 +1266,9 @@ fn apply_battle_rewards(
         level_ups: Vec::new(),
     };
 
+    let rules = Ruleset::from_file(runtime.content.rules.clone());
+
     if result.rewards.exp > 0 {
-        let rules = Ruleset::from_file(runtime.content.rules.clone());
         for actor_id in runtime.party.active.clone() {
             if let Some(actor) = runtime.party.roster.get_mut(&actor_id) {
                 let old_level = actor.level;
@@ -1301,7 +1302,7 @@ fn apply_battle_rewards(
     if result.rewards.jp > 0 {
         for actor_id in runtime.party.active.clone() {
             if let Some(actor) = runtime.party.roster.get_mut(&actor_id) {
-                engine::party::gain_jp(actor, result.rewards.jp);
+                engine::party::gain_jp(&runtime.content, &rules, actor, result.rewards.jp);
             }
         }
     }
