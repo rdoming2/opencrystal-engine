@@ -10,7 +10,7 @@ compatibility.
 
 - All IDs are lowercase snake_case strings.
 - All entity references use IDs, not filenames.
-- Missing optional fields should fall back to documented defaults.
+- Missing optional fields should fall back to documented defaults unless noted as required.
 - Palette values use terminal color names (`red`, `green`, `blue`, etc.) plus bright variants
   (`bright_red`, `bright_green`, etc.). These map to the user's terminal theme.
 
@@ -51,7 +51,9 @@ absolute XP totals per level or `mode: "formula"` with a formula string (use
 `lvl` in the formula). `max_level` caps progression.
 
 `inventory` seeds starting inventory and sets `max_stack` for items/equipment.
-`magic_acquisition` defines how spells are obtained (`level`, `item`, `equip`).
+`magic_acquisition` defines how spells are obtained (`level`, `item`, `equip`, `jp`) and is required.
+`ability_acquisition` defines how abilities are obtained (`level`, `item`, `equip`, `jp`) and is required.
+`job_system.jp_mode` controls whether JP is spent (`spend`) or earned (`earn`, `earn_job_locked`) and is required.
 `systems` toggles whether a gameplay system/menu is enabled at all. It should be
 used for global availability (e.g., disabling magic equip). Menu entries can still
 add `unlock_flag` gating for progression-driven unlocks.
@@ -68,6 +70,7 @@ Tier charges are defined within each job's `magic_slots`; `magic_system` `tier_c
     "atb_speed": 2.0,
     "magic_system": "mp",
     "magic_acquisition": "level",
+    "ability_acquisition": "level",
     "start_event": "intro_cutscene",
     "start_location": {
       "world": "gaia",
@@ -107,6 +110,16 @@ Tier charges are defined within each job's `magic_slots`; `magic_system` `tier_c
     "summons": false,
     "magic_equip": false,
     "materia": false
+  },
+  "job_system": {
+    "progression_mode": "job",
+    "secondary_jobs": true,
+    "jp_mode": "earn",
+    "job_exp_curve": {
+      "mode": "table",
+      "table": [0, 5, 15, 30, 50],
+      "max_level": 5
+    }
   },
   "render": {
     "min_art_width": 110,
@@ -498,7 +511,7 @@ Growth modes:
       "is_default": true,
       "sort_order": 10,
       "spells": [],
-      "abilities": [{"id": "power_strike", "method": "level", "level": 2}]
+      "abilities": [{"id": "power_strike", "level": 2}]
     },
     {
       "id": "white_mage",
@@ -525,8 +538,8 @@ Growth modes:
         "str": {"add": -1, "mult": 0.9}
       },
       "spells": [
-        {"id": "cure", "method": "level", "level": 1},
-        {"id": "protect", "method": "tier", "tier": 1}
+        {"id": "cure", "level": 1},
+        {"id": "protect", "tier": 1}
       ]
     }
   ]
@@ -535,22 +548,26 @@ Growth modes:
 
 Job spell fields:
 
-- `method`: `level`, `tier`, or `item`.
-- `level`: required when `method` is `level`.
-- `tier`: required when `method` is `tier` (FF1-style learn/buy).
-- `item`: required when `method` is `item` (spellbook).
-- `unlock_level`: optional level that automatically grants the spell in
-  `character` or `job` progression modes.
+- `level`: optional unlock level used for `level` or `jp` earn modes.
+- `tier`: optional spell tier used for `tier_charges` casting cost.
+- `item`: optional item ID used for `item` acquisition.
+- `unlock_level`: optional prereq level required before a `jp` purchase.
 - `jp_cost`: optional job points cost used for purchasing the spell in
-  `job_points` mode.
+  `jp` spend mode.
 
 Job ability fields:
 
-- `method`: `level` (other methods TBD).
-- `level`: required when `method` is `level`.
-- `unlock_level`: optional level that unlocks the ability automatically
-  for linear progression modes.
-- `jp_cost`: optional job points cost for manual unlocks in `job_points` mode.
+- `level`: optional unlock level used for `level` or `jp` earn modes.
+- `unlock_level`: optional prereq level required before a `jp` purchase.
+- `jp_cost`: optional job points cost for manual unlocks in `jp` spend mode.
+
+Job acquisition overrides:
+
+- `acquisition.magic`: optional override for how the job gains spells.
+  - Accepts a single mode (`level`, `item`, `equip`, `jp`) or a map of
+    magic school -> mode to mix acquisition styles per school.
+- `acquisition.abilities`: optional override for how the job gains abilities.
+  - Accepts a single mode (`level`, `item`, `equip`, `jp`).
 
 Job magic tier slots:
 

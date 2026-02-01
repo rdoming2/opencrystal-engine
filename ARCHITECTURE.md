@@ -177,7 +177,8 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
 
 - Magic schools are data-driven (white/black in demo; expandable to blue/time/etc).
 - Spell unlocks are configured per job.
-- Magic acquisition can be `level`, `item` (spellbooks teach), or `equip` (magic items grant spells while equipped).
+- Magic acquisition can be `level`, `item` (spellbooks teach), `equip` (magic items grant spells while equipped), or `jp`.
+- Ability acquisition can be `level`, `item`, `equip`, or `jp`.
 - Magic Equip slots are defined per job progression and use equipment `slot: "magic"` for equippable spell items.
 - Magic system mode can switch between MP and tier charges.
 - Menu casting supports field-friendly spells (heal/revive); damage stays battle-only.
@@ -303,6 +304,7 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
     "atb_speed": 2.0,
     "magic_system": "mp",
     "magic_acquisition": "level",
+    "ability_acquisition": "level",
     "start_event": "intro_cutscene",
     "start_location": {
       "world": "gaia",
@@ -338,6 +340,16 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
     "summons": false,
     "magic_equip": false,
     "materia": false
+  },
+  "job_system": {
+    "progression_mode": "job",
+    "secondary_jobs": true,
+    "jp_mode": "earn",
+    "job_exp_curve": {
+      "mode": "table",
+      "table": [0, 5, 15, 30, 50],
+      "max_level": 5
+    }
   },
   "render": {
     "min_art_width": 110,

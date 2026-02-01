@@ -19,7 +19,6 @@ pub struct RulesFile {
     pub systems: HashMap<String, bool>,
     pub render: RenderRules,
     pub stats: StatsRules,
-    #[serde(default)]
     pub job_system: JobSystemRules,
 }
 
@@ -38,8 +37,8 @@ pub struct GameRules {
     pub party_reserve_size: usize,
     pub battle_mode: BattleMode,
     pub magic_system: MagicSystem,
-    #[serde(default = "default_magic_acquisition")]
     pub magic_acquisition: MagicAcquisition,
+    pub ability_acquisition: AbilityAcquisition,
     pub start_event: Option<String>,
     pub start_location: StartLocation,
     pub currency: Currency,
@@ -72,6 +71,7 @@ pub struct JobSystemRules {
     pub progression_mode: JobProgressionMode,
     #[serde(default = "default_secondary_job_enabled")]
     pub secondary_jobs: bool,
+    pub jp_mode: JpMode,
     #[serde(default)]
     pub job_exp_curve: ExpCurveRules,
 }
@@ -84,6 +84,7 @@ pub struct Ruleset {
     pub battle_mode: BattleMode,
     pub magic_system: MagicSystem,
     pub magic_acquisition: MagicAcquisition,
+    pub ability_acquisition: AbilityAcquisition,
     pub start_event: Option<String>,
     pub start_location: StartLocation,
     pub party_mode: PartyMode,
@@ -104,6 +105,7 @@ impl Ruleset {
             battle_mode: BattleMode::Turn,
             magic_system: MagicSystem::Mp,
             magic_acquisition: MagicAcquisition::Level,
+            ability_acquisition: AbilityAcquisition::Level,
             start_event: Some("intro_cutscene".to_string()),
             start_location: StartLocation {
                 world: "gaia".to_string(),
@@ -129,6 +131,7 @@ impl Ruleset {
             battle_mode: file.game.battle_mode,
             magic_system: file.game.magic_system,
             magic_acquisition: file.game.magic_acquisition,
+            ability_acquisition: file.game.ability_acquisition,
             start_event: file.game.start_event,
             start_location: file.game.start_location,
             party_mode: file.party_mode,
@@ -169,6 +172,16 @@ pub enum MagicAcquisition {
     Level,
     Item,
     Equip,
+    Jp,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum AbilityAcquisition {
+    Level,
+    Item,
+    Equip,
+    Jp,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
@@ -185,6 +198,14 @@ pub enum JobProgressionMode {
     Character,
     Job,
     JobPoints,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum JpMode {
+    Spend,
+    Earn,
+    EarnJobLocked,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -206,10 +227,6 @@ impl Default for PartyCreateRules {
 
 fn default_party_mode() -> PartyMode {
     PartyMode::Create
-}
-
-fn default_magic_acquisition() -> MagicAcquisition {
-    MagicAcquisition::Level
 }
 
 fn default_party_level() -> u32 {
@@ -287,6 +304,7 @@ impl Default for JobSystemRules {
         Self {
             progression_mode: default_job_progression_mode(),
             secondary_jobs: default_secondary_job_enabled(),
+            jp_mode: JpMode::Earn,
             job_exp_curve: ExpCurveRules::default(),
         }
     }

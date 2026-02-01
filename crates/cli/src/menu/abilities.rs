@@ -1,3 +1,5 @@
+use engine::party::job_level;
+use engine::rules::{AbilityAcquisition, JpMode};
 use engine::runtime::GameRuntime;
 use tui::menu::{MenuPanelLine, MenuPanelView, PanelSpanStyle};
 
@@ -291,7 +293,11 @@ pub fn consume_ability_cost(
         "random" => {
             use rand::Rng;
             let mut rng = rand::thread_rng();
-            if rng.gen_bool(0.5) { true } else { false }
+            if rng.gen_bool(0.5) {
+                true
+            } else {
+                false
+            }
         }
         _ => false,
     }
@@ -355,8 +361,12 @@ fn ability_header_line(actor: &engine::party::Actor) -> MenuPanelLine {
 
 fn collect_ability_ids(runtime: &GameRuntime, actor: &engine::party::Actor) -> Vec<String> {
     let mut ids = Vec::new();
-    let job_ids = std::iter::once(actor.job_id.as_str())
-        .chain(actor.secondary_job_id.iter().map(|id| id.as_str()));
+    let mut job_ids = vec![actor.job_id.as_str()];
+    if runtime.content.rules.job_system.secondary_jobs {
+        if let Some(job_id) = actor.secondary_job_id.as_deref() {
+            job_ids.push(job_id);
+        }
+    }
     for job_id in job_ids {
         if let Some(job) = runtime
             .content
@@ -366,7 +376,7 @@ fn collect_ability_ids(runtime: &GameRuntime, actor: &engine::party::Actor) -> V
             .find(|job| job.id == job_id)
         {
             for ability in &job.abilities {
-                if !job_ability_available(actor, ability) {
+                if !job_ability_available(runtime, actor, job, ability) {
                     continue;
                 }
                 if !ids.contains(&ability.id) {
@@ -379,13 +389,36 @@ fn collect_ability_ids(runtime: &GameRuntime, actor: &engine::party::Actor) -> V
 }
 
 fn job_ability_available(
+    runtime: &GameRuntime,
     actor: &engine::party::Actor,
+    job: &engine::entities::JobDefinition,
     ability: &engine::entities::JobAbility,
 ) -> bool {
-    match ability.method.as_str() {
-        "level" => ability.level.unwrap_or(0) <= actor.level,
-        _ => false,
+    let acquisition = resolve_ability_acquisition(runtime, job);
+    let current_level = job_level(actor, &job.id);
+    match acquisition {
+        AbilityAcquisition::Level => ability.level.unwrap_or(0) <= current_level,
+        AbilityAcquisition::Jp => {
+            if runtime.content.rules.job_system.jp_mode == JpMode::Spend {
+                actor.unlocked_abilities.contains(&ability.id)
+            } else {
+                ability.level.unwrap_or(0) <= current_level
+            }
+        }
+        AbilityAcquisition::Item | AbilityAcquisition::Equip => {
+            actor.unlocked_abilities.contains(&ability.id)
+        }
     }
+}
+
+fn resolve_ability_acquisition(
+    runtime: &GameRuntime,
+    job: &engine::entities::JobDefinition,
+) -> AbilityAcquisition {
+    job.acquisition
+        .as_ref()
+        .and_then(|acquisition| acquisition.abilities.clone())
+        .unwrap_or_else(|| runtime.content.rules.game.ability_acquisition.clone())
 }
 
 fn ability_list_width(entries: &[AbilityEntry]) -> usize {

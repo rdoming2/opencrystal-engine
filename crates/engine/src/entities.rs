@@ -2,6 +2,8 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
 
+use crate::rules::{AbilityAcquisition, MagicAcquisition};
+
 #[derive(Clone, Debug)]
 pub struct PartyMember {
     pub id: String,
@@ -60,6 +62,8 @@ pub struct JobDefinition {
     pub description: Option<String>,
     #[serde(default)]
     pub magic_schools: Vec<String>,
+    #[serde(default)]
+    pub acquisition: Option<JobAcquisitionOverride>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -86,7 +90,6 @@ pub struct JobEquipment {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct JobSpell {
     pub id: String,
-    pub method: String,
     #[serde(default)]
     pub level: Option<u32>,
     #[serde(default)]
@@ -102,13 +105,27 @@ pub struct JobSpell {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct JobAbility {
     pub id: String,
-    pub method: String,
     #[serde(default)]
     pub level: Option<u32>,
     #[serde(default)]
     pub unlock_level: Option<u32>,
     #[serde(default)]
     pub jp_cost: Option<i32>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(untagged)]
+pub enum MagicAcquisitionOverride {
+    Mode(MagicAcquisition),
+    BySchool(HashMap<String, MagicAcquisition>),
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, Default)]
+pub struct JobAcquisitionOverride {
+    #[serde(default)]
+    pub magic: Option<MagicAcquisitionOverride>,
+    #[serde(default)]
+    pub abilities: Option<AbilityAcquisition>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

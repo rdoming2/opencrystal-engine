@@ -3,11 +3,11 @@ use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
 use crate::content::Content;
-use crate::entities::{EquipmentDefinition, JobDefinition};
+use crate::entities::{EquipmentDefinition, JobDefinition, MagicAcquisitionOverride};
 use crate::expr::eval_expression;
 use crate::rules::{
-    ExpCurveRules, JobProgressionMode, MagicAcquisition, MagicSystem, PartyCreateRules, PartyMode,
-    RulesFile, Ruleset,
+    AbilityAcquisition, ExpCurveRules, JobProgressionMode, JpMode, MagicAcquisition, MagicSystem,
+    PartyCreateRules, PartyMode, RulesFile, Ruleset,
 };
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -38,7 +38,8 @@ pub struct ActorDefinition {
 pub struct JobProgress {
     pub level: u32,
     pub exp: i32,
-    pub jp: i32,
+    pub jp_earned: i32,
+    pub jp_spent: i32,
 }
 
 #[derive(Clone, Debug)]
@@ -321,7 +322,8 @@ fn build_actor(
                 JobProgress {
                     level: starting_job_level,
                     exp: 0,
-                    jp: 0,
+                    jp_earned: 0,
+                    jp_spent: 0,
                 },
             );
             progress
@@ -330,32 +332,24 @@ fn build_actor(
     };
     update_equipped_spells(content, &mut built);
     learn_job_spells(content, &mut built);
+    learn_job_abilities(content, &mut built);
     built
 }
 
 fn learn_job_spells(content: &Content, actor: &mut Actor) {
-    if content.rules.game.magic_acquisition != MagicAcquisition::Level {
-        return;
-    }
     let Some(job) = content.jobs.jobs.iter().find(|job| job.id == actor.job_id) else {
         return;
     };
     let mut learned: HashSet<String> = actor.spells.iter().cloned().collect();
-    let current_level =
-        if content.rules.job_system.progression_mode == JobProgressionMode::JobPoints {
-            job_level(actor, &actor.job_id)
-        } else {
-            actor.level
-        };
+    let current_level = job_level(actor, &actor.job_id);
+    let jp_mode = &content.rules.job_system.jp_mode;
     for spell in &job.spells {
-        if content.rules.job_system.progression_mode == JobProgressionMode::JobPoints
-            && spell.jp_cost.unwrap_or(0) > 0
-        {
-            continue;
-        }
-        let unlocks = match spell.method.as_str() {
-            "level" => spell.level.unwrap_or(0) <= current_level,
-            "tier" => spell.tier.unwrap_or(0) <= current_level,
+        let acquisition = resolve_magic_acquisition_for_spell(content, job, &spell.id);
+        let unlocks = match acquisition {
+            MagicAcquisition::Level => spell.level.unwrap_or(0) <= current_level,
+            MagicAcquisition::Jp => {
+                *jp_mode != JpMode::Spend && spell.level.unwrap_or(0) <= current_level
+            }
             _ => false,
         };
         if unlocks {
@@ -365,6 +359,65 @@ fn learn_job_spells(content: &Content, actor: &mut Actor) {
     let mut spells = learned.into_iter().collect::<Vec<_>>();
     spells.sort_unstable();
     actor.spells = spells;
+}
+
+fn learn_job_abilities(content: &Content, actor: &mut Actor) {
+    let Some(job) = content.jobs.jobs.iter().find(|job| job.id == actor.job_id) else {
+        return;
+    };
+    let current_level = job_level(actor, &actor.job_id);
+    let acquisition = resolve_ability_acquisition(content, job);
+    let auto_unlock = match acquisition {
+        AbilityAcquisition::Level => true,
+        AbilityAcquisition::Jp => content.rules.job_system.jp_mode != JpMode::Spend,
+        _ => false,
+    };
+    if !auto_unlock {
+        return;
+    }
+    for ability in &job.abilities {
+        let level = ability.level.unwrap_or(0);
+        if level > 0 && level <= current_level {
+            actor.unlocked_abilities.insert(ability.id.clone());
+        }
+    }
+}
+
+fn resolve_magic_acquisition_for_spell(
+    content: &Content,
+    job: &JobDefinition,
+    spell_id: &str,
+) -> MagicAcquisition {
+    let default = content.rules.game.magic_acquisition.clone();
+    let Some(acquisition) = job
+        .acquisition
+        .as_ref()
+        .and_then(|acquisition| acquisition.magic.as_ref())
+    else {
+        return default;
+    };
+    match acquisition {
+        MagicAcquisitionOverride::Mode(mode) => mode.clone(),
+        MagicAcquisitionOverride::BySchool(map) => {
+            let school = content
+                .spells
+                .spells
+                .iter()
+                .find(|spell| spell.id == spell_id)
+                .map(|spell| spell.school.as_str());
+            match school.and_then(|school| map.get(school)) {
+                Some(mode) => mode.clone(),
+                None => default,
+            }
+        }
+    }
+}
+
+fn resolve_ability_acquisition(content: &Content, job: &JobDefinition) -> AbilityAcquisition {
+    job.acquisition
+        .as_ref()
+        .and_then(|acquisition| acquisition.abilities.clone())
+        .unwrap_or_else(|| content.rules.game.ability_acquisition.clone())
 }
 
 fn job_slots(job: &JobDefinition) -> Vec<String> {
@@ -531,6 +584,7 @@ pub fn gain_exp(content: &Content, rules: &Ruleset, actor: &mut Actor, amount: i
                 levels_gained += 1;
             }
             learn_job_spells(content, actor);
+            learn_job_abilities(content, actor);
             recompute_derived_stats(content, actor);
             levels_gained
         }
@@ -553,6 +607,7 @@ pub fn gain_exp(content: &Content, rules: &Ruleset, actor: &mut Actor, amount: i
                 levels_gained += 1;
             }
             learn_job_spells(content, actor);
+            learn_job_abilities(content, actor);
             recompute_derived_stats(content, actor);
             levels_gained
         }
@@ -571,7 +626,7 @@ pub fn gain_jp(content: &Content, rules: &Ruleset, actor: &mut Actor, amount: i3
     if progress.level == 0 {
         progress.level = 1;
     }
-    progress.jp = progress.jp.saturating_add(amount);
+    progress.jp_earned = progress.jp_earned.saturating_add(amount);
     progress.exp = progress.exp.saturating_add(amount);
 
     let max_level = rules.job_system.job_exp_curve.max_level.max(1);
@@ -591,6 +646,8 @@ pub fn gain_jp(content: &Content, rules: &Ruleset, actor: &mut Actor, amount: i3
         actor.base_stats = build_job_base_stats(content, job, actor.level);
         recompute_derived_stats(content, actor);
     }
+    learn_job_spells(content, actor);
+    learn_job_abilities(content, actor);
 }
 
 fn apply_growth(content: &Content, actor: &mut Actor) {
@@ -744,8 +801,23 @@ pub fn job_jp(actor: &Actor, job_id: &str) -> i32 {
     actor
         .job_progress
         .get(job_id)
-        .map(|progress| progress.jp)
+        .map(|progress| progress.jp_earned.saturating_sub(progress.jp_spent))
         .unwrap_or(0)
+}
+
+pub fn spend_job_jp(actor: &mut Actor, job_id: &str, amount: i32) -> bool {
+    if amount <= 0 {
+        return true;
+    }
+    let Some(progress) = actor.job_progress.get_mut(job_id) else {
+        return false;
+    };
+    let available = progress.jp_earned.saturating_sub(progress.jp_spent);
+    if available < amount {
+        return false;
+    }
+    progress.jp_spent = progress.jp_spent.saturating_add(amount);
+    true
 }
 
 pub fn set_primary_job(actor: &mut Actor, job_id: &str, content: &Content) {
@@ -769,6 +841,8 @@ pub fn set_primary_job(actor: &mut Actor, job_id: &str, content: &Content) {
         actor.base_stats = build_job_base_stats(content, job, actor.level);
         recompute_derived_stats(content, actor);
     }
+    learn_job_spells(content, actor);
+    learn_job_abilities(content, actor);
 }
 
 pub fn set_secondary_job(actor: &mut Actor, job_id: Option<String>) {

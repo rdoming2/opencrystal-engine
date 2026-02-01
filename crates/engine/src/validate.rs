@@ -95,6 +95,22 @@ pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
         if rules.game.party_size > 4 {
             errors.push("rules.json: party_size must be <= 4".to_string());
         }
+        if rules.game.magic_acquisition == crate::rules::MagicAcquisition::Jp
+            && rules.job_system.progression_mode != crate::rules::JobProgressionMode::JobPoints
+        {
+            errors.push(
+                "rules.json: magic_acquisition 'jp' requires job_system.progression_mode 'job_points'"
+                    .to_string(),
+            );
+        }
+        if rules.game.ability_acquisition == crate::rules::AbilityAcquisition::Jp
+            && rules.job_system.progression_mode != crate::rules::JobProgressionMode::JobPoints
+        {
+            errors.push(
+                "rules.json: ability_acquisition 'jp' requires job_system.progression_mode 'job_points'"
+                    .to_string(),
+            );
+        }
         match rules.exp_curve.mode.as_str() {
             "table" => {
                 if rules.exp_curve.table.is_empty() {

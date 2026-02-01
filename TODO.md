@@ -93,7 +93,7 @@
 - [ ] Add ATB speed setting to main menu.
 
 ## Magic System
-- [x] Implement job-based spell learnsets (level/tier/item).
+- [x] Implement job-based spell learnsets (level/item/equip/jp).
 - [x] Track learned spells per actor.
 - [x] Enable menu casting for field magic.
 - [x] Add item-based spell learning (learn_spell items).

@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
-use engine::party::get_actor_max_charges;
-use engine::rules::{MagicAcquisition, MagicSystem};
+use engine::party::{get_actor_max_charges, job_level};
+use engine::rules::{JpMode, MagicAcquisition, MagicSystem};
 use engine::runtime::GameRuntime;
 use tui::menu::{MenuPanelLine, MenuPanelView, PanelSpanStyle};
 
@@ -466,45 +466,128 @@ fn collect_spell_ids(runtime: &GameRuntime, actor: &engine::party::Actor) -> Vec
     let mut ids = Vec::new();
     ids.extend(actor.spells.clone());
     ids.extend(actor.equipped_spells.clone());
-    if runtime.content.rules.game.magic_acquisition == MagicAcquisition::Level {
-        let job_ids = std::iter::once(actor.job_id.as_str())
-            .chain(actor.secondary_job_id.iter().map(|id| id.as_str()));
-        for job_id in job_ids {
-            if let Some(job) = runtime
-                .content
-                .jobs
-                .jobs
-                .iter()
-                .find(|job| job.id == job_id)
-            {
-                for spell in &job.spells {
-                    if !job_spell_available(runtime, actor, spell) {
-                        continue;
-                    }
-                    if !ids.contains(&spell.id) {
-                        ids.push(spell.id.clone());
-                    }
+    let mut job_ids = vec![actor.job_id.as_str()];
+    if runtime.content.rules.job_system.secondary_jobs {
+        if let Some(job_id) = actor.secondary_job_id.as_deref() {
+            job_ids.push(job_id);
+        }
+    }
+    for job_id in job_ids {
+        if let Some(job) = runtime
+            .content
+            .jobs
+            .jobs
+            .iter()
+            .find(|job| job.id == job_id)
+        {
+            for spell in &job.spells {
+                if !job_spell_available(runtime, actor, job, spell) {
+                    continue;
+                }
+                if !ids.contains(&spell.id) {
+                    ids.push(spell.id.clone());
                 }
             }
         }
     }
-    ids
+    ids.sort();
+    ids.dedup();
+    ids.into_iter()
+        .filter(|spell_id| spell_allowed_for_actor(runtime, actor, spell_id))
+        .collect()
 }
 
 fn job_spell_available(
     runtime: &GameRuntime,
     actor: &engine::party::Actor,
+    job: &engine::entities::JobDefinition,
     spell: &engine::entities::JobSpell,
 ) -> bool {
-    match spell.method.as_str() {
-        "level" => spell.level.unwrap_or(0) <= actor.level,
-        "tier" => spell.tier.unwrap_or(0) <= actor.level,
-        "item" => match spell.item.as_deref() {
-            Some(item_id) => runtime.inventory.item_qty(item_id) > 0,
-            None => false,
-        },
-        _ => false,
+    let acquisition = resolve_magic_acquisition(runtime, job, &spell.id);
+    let current_level = job_level(actor, &job.id);
+    match acquisition {
+        MagicAcquisition::Level => spell.level.unwrap_or(0) <= current_level,
+        MagicAcquisition::Jp => {
+            runtime.content.rules.job_system.jp_mode != JpMode::Spend
+                && spell.level.unwrap_or(0) <= current_level
+        }
+        MagicAcquisition::Item | MagicAcquisition::Equip => false,
     }
+}
+
+fn resolve_magic_acquisition(
+    runtime: &GameRuntime,
+    job: &engine::entities::JobDefinition,
+    spell_id: &str,
+) -> MagicAcquisition {
+    let default = runtime.content.rules.game.magic_acquisition.clone();
+    let Some(acquisition) = job
+        .acquisition
+        .as_ref()
+        .and_then(|acquisition| acquisition.magic.as_ref())
+    else {
+        return default;
+    };
+    match acquisition {
+        engine::entities::MagicAcquisitionOverride::Mode(mode) => mode.clone(),
+        engine::entities::MagicAcquisitionOverride::BySchool(map) => {
+            let school = runtime
+                .content
+                .spells
+                .spells
+                .iter()
+                .find(|spell| spell.id == spell_id)
+                .map(|spell| spell.school.as_str());
+            match school.and_then(|school| map.get(school)) {
+                Some(mode) => mode.clone(),
+                None => default,
+            }
+        }
+    }
+}
+
+fn spell_allowed_for_actor(
+    runtime: &GameRuntime,
+    actor: &engine::party::Actor,
+    spell_id: &str,
+) -> bool {
+    let Some(spell) = runtime
+        .content
+        .spells
+        .spells
+        .iter()
+        .find(|spell| spell.id == spell_id)
+    else {
+        return false;
+    };
+    let mut job_ids = vec![actor.job_id.as_str()];
+    if runtime.content.rules.job_system.secondary_jobs {
+        if let Some(job_id) = actor.secondary_job_id.as_deref() {
+            job_ids.push(job_id);
+        }
+    }
+    for job_id in job_ids {
+        let Some(job) = runtime
+            .content
+            .jobs
+            .jobs
+            .iter()
+            .find(|job| job.id == job_id)
+        else {
+            continue;
+        };
+        if job
+            .magic_schools
+            .iter()
+            .any(|school| school == &spell.school)
+        {
+            return true;
+        }
+        if job.spells.iter().any(|entry| entry.id == spell_id) {
+            return true;
+        }
+    }
+    false
 }
 
 fn spell_cast_status(

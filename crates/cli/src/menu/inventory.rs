@@ -1,9 +1,10 @@
+use engine::rules::MagicAcquisition;
 use engine::runtime::GameRuntime;
 use tui::menu::{MenuPanelLine, MenuPanelSpan, MenuPanelView, PanelSpanStyle};
 
 use super::common::{
-    InventoryEntry, InventoryFilter, InventoryKind, InventorySort, filter_from_index,
-    sort_from_index,
+    filter_from_index, sort_from_index, InventoryEntry, InventoryFilter, InventoryKind,
+    InventorySort,
 };
 use super::equipment::build_equipped_map;
 
@@ -417,20 +418,44 @@ fn build_item_targets(
                 if actor.spells.iter().any(|s| s == spell_id) {
                     return false;
                 }
-                let Some(job) = runtime
-                    .content
-                    .jobs
-                    .jobs
-                    .iter()
-                    .find(|j| j.id == actor.job_id)
-                else {
-                    return false;
-                };
-                job.spells.iter().any(|s| {
-                    s.id == spell_id
-                        && s.method == "item"
-                        && (s.item.is_none() || s.item.as_deref() == Some(item.id.as_str()))
-                })
+                let mut job_ids = vec![actor.job_id.as_str()];
+                if runtime.content.rules.job_system.secondary_jobs {
+                    if let Some(job_id) = actor.secondary_job_id.as_deref() {
+                        job_ids.push(job_id);
+                    }
+                }
+                for job_id in job_ids {
+                    let Some(job) = runtime.content.jobs.jobs.iter().find(|j| j.id == job_id)
+                    else {
+                        continue;
+                    };
+                    let acquisition = resolve_magic_acquisition(runtime, job, spell_id);
+                    if acquisition != MagicAcquisition::Item {
+                        continue;
+                    }
+                    if let Some(entry) = job.spells.iter().find(|s| s.id == spell_id) {
+                        if entry.item.is_none() || entry.item.as_deref() == Some(item.id.as_str()) {
+                            return true;
+                        }
+                        continue;
+                    }
+                    let school_allowed = runtime
+                        .content
+                        .spells
+                        .spells
+                        .iter()
+                        .find(|spell| spell.id == spell_id)
+                        .map(|spell| {
+                            job.magic_schools
+                                .iter()
+                                .any(|school| school == &spell.school)
+                        })
+                        .unwrap_or(false);
+                    if school_allowed {
+                        return true;
+                    }
+                }
+                false
             });
         }
         _ => {}
@@ -489,6 +514,37 @@ pub fn build_item_description(
             }
         }
         InventoryKind::Equipment => vec![panel_line("Select equipment in Equipment menu.")],
+    }
+}
+
+fn resolve_magic_acquisition(
+    runtime: &GameRuntime,
+    job: &engine::entities::JobDefinition,
+    spell_id: &str,
+) -> MagicAcquisition {
+    let default = runtime.content.rules.game.magic_acquisition.clone();
+    let Some(acquisition) = job
+        .acquisition
+        .as_ref()
+        .and_then(|acquisition| acquisition.magic.as_ref())
+    else {
+        return default;
+    };
+    match acquisition {
+        engine::entities::MagicAcquisitionOverride::Mode(mode) => mode.clone(),
+        engine::entities::MagicAcquisitionOverride::BySchool(map) => {
+            let school = runtime
+                .content
+                .spells
+                .spells
+                .iter()
+                .find(|spell| spell.id == spell_id)
+                .map(|spell| spell.school.as_str());
+            match school.and_then(|school| map.get(school)) {
+                Some(mode) => mode.clone(),
+                None => default,
+            }
+        }
     }
 }
 
