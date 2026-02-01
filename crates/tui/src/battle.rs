@@ -1,11 +1,11 @@
 use std::collections::HashMap;
 use std::io;
 
-use ratatui::Frame;
 use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, Paragraph, Wrap};
+use ratatui::Frame;
 
 use crate::session::TuiSession;
 use crate::ui::{BattleUiFile, Breakpoint};
@@ -138,6 +138,8 @@ pub fn draw_victory_summary(
     session: &mut TuiSession,
     exp: i32,
     currency: i32,
+    jp: i32,
+    show_jp: bool,
     currency_label: &str,
     items: &HashMap<String, i32>,
 ) -> io::Result<()> {
@@ -166,6 +168,14 @@ pub fn draw_victory_summary(
             lines.push(Line::from(Span::styled(
                 if currency > 0 {
                     format!("{}: {}", currency_label, currency)
+                } else {
+                    String::new()
+                },
+                Style::default(),
+            )));
+            lines.push(Line::from(Span::styled(
+                if show_jp {
+                    format!("JP: {}", jp)
                 } else {
                     String::new()
                 },

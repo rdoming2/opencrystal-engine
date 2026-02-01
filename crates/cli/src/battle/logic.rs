@@ -1,7 +1,7 @@
 use engine::battle::BattleMode;
 use engine::runtime::GameRuntime;
-use rand::Rng;
 use rand::seq::SliceRandom;
+use rand::Rng;
 
 use super::state::{BattleMenuState, BattleTurnActor, BattleTurnState};
 
