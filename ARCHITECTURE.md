@@ -398,7 +398,7 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
 
 ## Demo content
 
-- Crystal-focused story (2 of 4 crystals recovered in demo).
-- Overworld + 1 town + 1 dungeon.
-- 6-8 enemies, 3-4 jobs, 6-8 spells, 10 items.
-- Job unlock event and vehicle unlock event.
+- Rune stone arc (4 elemental dungeons + bonus island dragon finale).
+- Overworld + 1 town + 5 dungeons (4 rune sites + bonus).
+- 10-15 enemies, 5 jobs, 6-8 spells, 10 items.
+- Job unlocks tied to bosses; airship unlock after all four runes.

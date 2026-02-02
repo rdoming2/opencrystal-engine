@@ -127,6 +127,7 @@
 
 ## Content + Validation
 - [x] Add missing demo content (town map, shop UI, basic quests).
+- [x] Expand demo content (four rune dungeons, job unlocks, bonus dragon).
 - [x] Extend validation for event step payloads.
 - [ ] Add content authoring guide.
 - [x] Add `ui/menu.json` schema + validation.

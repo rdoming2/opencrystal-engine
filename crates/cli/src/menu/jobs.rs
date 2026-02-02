@@ -100,12 +100,12 @@ pub fn build_job_picker(runtime: &GameRuntime) -> MenuPanelView {
         .or_else(|| runtime.party.active.first().cloned());
     let actor = actor_id.and_then(|actor_id| runtime.party.roster.get(&actor_id));
 
-    let jobs = &runtime.content.jobs.jobs;
+    let jobs = available_jobs(runtime);
     let selection = runtime
         .menu_state
         .detail_selection
         .min(jobs.len().saturating_sub(1));
-    let job = jobs.get(selection);
+    let job = jobs.get(selection).copied();
 
     let mut lines = Vec::new();
     if let Some(actor) = actor {
@@ -164,7 +164,7 @@ pub fn build_job_picker(runtime: &GameRuntime) -> MenuPanelView {
             lines.push(panel_line(format!("Job Lv: {}", job_level_text)));
         }
     } else {
-        lines.push(panel_line("No jobs defined."));
+        lines.push(panel_line("No jobs available."));
     }
 
     MenuPanelView {
@@ -355,15 +355,21 @@ pub fn apply_primary_change(runtime: &mut GameRuntime) {
         .get(runtime.menu_state.detail_actor)
         .cloned()
         .unwrap_or_else(|| runtime.party.active[0].clone());
+    let job_id = {
+        let jobs = available_jobs(runtime);
+        jobs.get(
+            runtime
+                .menu_state
+                .detail_selection
+                .min(jobs.len().saturating_sub(1)),
+        )
+        .map(|job| job.id.clone())
+    };
+    let Some(job_id) = job_id else {
+        return;
+    };
     if let Some(actor) = runtime.party.roster.get_mut(&actor_id) {
-        if let Some(job) = runtime
-            .content
-            .jobs
-            .jobs
-            .get(runtime.menu_state.detail_selection)
-        {
-            set_primary_job(actor, &job.id, &runtime.content);
-        }
+        set_primary_job(actor, &job_id, &runtime.content);
     }
 }
 
@@ -380,13 +386,17 @@ pub fn apply_secondary_change(runtime: &mut GameRuntime) {
         .get(runtime.menu_state.detail_actor)
         .cloned()
         .unwrap_or_else(|| runtime.party.active[0].clone());
+    let job_id = {
+        let jobs = available_jobs(runtime);
+        jobs.get(
+            runtime
+                .menu_state
+                .detail_selection
+                .min(jobs.len().saturating_sub(1)),
+        )
+        .map(|job| job.id.clone())
+    };
     if let Some(actor) = runtime.party.roster.get_mut(&actor_id) {
-        let job = runtime
-            .content
-            .jobs
-            .jobs
-            .get(runtime.menu_state.detail_selection);
-        let job_id = job.map(|job| job.id.clone());
         set_secondary_job(actor, job_id);
     }
 }
@@ -400,12 +410,12 @@ pub fn build_learn_panel(runtime: &GameRuntime) -> MenuPanelView {
         .or_else(|| runtime.party.active.first().cloned());
     let actor = actor_id.and_then(|actor_id| runtime.party.roster.get(&actor_id));
 
-    let jobs = &runtime.content.jobs.jobs;
+    let jobs = available_jobs(runtime);
     let selection = runtime
         .menu_state
         .detail_selection
         .min(jobs.len().saturating_sub(1));
-    let job = jobs.get(selection);
+    let job = jobs.get(selection).copied();
 
     let mut lines = Vec::new();
     if let Some(actor) = actor {
@@ -449,7 +459,7 @@ pub fn build_learn_panel(runtime: &GameRuntime) -> MenuPanelView {
         }
         lines.push(panel_line("Cancel: return to job list."));
     } else {
-        lines.push(panel_line("No jobs defined."));
+        lines.push(panel_line("No jobs available."));
     }
 
     MenuPanelView {
@@ -467,12 +477,12 @@ pub fn learnable_count(runtime: &GameRuntime) -> usize {
         .or_else(|| runtime.party.active.first().cloned());
     let actor = actor_id.and_then(|actor_id| runtime.party.roster.get(&actor_id));
 
-    let jobs = &runtime.content.jobs.jobs;
+    let jobs = available_jobs(runtime);
     let selection = runtime
         .menu_state
         .detail_selection
         .min(jobs.len().saturating_sub(1));
-    let job = jobs.get(selection);
+    let job = jobs.get(selection).copied();
 
     let Some(actor) = actor else {
         return 0;
@@ -497,22 +507,25 @@ pub fn apply_learn_purchase(runtime: &mut GameRuntime) {
         .get(runtime.menu_state.detail_actor)
         .cloned()
         .unwrap_or_else(|| runtime.party.active[0].clone());
-    let jobs = &runtime.content.jobs.jobs;
-    let selection = runtime
-        .menu_state
-        .detail_selection
-        .min(jobs.len().saturating_sub(1));
-    let Some(job) = jobs.get(selection) else {
-        return;
-    };
-    let learn_selection = runtime.menu_state.detail_target;
-    let (entry, current_jp) = {
+    let (entry, current_jp, job_id) = {
+        let jobs = available_jobs(runtime);
+        let selection = runtime
+            .menu_state
+            .detail_selection
+            .min(jobs.len().saturating_sub(1));
+        let Some(job) = jobs.get(selection).copied() else {
+            return;
+        };
         let Some(actor) = runtime.party.roster.get(&actor_id) else {
             return;
         };
         let learnables = build_learn_entries(runtime, actor, job);
-        let selection = learn_selection.min(learnables.len().saturating_sub(1));
-        (learnables.get(selection).cloned(), job_jp(actor, &job.id))
+        let selection = runtime
+            .menu_state
+            .detail_target
+            .min(learnables.len().saturating_sub(1));
+        let entry = learnables.get(selection).cloned();
+        (entry, job_jp(actor, &job.id), job.id.clone())
     };
 
     let Some(entry) = entry else {
@@ -528,7 +541,7 @@ pub fn apply_learn_purchase(runtime: &mut GameRuntime) {
     let Some(actor) = runtime.party.roster.get_mut(&actor_id) else {
         return;
     };
-    if entry.cost > 0 && !spend_job_jp(actor, &job.id, entry.cost) {
+    if entry.cost > 0 && !spend_job_jp(actor, &job_id, entry.cost) {
         return;
     }
 
@@ -536,5 +549,22 @@ pub fn apply_learn_purchase(runtime: &mut GameRuntime) {
         "spell" => unlock_spell(actor, &entry.id),
         "ability" => unlock_ability(actor, &entry.id),
         _ => {}
+    }
+}
+
+fn available_jobs(runtime: &GameRuntime) -> Vec<&JobDefinition> {
+    runtime
+        .content
+        .jobs
+        .jobs
+        .iter()
+        .filter(|job| job_unlock_available(runtime, job))
+        .collect()
+}
+
+fn job_unlock_available(runtime: &GameRuntime, job: &JobDefinition) -> bool {
+    match job.unlock_flag.as_deref() {
+        Some(flag) if !flag.trim().is_empty() => runtime.has_flag(flag),
+        _ => true,
     }
 }
