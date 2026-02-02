@@ -29,6 +29,7 @@ pub struct BattleMenuState {
     pub ability_index: usize,
     pub item_index: usize,
     pub pending_action: Option<PendingBattleAction>,
+    pub paused: bool,
 }
 
 impl BattleMenuState {
@@ -42,12 +43,17 @@ impl BattleMenuState {
             ability_index: 0,
             item_index: 0,
             pending_action: None,
+            paused: false,
         }
     }
 
     pub fn reset_for_actor(&mut self) {
         self.phase = BattlePhase::Command;
         self.pending_action = None;
+    }
+
+    pub fn toggle_pause(&mut self) {
+        self.paused = !self.paused;
     }
 }
 

@@ -8,14 +8,14 @@ use std::time::{Duration, Instant};
 
 use self::logic::update_atb;
 use engine::battle::{
-    BattleMode, BattleResult, BattleState, LevelUpDiff, build_battle_state, collect_rewards,
-    is_enemies_defeated, is_party_defeated,
+    build_battle_state, collect_rewards, is_enemies_defeated, is_party_defeated, BattleMode,
+    BattleResult, BattleState, LevelUpDiff,
 };
 use engine::party::gain_exp;
 use engine::rules::{JobProgressionMode, Ruleset};
 use engine::runtime::GameRuntime;
 use rand::Rng;
-use tui::battle::{BattleRenderState, draw_battle, draw_battle_frame};
+use tui::battle::{draw_battle, draw_battle_frame, BattleRenderState};
 use tui::dialog::confirm_quit;
 use tui::input::{Action, InputBindings};
 use tui::session::TuiSession;
@@ -27,9 +27,9 @@ use self::actions::{
 use self::logic::{advance_turn, build_turn_order, enemy_take_turn, push_battle_log};
 use self::render::build_battle_render_state;
 use self::state::{
-    BattleMenuState, BattlePhase, BattleTurnActor, BattleTurnState, PendingBattleAction,
-    TargetRule, VictoryState, enemy_target_indices, ensure_valid_index, party_target_indices,
-    party_target_rule, set_initial_enemy_target, set_initial_party_target, step_target_index,
+    enemy_target_indices, ensure_valid_index, party_target_indices, party_target_rule,
+    set_initial_enemy_target, set_initial_party_target, step_target_index, BattleMenuState,
+    BattlePhase, BattleTurnActor, BattleTurnState, PendingBattleAction, TargetRule, VictoryState,
 };
 use crate::menu::abilities::build_battle_ability_entries;
 use crate::menu::common::{AbilityEntry, InventoryEntry, SpellEntry};
@@ -137,18 +137,16 @@ pub fn run_battle(
             }
         } else {
             // ATB Logic
-            let paused = if battle_state.mode == BattleMode::DynamicWait {
-                matches!(
-                    menu_state.phase,
-                    BattlePhase::Magic
-                        | BattlePhase::Abilities
-                        | BattlePhase::Items
-                        | BattlePhase::TargetEnemy
-                        | BattlePhase::TargetParty
-                )
-            } else {
-                false
-            };
+            let paused = menu_state.paused
+                || (battle_state.mode == BattleMode::DynamicWait
+                    && matches!(
+                        menu_state.phase,
+                        BattlePhase::Magic
+                            | BattlePhase::Abilities
+                            | BattlePhase::Items
+                            | BattlePhase::TargetEnemy
+                            | BattlePhase::TargetParty
+                    ));
 
             if !paused {
                 let new_ready = update_atb(runtime, &mut battle_state, delta);
@@ -243,32 +241,34 @@ pub fn run_battle(
                         actor_id = current_id;
                     }
                     BattleTurnActor::Enemy(enemy_index) => {
-                        if let Some(target_index) =
-                            enemy_take_turn(runtime, &mut battle_state, enemy_index, rng)
-                        {
-                            let render_state = build_battle_render_state(
-                                runtime,
-                                &battle_state,
-                                &menu_state,
-                                battle_ui,
-                                &[],
-                                &[],
-                                &[],
-                                false,
-                            );
-                            pause_after_action(
-                                session,
-                                battle_ui,
-                                bindings,
-                                &render_state,
-                                vec![enemy_index],
-                                Vec::new(),
-                                Vec::new(),
-                                vec![target_index],
-                            )?;
+                        if !menu_state.paused {
+                            if let Some(target_index) =
+                                enemy_take_turn(runtime, &mut battle_state, enemy_index, rng)
+                            {
+                                let render_state = build_battle_render_state(
+                                    runtime,
+                                    &battle_state,
+                                    &menu_state,
+                                    battle_ui,
+                                    &[],
+                                    &[],
+                                    &[],
+                                    false,
+                                );
+                                pause_after_action(
+                                    session,
+                                    battle_ui,
+                                    bindings,
+                                    &render_state,
+                                    vec![enemy_index],
+                                    Vec::new(),
+                                    Vec::new(),
+                                    vec![target_index],
+                                )?;
+                            }
+                            advance_turn(&mut menu_state, &mut turn_state, &mut battle_state);
+                            continue;
                         }
-                        advance_turn(&mut menu_state, &mut turn_state, &mut battle_state);
-                        continue;
                     }
                 }
             }
@@ -339,6 +339,17 @@ pub fn run_battle(
             })? {
                 return Err(std::io::Error::new(std::io::ErrorKind::Interrupted, "quit"));
             }
+            continue;
+        }
+
+        if action == Action::Pause {
+            if !matches!(menu_state.phase, BattlePhase::Victory | BattlePhase::Defeat) {
+                menu_state.toggle_pause();
+            }
+            continue;
+        }
+
+        if menu_state.paused {
             continue;
         }
 

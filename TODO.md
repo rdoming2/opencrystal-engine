@@ -82,6 +82,7 @@
 ## Battle System
 - [x] Turn-based flow (command selection, targeting, resolve action).
 - [x] ATB timers (wait + active modes).
+- [x] Battle pause toggle (freeze progression).
 - [ ] Status effects and damage formulas (derived stats).
 - [x] Victory/defeat flow (spoils, level-ups, modals).
 - [x] Scan reveals enemy HP.

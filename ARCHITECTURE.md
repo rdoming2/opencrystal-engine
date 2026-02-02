@@ -199,6 +199,7 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
   - Dynamic Wait (ATB with pause in menus)
   - Dynamic (ATB active, continues during menus)
 - Turn order ranks all actors by speed each round (party + enemies).
+- Battle pause toggles a PAUSED overlay and freezes battle progression until resumed.
 - Enemy selection tied to list on the left column.
 - Visual feedback highlights enemy in battlefield and list simultaneously.
 - Victory flow grants EXP/loot/currency summed from enemies.

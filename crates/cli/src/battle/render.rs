@@ -105,6 +105,7 @@ pub fn build_battle_render_state(
         selected_party: menu_state.party_index,
         focus: battle_focus(menu_state),
         log: battle_state.log.clone(),
+        paused: menu_state.paused,
         use_color: runtime
             .content
             .rules

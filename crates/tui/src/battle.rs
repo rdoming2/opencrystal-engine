@@ -1,11 +1,11 @@
 use std::collections::HashMap;
 use std::io;
 
-use ratatui::Frame;
 use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, Paragraph, Wrap};
+use ratatui::Frame;
 
 use crate::session::TuiSession;
 use crate::ui::{BattleUiFile, Breakpoint};
@@ -84,6 +84,7 @@ pub struct BattleRenderState {
     pub selected_party: usize,
     pub focus: BattleFocus,
     pub log: Vec<String>,
+    pub paused: bool,
     pub use_color: bool,
     pub flash_enemies: Vec<usize>,
     pub flash_party: Vec<usize>,
@@ -132,6 +133,37 @@ pub fn draw_battle_frame(frame: &mut Frame, battle_ui: &BattleUiFile, state: &Ba
     }
 
     draw_command_row(frame, columns_area, battle_ui, state, hide_titles);
+
+    if state.paused {
+        draw_pause_overlay(frame);
+    }
+}
+
+fn draw_pause_overlay(frame: &mut Frame) {
+    let area = centered_rect(frame.size(), 28, 7);
+    frame.render_widget(Clear, area);
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default());
+    let lines = vec![
+        Line::from(Span::raw("")),
+        Line::from(Span::styled(
+            "PAUSED",
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        )),
+        Line::from(Span::raw("")),
+        Line::from(Span::styled(
+            "Press Pause to resume",
+            Style::default().fg(Color::Gray),
+        )),
+    ];
+    let paragraph = Paragraph::new(lines)
+        .block(block)
+        .alignment(Alignment::Center)
+        .wrap(Wrap { trim: true });
+    frame.render_widget(paragraph, area);
 }
 
 pub fn draw_victory_summary(

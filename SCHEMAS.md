@@ -35,6 +35,8 @@ Configurable input bindings.
 }
 ```
 
+The `pause` binding toggles battle pause during combat.
+
 ## rules.json
 
 Global rules and feature flags.
