@@ -96,9 +96,17 @@ pub fn next_filter_index(index: usize) -> usize {
 }
 
 pub fn prev_filter_index(index: usize) -> usize {
-    if index == 0 { 4 } else { index - 1 }
+    if index == 0 {
+        4
+    } else {
+        index - 1
+    }
 }
 
 pub fn toggle_sort_index(index: usize) -> usize {
-    if index == 0 { 1 } else { 0 }
+    if index == 0 {
+        1
+    } else {
+        0
+    }
 }

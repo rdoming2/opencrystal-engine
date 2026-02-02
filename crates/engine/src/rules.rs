@@ -17,6 +17,8 @@ pub struct RulesFile {
     pub inventory: InventoryRules,
     #[serde(default)]
     pub systems: HashMap<String, bool>,
+    #[serde(default)]
+    pub save: SaveRules,
     pub render: RenderRules,
     pub stats: StatsRules,
     pub job_system: JobSystemRules,
@@ -92,8 +94,17 @@ pub struct Ruleset {
     pub exp_curve: ExpCurveRules,
     pub inventory: InventoryRules,
     pub systems: HashMap<String, bool>,
+    pub save: SaveRules,
     pub atb_speed: f32,
     pub job_system: JobSystemRules,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct SaveRules {
+    #[serde(default = "default_save_slots_max")]
+    pub slots_max: u32,
+    #[serde(default)]
+    pub autosave_enabled: bool,
 }
 
 impl Ruleset {
@@ -118,6 +129,7 @@ impl Ruleset {
             exp_curve: ExpCurveRules::default(),
             inventory: InventoryRules::default(),
             systems: HashMap::new(),
+            save: SaveRules::default(),
             atb_speed: 2.0,
             job_system: JobSystemRules::default(),
         }
@@ -139,6 +151,7 @@ impl Ruleset {
             exp_curve: file.exp_curve,
             inventory: file.inventory,
             systems: file.systems,
+            save: file.save,
             atb_speed: file.game.atb_speed,
             job_system: file.job_system,
         }
@@ -225,6 +238,15 @@ impl Default for PartyCreateRules {
     }
 }
 
+impl Default for SaveRules {
+    fn default() -> Self {
+        Self {
+            slots_max: default_save_slots_max(),
+            autosave_enabled: false,
+        }
+    }
+}
+
 fn default_party_mode() -> PartyMode {
     PartyMode::Create
 }
@@ -235,6 +257,10 @@ fn default_party_level() -> u32 {
 
 fn default_name_length() -> usize {
     12
+}
+
+fn default_save_slots_max() -> u32 {
+    10
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

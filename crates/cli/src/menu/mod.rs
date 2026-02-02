@@ -8,12 +8,15 @@ pub mod magic;
 pub mod magic_equip;
 pub mod status;
 
+use std::path::{Path, PathBuf};
+
 use engine::menu::MenuFocus;
 use engine::party::{get_actor_max_charges, job_jp};
 use engine::rules::JobProgressionMode;
 use engine::runtime::GameRuntime;
+use engine::save::SaveFile;
 use tui::input::{Action, InputBindings};
-use tui::menu::{MenuEntryView, MenuPane, MenuPanelLine, MenuPanelView};
+use tui::menu::{MenuEntryView, MenuPane, MenuPanelLine, MenuPanelView, PanelSpanStyle};
 use tui::session::TuiSession;
 use tui::ui::MenuUiFile;
 
@@ -24,8 +27,8 @@ use self::abilities::{
     selected_ability_targets,
 };
 use self::common::{
-    InventoryKind, MenuEntryState, filter_from_index, next_filter_index, prev_filter_index,
-    sort_from_index, toggle_sort_index,
+    filter_from_index, next_filter_index, prev_filter_index, sort_from_index, toggle_sort_index,
+    InventoryKind, MenuEntryState,
 };
 use self::equipment::{
     build_equipment_panel, detail_actor_id, equip_item, equipment_entries_for_menu,
@@ -33,11 +36,11 @@ use self::equipment::{
 };
 use self::inventory::{
     apply_item_to_targets, build_inventory_entries, build_items_panel, item_targets_for_entry,
-    panel_line,
+    panel_line, panel_line_spans, panel_span,
 };
 use self::jobs::{
-    JobMenuOption, apply_learn_purchase, apply_primary_change, apply_secondary_change,
-    build_job_picker, build_jobs_dashboard, build_learn_panel, job_menu_options, learnable_count,
+    apply_learn_purchase, apply_primary_change, apply_secondary_change, build_job_picker,
+    build_jobs_dashboard, build_learn_panel, job_menu_options, learnable_count, JobMenuOption,
 };
 use self::journal::{build_journal_detail_panel, build_journal_panel};
 use self::magic::{
@@ -57,7 +60,9 @@ pub fn run_menu_loop(
     bindings: &InputBindings,
     map_id: &str,
     player_pos: (i32, i32),
+    save_dir: &Path,
 ) -> std::io::Result<()> {
+    let mut save_message: Option<SaveMessage> = None;
     let entries = build_menu_entries(runtime, menu_ui, map_id, player_pos);
     if entries.is_empty() {
         runtime.close_menu();
@@ -70,6 +75,17 @@ pub fn run_menu_loop(
 
     if runtime.menu_state.selected >= entry_views.len() {
         runtime.menu_state.selected = 0;
+    }
+
+    if runtime.menu_state.active_submenu.as_deref() == Some("save") {
+        if let Some(index) = entries.iter().position(|entry| entry.action == "save") {
+            runtime.menu_state.selected = index;
+            runtime.menu_state.focus = MenuFocus::Detail;
+        }
+        let slots = build_save_slots(runtime, save_dir);
+        if let Some(index) = first_selectable_save_slot(&slots) {
+            runtime.menu_state.detail_selection = index;
+        }
     }
 
     loop {
@@ -86,19 +102,26 @@ pub fn run_menu_loop(
             .active_submenu
             .as_deref()
             .or_else(|| selected.map(|entry| entry.action.as_str()))
-            .unwrap_or("menu");
+            .unwrap_or("menu")
+            .to_string();
         let right_panel = if matches!(focus, MenuPane::Detail) {
             menu_detail_panel(
                 label,
-                submenu_action,
+                submenu_action.as_str(),
                 runtime,
                 runtime.menu_state.detail_page,
+                save_dir,
+                save_message.as_ref(),
             )
         } else {
             menu_default_panel(menu_ui, runtime)
         };
 
-        let footer_text = menu_footer_text(focus, submenu_action, runtime.menu_state.detail_page);
+        let footer_text = menu_footer_text(
+            focus,
+            submenu_action.as_str(),
+            runtime.menu_state.detail_page,
+        );
         let stats_view = build_menu_stats_view(runtime);
         tui::menu::draw_menu(
             session,
@@ -118,6 +141,10 @@ pub fn run_menu_loop(
                         if runtime.menu_state.selected > 0 {
                             runtime.menu_state.selected -= 1;
                         }
+                    } else if submenu_action == "save" {
+                        let slots = build_save_slots(runtime, save_dir);
+                        runtime.menu_state.detail_selection =
+                            move_save_selection(runtime.menu_state.detail_selection, &slots, -1);
                     } else if submenu_action == "items" {
                         if runtime.menu_state.detail_page == 0 {
                             if runtime.menu_state.detail_selection > 0 {
@@ -171,6 +198,10 @@ pub fn run_menu_loop(
                         if runtime.menu_state.selected + 1 < entry_views.len() {
                             runtime.menu_state.selected += 1;
                         }
+                    } else if submenu_action == "save" {
+                        let slots = build_save_slots(runtime, save_dir);
+                        runtime.menu_state.detail_selection =
+                            move_save_selection(runtime.menu_state.detail_selection, &slots, 1);
                     } else if submenu_action == "items" {
                         if runtime.menu_state.detail_page == 0 {
                             let entries = build_inventory_entries(
@@ -325,6 +356,16 @@ pub fn run_menu_loop(
                                         runtime.menu_state.detail_page = 0;
                                         runtime.menu_state.detail_selection = 0;
                                     }
+                                    "save" => {
+                                        runtime.menu_state.focus = MenuFocus::Detail;
+                                        runtime.menu_state.active_submenu =
+                                            Some(entry.action.clone());
+                                        runtime.menu_state.detail_page = 0;
+                                        let slots = build_save_slots(runtime, save_dir);
+                                        runtime.menu_state.detail_selection =
+                                            first_selectable_save_slot(&slots).unwrap_or(0);
+                                        save_message = None;
+                                    }
                                     "jobs" => {
                                         runtime.menu_state.focus = MenuFocus::Detail;
                                         runtime.menu_state.active_submenu =
@@ -343,6 +384,27 @@ pub fn run_menu_loop(
                                 }
                             } else if submenu_action == "jobs" {
                                 apply_secondary_change(runtime);
+                            }
+                        }
+                    } else if submenu_action == "save" {
+                        let slots = build_save_slots(runtime, save_dir);
+                        if let Some(slot) = slots.get(runtime.menu_state.detail_selection) {
+                            if slot.selectable {
+                                match write_save_slot(runtime, save_dir, slot.slot) {
+                                    Ok(()) => {
+                                        save_message = Some(SaveMessage {
+                                            text: "Saved.".to_string(),
+                                            style: PanelSpanStyle::Accent,
+                                        });
+                                    }
+                                    Err(err) => {
+                                        eprintln!("Failed to save: {}", err);
+                                        save_message = Some(SaveMessage {
+                                            text: "Save failed.".to_string(),
+                                            style: PanelSpanStyle::Muted,
+                                        });
+                                    }
+                                }
                             }
                         }
                     } else if submenu_action == "items" {
@@ -583,6 +645,9 @@ pub fn run_menu_loop(
                             runtime.menu_state.active_submenu = None;
                             runtime.menu_state.detail_page = 0;
                             runtime.menu_state.detail_selection = 0;
+                            if submenu_action == "save" {
+                                save_message = None;
+                            }
                         }
                     } else {
                         runtime.close_menu();
@@ -794,6 +859,8 @@ fn menu_detail_panel(
     action: &str,
     runtime: &GameRuntime,
     page: usize,
+    save_dir: &Path,
+    save_message: Option<&SaveMessage>,
 ) -> MenuPanelView {
     if action == "status" {
         return MenuPanelView {
@@ -836,6 +903,9 @@ fn menu_detail_panel(
             lines,
         };
     }
+    if action == "save" {
+        return build_save_panel(runtime, save_dir, save_message);
+    }
     MenuPanelView {
         title: label.to_string(),
         lines: vec![
@@ -877,6 +947,7 @@ fn menu_footer_text(focus: MenuPane, submenu: &str, page: usize) -> &'static str
     match focus {
         MenuPane::List => "Confirm: open  Cancel: close",
         MenuPane::Detail => match submenu {
+            "save" => "Confirm: save  Cancel: back",
             "status" => {
                 if page == 0 {
                     "Left/Right: details  Cancel: back"
@@ -959,6 +1030,176 @@ fn build_menu_stats_view(runtime: &GameRuntime) -> MenuPanelView {
             panel_line(format!("Time: {:02}:{:02}:{:02}", hours, minutes, seconds)),
             panel_line(format!("{}: {}", currency_symbol, currency_amount)),
         ],
+    }
+}
+
+#[derive(Clone, Debug)]
+struct SaveSlotEntry {
+    slot: u8,
+    label: String,
+    save: Option<SaveFile>,
+    selectable: bool,
+}
+
+struct SaveMessage {
+    text: String,
+    style: PanelSpanStyle,
+}
+
+fn build_save_panel(
+    runtime: &GameRuntime,
+    save_dir: &Path,
+    save_message: Option<&SaveMessage>,
+) -> MenuPanelView {
+    let slots = build_save_slots(runtime, save_dir);
+    if slots.is_empty() {
+        return MenuPanelView {
+            title: "Save".to_string(),
+            lines: vec![panel_line("No save slots configured.")],
+        };
+    }
+
+    let selection = runtime
+        .menu_state
+        .detail_selection
+        .min(slots.len().saturating_sub(1));
+    let mut lines = Vec::new();
+    for (index, slot) in slots.iter().enumerate() {
+        lines.push(render_save_slot_line(runtime, slot, index == selection));
+    }
+    if let Some(message) = save_message {
+        lines.push(panel_line_spans(vec![panel_span(
+            message.text.clone(),
+            message.style.clone(),
+        )]));
+    }
+
+    MenuPanelView {
+        title: "Save".to_string(),
+        lines,
+    }
+}
+
+fn render_save_slot_line(
+    runtime: &GameRuntime,
+    slot: &SaveSlotEntry,
+    selected: bool,
+) -> MenuPanelLine {
+    let prefix = if selected { "> " } else { "  " };
+    let style = if selected {
+        tui::menu::PanelSpanStyle::Highlight
+    } else if slot.selectable {
+        tui::menu::PanelSpanStyle::Normal
+    } else {
+        tui::menu::PanelSpanStyle::Muted
+    };
+
+    let mut text = format!("{}{}", prefix, slot.label);
+    if let Some(save) = &slot.save {
+        let map_name =
+            map_name_for_save(runtime, save).unwrap_or_else(|| save.world.map_id.clone());
+        let playtime = format_playtime(save.metadata.play_time_seconds);
+        text.push_str(" - ");
+        text.push_str(map_name.as_str());
+        text.push_str("  ");
+        text.push_str(playtime.as_str());
+    } else {
+        text.push_str(" - Empty");
+    }
+
+    panel_line_spans(vec![panel_span(text, style)])
+}
+
+fn build_save_slots(runtime: &GameRuntime, save_dir: &Path) -> Vec<SaveSlotEntry> {
+    let mut slots = Vec::new();
+    if runtime.content.rules.save.autosave_enabled {
+        slots.push(build_save_slot_entry(save_dir, 0, "Autosave", false));
+    }
+    let max_slots = runtime.content.rules.save.slots_max.max(1) as u8;
+    for slot in 1..=max_slots {
+        slots.push(build_save_slot_entry(
+            save_dir,
+            slot,
+            &format!("Slot {}", slot),
+            true,
+        ));
+    }
+    slots
+}
+
+fn build_save_slot_entry(
+    save_dir: &Path,
+    slot: u8,
+    label: &str,
+    selectable: bool,
+) -> SaveSlotEntry {
+    let save = load_save_slot(save_dir, slot);
+    SaveSlotEntry {
+        slot,
+        label: label.to_string(),
+        save,
+        selectable,
+    }
+}
+
+fn load_save_slot(save_dir: &Path, slot: u8) -> Option<SaveFile> {
+    let path = save_slot_path(save_dir, slot);
+    let save = SaveFile::load(path).ok()?;
+    if save.version == 0 {
+        return None;
+    }
+    Some(save)
+}
+
+fn save_slot_path(save_dir: &Path, slot: u8) -> PathBuf {
+    save_dir.join(format!("slot_{}.json", slot))
+}
+
+fn write_save_slot(runtime: &GameRuntime, save_dir: &Path, slot: u8) -> Result<(), String> {
+    std::fs::create_dir_all(save_dir).map_err(|err| format!("{}: {}", save_dir.display(), err))?;
+    let save = SaveFile::from_runtime(runtime, slot);
+    let path = save_slot_path(save_dir, slot);
+    save.write(path)
+}
+
+fn first_selectable_save_slot(slots: &[SaveSlotEntry]) -> Option<usize> {
+    slots.iter().position(|slot| slot.selectable)
+}
+
+fn move_save_selection(current: usize, slots: &[SaveSlotEntry], direction: i32) -> usize {
+    if slots.is_empty() {
+        return 0;
+    }
+    let mut index = current.min(slots.len().saturating_sub(1));
+    let mut remaining = slots.len();
+    while remaining > 0 {
+        if direction < 0 {
+            index = index.saturating_sub(1);
+        } else {
+            index = (index + 1).min(slots.len().saturating_sub(1));
+        }
+        if slots[index].selectable {
+            return index;
+        }
+        remaining -= 1;
+    }
+    current
+}
+
+fn format_playtime(total_seconds: u64) -> String {
+    let hours = total_seconds / 3600;
+    let minutes = (total_seconds % 3600) / 60;
+    let seconds = total_seconds % 60;
+    format!("{:02}:{:02}:{:02}", hours, minutes, seconds)
+}
+
+fn map_name_for_save(runtime: &GameRuntime, save: &SaveFile) -> Option<String> {
+    let index = runtime.content.map_index.get(save.world.map_id.as_str())?;
+    let map = runtime.content.maps.get(*index)?;
+    if map.name.trim().is_empty() {
+        None
+    } else {
+        Some(map.name.clone())
     }
 }
 

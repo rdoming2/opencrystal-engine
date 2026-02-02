@@ -95,6 +95,9 @@ pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
         if rules.game.party_size > 4 {
             errors.push("rules.json: party_size must be <= 4".to_string());
         }
+        if rules.save.slots_max == 0 {
+            errors.push("rules.json: save.slots_max must be > 0".to_string());
+        }
         if rules.game.magic_acquisition == crate::rules::MagicAcquisition::Jp
             && rules.job_system.progression_mode != crate::rules::JobProgressionMode::JobPoints
         {

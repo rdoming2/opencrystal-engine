@@ -240,6 +240,9 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
 - JSON saves with versioning fields for future obfuscation.
 - Use a reserved field for `encoding` (e.g., "plain") to allow future formats.
 - Save data includes map state (flags + entity state) and global entities (vehicles).
+- Autosave writes to slot 0 after every map transition when enabled.
+- Save files live under the user data directory (`~/.local/share/opencrystal/saves/<content>/`).
+- Title "Load" opens a slot picker and restores the runtime state.
 
 ## Module layout (suggested)
 
@@ -342,6 +345,10 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
     "magic_equip": false,
     "materia": false
   },
+  "save": {
+    "slots_max": 10,
+    "autosave_enabled": false
+  },
   "job_system": {
     "progression_mode": "job",
     "secondary_jobs": true,
@@ -402,4 +409,4 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
 - Rune stone arc (4 elemental dungeons + bonus island dragon finale).
 - Overworld + 1 town + 5 dungeons (4 rune sites + bonus).
 - 10-15 enemies, 5 jobs, 6-8 spells, 10 items.
-- Job unlocks tied to bosses; airship unlock after all four runes.
+- Job unlocks tied to boss NPC encounters; airship unlock after all four runes.

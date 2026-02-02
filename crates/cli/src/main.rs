@@ -11,17 +11,18 @@ use std::env;
 use std::path::PathBuf;
 
 use engine::{
-    Engine,
     content::Content,
     party::PartyState,
     rules::{PartyMode, Ruleset},
-    runtime::GameRuntime,
+    runtime::{GameRuntime, GameState},
+    save::SaveFile,
     world::WorldState,
+    Engine,
 };
 use tui::input::{InputBindings, InputFile};
 use tui::renderer::RenderMode;
 use tui::session::TuiSession;
-use tui::title::{TitleAction, run_title};
+use tui::title::{run_load_menu, run_title, LoadSlotEntry, TitleAction};
 use tui::ui::{BattleUiFile, DialogUiFile, MenuUiFile, ProgressUiFile, TitleUiFile};
 
 use crate::dialog::default_dialog_ui;
@@ -149,6 +150,7 @@ fn run_play(args: Vec<String>) {
 
     let _engine = Engine::new(rules.clone(), world.clone());
     let mut runtime = GameRuntime::new(content);
+    let save_dir = default_save_dir(&content_dir);
 
     match render_mode {
         RenderMode::Auto => println!("Starting OpenCrystal (render: auto)..."),
@@ -225,6 +227,7 @@ fn run_play(args: Vec<String>) {
                     &input_bindings,
                     &world.map_id,
                     spawn,
+                    &save_dir,
                 ) {
                     if err.kind() == std::io::ErrorKind::Interrupted {
                         return;
@@ -247,7 +250,37 @@ fn run_play(args: Vec<String>) {
                 run_event_loop_console(&mut runtime, &dialog_ui);
             }
         }
-        TitleAction::Load => println!("Load not implemented."),
+        TitleAction::Load => {
+            if let Some(session) = session_guard.as_mut() {
+                match run_load_flow(session, &mut runtime, &title_ui, &input_bindings, &save_dir) {
+                    Ok(true) => {
+                        let spawn = runtime.world.position;
+                        let map_id = runtime.world.map_id.clone();
+                        if let Err(err) = run_overworld_loop(
+                            session,
+                            &mut runtime,
+                            &dialog_ui,
+                            &battle_ui,
+                            &menu_ui,
+                            &input_bindings,
+                            &map_id,
+                            spawn,
+                            &save_dir,
+                        ) {
+                            if err.kind() == std::io::ErrorKind::Interrupted {
+                                return;
+                            }
+                        }
+                    }
+                    Ok(false) => {}
+                    Err(err) => {
+                        eprintln!("Failed to load save: {}", err);
+                    }
+                }
+            } else {
+                println!("Load not implemented.");
+            }
+        }
         TitleAction::Settings => println!("Settings not implemented."),
         TitleAction::Exit => println!("Exit."),
     }
@@ -326,6 +359,141 @@ fn parse_content_dir(args: &[String]) -> Option<PathBuf> {
         }
     }
     None
+}
+
+fn default_save_dir(content_dir: &PathBuf) -> PathBuf {
+    let base_dir = if let Ok(path) = env::var("XDG_DATA_HOME") {
+        PathBuf::from(path)
+    } else if let Ok(home) = env::var("HOME") {
+        PathBuf::from(home).join(".local").join("share")
+    } else {
+        PathBuf::from(".")
+    };
+    let content_slug = content_dir
+        .file_name()
+        .and_then(|name| name.to_str())
+        .map(slugify)
+        .unwrap_or_else(|| "content".to_string());
+    base_dir
+        .join("opencrystal")
+        .join("saves")
+        .join(content_slug)
+}
+
+fn run_load_flow(
+    session: &mut TuiSession,
+    runtime: &mut GameRuntime,
+    title_ui: &TitleUiFile,
+    bindings: &InputBindings,
+    save_dir: &PathBuf,
+) -> Result<bool, String> {
+    let slots = build_load_slots(runtime, save_dir);
+    let selection =
+        run_load_menu(session, title_ui, bindings, &slots).map_err(|err| err.to_string())?;
+    let Some(index) = selection else {
+        return Ok(false);
+    };
+    let entry = slots
+        .get(index)
+        .filter(|entry| entry.enabled)
+        .ok_or_else(|| "Selected slot is empty".to_string())?;
+    let save = SaveFile::load(save_slot_path(save_dir, entry.slot))?;
+    save.apply_to_runtime(runtime);
+    runtime.state = GameState::Overworld;
+    runtime.event_queue.clear();
+    runtime.active_event = None;
+    runtime.event_step = 0;
+    Ok(true)
+}
+
+fn build_load_slots(runtime: &GameRuntime, save_dir: &PathBuf) -> Vec<LoadSlotEntry> {
+    let mut slots = Vec::new();
+    if runtime.content.rules.save.autosave_enabled {
+        if let Some(entry) = build_load_slot_entry(runtime, save_dir, 0, "Autosave") {
+            slots.push(entry);
+        } else {
+            slots.push(LoadSlotEntry {
+                slot: 0,
+                label: "Autosave - Empty".to_string(),
+                enabled: false,
+            });
+        }
+    }
+    let max_slots = runtime.content.rules.save.slots_max.max(1) as u8;
+    for slot in 1..=max_slots {
+        if let Some(entry) =
+            build_load_slot_entry(runtime, save_dir, slot, &format!("Slot {}", slot))
+        {
+            slots.push(entry);
+        } else {
+            slots.push(LoadSlotEntry {
+                slot,
+                label: format!("Slot {} - Empty", slot),
+                enabled: false,
+            });
+        }
+    }
+    slots
+}
+
+fn build_load_slot_entry(
+    runtime: &GameRuntime,
+    save_dir: &PathBuf,
+    slot: u8,
+    label: &str,
+) -> Option<LoadSlotEntry> {
+    let save = SaveFile::load(save_slot_path(save_dir, slot)).ok()?;
+    let map_name = runtime
+        .content
+        .map_index
+        .get(save.world.map_id.as_str())
+        .and_then(|index| runtime.content.maps.get(*index))
+        .map(|map| map.name.clone())
+        .filter(|name| !name.trim().is_empty())
+        .unwrap_or_else(|| save.world.map_id.clone());
+    let playtime = format_playtime(save.metadata.play_time_seconds);
+    Some(LoadSlotEntry {
+        slot,
+        label: format!("{} - {}  {}", label, map_name, playtime),
+        enabled: true,
+    })
+}
+
+fn save_slot_path(save_dir: &PathBuf, slot: u8) -> PathBuf {
+    save_dir.join(format!("slot_{}.json", slot))
+}
+
+fn format_playtime(total_seconds: u64) -> String {
+    let hours = total_seconds / 3600;
+    let minutes = (total_seconds % 3600) / 60;
+    let seconds = total_seconds % 60;
+    format!("{:02}:{:02}:{:02}", hours, minutes, seconds)
+}
+
+fn slugify(value: &str) -> String {
+    let mut out = String::new();
+    let mut prev_underscore = false;
+    for ch in value.chars() {
+        let ch = ch.to_ascii_lowercase();
+        if ch.is_ascii_alphanumeric() {
+            out.push(ch);
+            prev_underscore = false;
+        } else if !prev_underscore {
+            out.push('_');
+            prev_underscore = true;
+        }
+    }
+    while out.starts_with('_') {
+        out.remove(0);
+    }
+    while out.ends_with('_') {
+        out.pop();
+    }
+    if out.is_empty() {
+        "opencrystal".to_string()
+    } else {
+        out
+    }
 }
 
 fn print_usage() {

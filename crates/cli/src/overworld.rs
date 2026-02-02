@@ -1,15 +1,16 @@
 use std::collections::HashMap;
 
+use engine::menu::MenuFocus;
 use engine::runtime::{GameRuntime, GameState};
 use tui::input::{Action, InputBindings};
 use tui::overworld::{
-    MapView, NpcView, TileRender, TransitionView, draw_overworld, draw_overworld_with_tooltip,
-    show_centered_dialog_on_map,
+    draw_overworld, draw_overworld_with_tooltip, show_centered_dialog_on_map, MapView, NpcView,
+    TileRender, TransitionView,
 };
 use tui::session::TuiSession;
 use tui::ui::{BattleUiFile, DialogUiFile, MenuUiFile};
 
-use crate::battle::{BattleOutcome, try_start_random_battle};
+use crate::battle::{try_start_random_battle, BattleOutcome};
 use crate::dialog::run_dialog_on_map;
 use crate::events::run_event_loop;
 use crate::menu::run_menu_loop;
@@ -25,6 +26,7 @@ pub fn run_overworld_loop(
     bindings: &InputBindings,
     map_id: &str,
     start_pos: (i32, i32),
+    save_dir: &std::path::Path,
 ) -> std::io::Result<()> {
     let mut current_map_id = map_id.to_string();
     let mut player_pos = start_pos;
@@ -75,7 +77,26 @@ pub fn run_overworld_loop(
                     area_name_active = false;
                 }
                 Action::Confirm => {
-                    if let Some(chest) = find_chest(runtime, &current_map_id, player_pos) {
+                    if is_on_save_point(runtime, &current_map_id, player_pos) {
+                        runtime.open_menu();
+                        runtime.menu_state.active_submenu = Some("save".to_string());
+                        runtime.menu_state.focus = MenuFocus::Detail;
+                        runtime.menu_state.detail_page = 0;
+                        runtime.menu_state.detail_selection = 0;
+                        if let Err(err) = run_menu_loop(
+                            session,
+                            runtime,
+                            menu_ui,
+                            bindings,
+                            &current_map_id,
+                            player_pos,
+                            save_dir,
+                        ) {
+                            if err.kind() == std::io::ErrorKind::Interrupted {
+                                return Err(err);
+                            }
+                        }
+                    } else if let Some(chest) = find_chest(runtime, &current_map_id, player_pos) {
                         let chest_text = open_chest(runtime, &chest);
                         show_centered_dialog_on_map(
                             session,
@@ -107,6 +128,7 @@ pub fn run_overworld_loop(
                         bindings,
                         &current_map_id,
                         player_pos,
+                        save_dir,
                     ) {
                         if err.kind() == std::io::ErrorKind::Interrupted {
                             return Err(err);
@@ -165,6 +187,11 @@ pub fn run_overworld_loop(
         }
 
         if transitioned {
+            if runtime.content.rules.save.autosave_enabled {
+                if let Err(err) = write_autosave(runtime, save_dir) {
+                    eprintln!("Failed to autosave: {}", err);
+                }
+            }
             let on_enter_events = runtime.get_on_enter_events_for_map(&current_map_id);
             for event_id in on_enter_events {
                 runtime.queue_event(&event_id);
@@ -501,6 +528,27 @@ fn find_sign_text(runtime: &GameRuntime, map_id: &str, pos: (i32, i32)) -> Optio
         (dx == 1 && dy == 0) || (dx == 0 && dy == 1)
     })?;
     Some(sign.text.clone())
+}
+
+fn is_on_save_point(runtime: &GameRuntime, map_id: &str, pos: (i32, i32)) -> bool {
+    let index = match runtime.content.map_index.get(map_id) {
+        Some(index) => *index,
+        None => return false,
+    };
+    let map = match runtime.content.maps.get(index) {
+        Some(map) => map,
+        None => return false,
+    };
+    map.save_points
+        .iter()
+        .any(|save_pos| (save_pos[0], save_pos[1]) == pos)
+}
+
+fn write_autosave(runtime: &GameRuntime, save_dir: &std::path::Path) -> Result<(), String> {
+    std::fs::create_dir_all(save_dir).map_err(|err| format!("{}: {}", save_dir.display(), err))?;
+    let save = engine::save::SaveFile::from_runtime(runtime, 0);
+    let path = save_dir.join("slot_0.json");
+    save.write(path)
 }
 
 fn open_chest(runtime: &mut GameRuntime, chest: &engine::maps::MapChest) -> String {

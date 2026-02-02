@@ -60,6 +60,8 @@ absolute XP totals per level or `mode: "formula"` with a formula string (use
 used for global availability (e.g., disabling magic equip). Menu entries can still
 add `unlock_flag` gating for progression-driven unlocks.
 Tier charges are defined within each job's `magic_slots`; `magic_system` `tier_charges` uses those definitions per actor.
+`save` configures slot count and autosave behavior. `slots_max` counts manual slots
+only; autosave uses slot 0 and never reduces the manual slot total.
 
 ```json
 {
@@ -112,6 +114,10 @@ Tier charges are defined within each job's `magic_slots`; `magic_system` `tier_c
     "summons": false,
     "magic_equip": false,
     "materia": false
+  },
+  "save": {
+    "slots_max": 10,
+    "autosave_enabled": false
   },
   "job_system": {
     "progression_mode": "job",
@@ -219,7 +225,8 @@ Defines multiple worlds and inter-world travel.
 Map data for overworlds, towns, and dungeons.
 
 NPCs reference `entities/npcs.json` by ID. `script` is optional; if omitted, the NPC
-uses its dialog tree.
+uses its dialog tree. Boss encounters can be triggered via NPC dialog actions that
+start an event, then the event can `npc_hide` to prevent re-triggering.
 
 `hide_name` controls whether the map name tooltip is shown on entry. Defaults to false.
 
@@ -1327,6 +1334,7 @@ functions: `RAND(min,max)` (inclusive, float), `ROUND(value)` (nearest int), `FL
 ## save.json
 
 Save data captures the full runtime state. This format is stored as JSON in phase 1.
+`timestamp_seconds` is a UNIX epoch timestamp (UTC) for the save creation time.
 
 ```json
 {
@@ -1336,7 +1344,7 @@ Save data captures the full runtime state. This format is stored as JSON in phas
     "slot": 1,
     "title": "OpenCrystal",
     "play_time_seconds": 3210,
-    "timestamp": "2026-01-22T10:02:00Z"
+    "timestamp_seconds": 1769085720
   },
   "rules": {
     "battle_mode": "turn",

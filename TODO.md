@@ -29,7 +29,7 @@
   - [x] Load all content into indexed registries.
   - [x] Build cross-reference maps (ids to definitions).
 - [ ] Implement save/load for demo content.
-  - [ ] Serialize world/party/inventory/flags.
+  - [x] Serialize world/party/inventory/flags.
   - [ ] Load persistent NPC positions.
 - [x] Implement runtime map transitions.
   - [x] Step on transition triggers map load.
@@ -40,11 +40,12 @@
   - [ ] Shop purchase flow (currency, inventory updates).
 - [x] Add map treasure chests (loot + opened flags).
 - [ ] Implement save/load system.
-  - [ ] Define save file schema + versioning.
-  - [ ] Serialize world/party/inventory/flags.
+  - [x] Define save file schema + versioning.
+  - [x] Serialize world/party/inventory/flags.
   - [ ] Load persistent NPC positions.
-  - [ ] Add save slot management.
-  - [ ] Enforce save rules (map allow_save + save_points).
+  - [x] Add save slot management.
+  - [x] Enforce save rules (map allow_save + save_points).
+  - [x] Autosave slot after transitions.
 
 ## UI + Rendering
 - [x] Title screen renderer.
@@ -129,6 +130,7 @@
 ## Content + Validation
 - [x] Add missing demo content (town map, shop UI, basic quests).
 - [x] Expand demo content (four rune dungeons, job unlocks, bonus dragon).
+- [x] Move rune boss triggers to NPC interactions.
 - [x] Extend validation for event step payloads.
 - [ ] Add content authoring guide.
 - [x] Add `ui/menu.json` schema + validation.
