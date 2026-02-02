@@ -842,6 +842,7 @@ Supported event step types:
 - `open_shop` (fields: `shop`)
 - `npc_show`, `npc_hide`, `npc_move`, `npc_set_sprite` (fields: `npc`, `pos`, `sprite`)
 - `start_dialog` (fields: `dialog`)
+- `wait` (fields: `ms`)
 
 Event trigger types (for `maps/*/json` `events` entries):
 

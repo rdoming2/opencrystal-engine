@@ -117,6 +117,22 @@ pub fn run_overworld_loop(
                         run_dialog_on_map(
                             runtime, dialog_ui, bindings, session, &dialog_id, &map, player_pos,
                         )?;
+                        if !runtime.event_queue.is_empty() {
+                            runtime.state = GameState::Event;
+                            runtime.start_next_event();
+                            if let Err(err) = run_event_loop(
+                                runtime,
+                                dialog_ui,
+                                battle_ui,
+                                bindings,
+                                session,
+                                Some(map.clone()),
+                            ) {
+                                if err.kind() == std::io::ErrorKind::Interrupted {
+                                    return Err(err);
+                                }
+                            }
+                        }
                     }
                 }
                 Action::Menu => {
@@ -272,20 +288,36 @@ pub fn run_overworld_loop(
 pub fn build_map_view(runtime: &GameRuntime, map_id: &str) -> Option<MapView> {
     let index = runtime.content.map_index.get(map_id)?;
     let map = runtime.content.maps.get(*index)?;
+    let map_state = runtime.map_states.get(map_id);
     let npcs = map
         .npcs
         .iter()
-        .map(|npc| NpcView {
-            id: npc.id.clone(),
-            pos: (npc.pos[0], npc.pos[1]),
-            glyph: npc_glyph(runtime, &npc.id),
-            palette: runtime
-                .content
-                .npcs
-                .npcs
-                .iter()
-                .find(|entry| entry.id == npc.id)
-                .and_then(|entry| entry.palette.clone()),
+        .filter_map(|npc| {
+            let mut pos = (npc.pos[0], npc.pos[1]);
+            let mut visible = true;
+            if let Some(state) = map_state.and_then(|state| state.entities.get(&npc.id)) {
+                if let Some(state_pos) = state.pos {
+                    pos = state_pos;
+                }
+                if let Some(state_visible) = state.visible {
+                    visible = state_visible;
+                }
+            }
+            if !visible {
+                return None;
+            }
+            Some(NpcView {
+                id: npc.id.clone(),
+                pos,
+                glyph: npc_glyph(runtime, &npc.id),
+                palette: runtime
+                    .content
+                    .npcs
+                    .npcs
+                    .iter()
+                    .find(|entry| entry.id == npc.id)
+                    .and_then(|entry| entry.palette.clone()),
+            })
         })
         .collect();
     let signs = map
@@ -443,7 +475,20 @@ fn npc_at(runtime: &GameRuntime, map_id: &str, pos: (i32, i32)) -> bool {
         Some(map) => map,
         None => return false,
     };
-    map.npcs.iter().any(|npc| (npc.pos[0], npc.pos[1]) == pos)
+    let map_state = runtime.map_states.get(map_id);
+    map.npcs.iter().any(|npc| {
+        let mut npc_pos = (npc.pos[0], npc.pos[1]);
+        let mut visible = true;
+        if let Some(state) = map_state.and_then(|state| state.entities.get(&npc.id)) {
+            if let Some(state_pos) = state.pos {
+                npc_pos = state_pos;
+            }
+            if let Some(state_visible) = state.visible {
+                visible = state_visible;
+            }
+        }
+        visible && npc_pos == pos
+    })
 }
 
 fn chest_at(runtime: &GameRuntime, map_id: &str, pos: (i32, i32)) -> bool {
@@ -477,7 +522,21 @@ fn sign_at(runtime: &GameRuntime, map_id: &str, pos: (i32, i32)) -> bool {
 fn find_npc_dialog(runtime: &GameRuntime, map_id: &str, pos: (i32, i32)) -> Option<String> {
     let index = runtime.content.map_index.get(map_id)?;
     let map = runtime.content.maps.get(*index)?;
+    let map_state = runtime.map_states.get(map_id);
     let target = map.npcs.iter().find(|npc| {
+        let mut npc_pos = (npc.pos[0], npc.pos[1]);
+        let mut visible = true;
+        if let Some(state) = map_state.and_then(|state| state.entities.get(&npc.id)) {
+            if let Some(state_pos) = state.pos {
+                npc_pos = state_pos;
+            }
+            if let Some(state_visible) = state.visible {
+                visible = state_visible;
+            }
+        }
+        if !visible {
+            return false;
+        }
         let npc_def = runtime
             .content
             .npcs
@@ -486,8 +545,8 @@ fn find_npc_dialog(runtime: &GameRuntime, map_id: &str, pos: (i32, i32)) -> Opti
             .find(|def| def.id == npc.id);
         if let Some(npc_def) = npc_def {
             let range = npc_def.interaction_range.unwrap_or(1);
-            let dx = (npc.pos[0] - pos.0).abs();
-            let dy = (npc.pos[1] - pos.1).abs();
+            let dx = (npc_pos.0 - pos.0).abs();
+            let dy = (npc_pos.1 - pos.1).abs();
             let distance = dx + dy;
             distance > 0 && distance <= range
         } else {

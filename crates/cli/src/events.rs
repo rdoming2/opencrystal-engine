@@ -9,6 +9,7 @@ use crate::battle::{run_event_battle_with_result, BattleOutcome};
 use crate::dialog::{run_dialog, run_dialog_on_map, show_dialog_console};
 use crate::overworld::build_map_view;
 use crate::shop::open_shop;
+use std::time::Duration;
 
 pub fn run_event_loop(
     runtime: &mut GameRuntime,
@@ -137,6 +138,15 @@ fn handle_event_result(
         }
         engine::events::EventExecutionResult::OpenShop { shop_id } => {
             open_shop(runtime, session, bindings, &shop_id)?;
+        }
+        engine::events::EventExecutionResult::Wait { ms } => {
+            let refreshed_map = map_view
+                .cloned()
+                .or_else(|| build_map_view(runtime, &runtime.world.map_id));
+            if let Some(map) = refreshed_map.as_ref() {
+                tui::overworld::draw_overworld(session, map, runtime.world.position)?;
+            }
+            std::thread::sleep(Duration::from_millis(ms));
         }
         engine::events::EventExecutionResult::Completed => {}
         engine::events::EventExecutionResult::Abort => {

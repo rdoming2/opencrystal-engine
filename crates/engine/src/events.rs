@@ -35,6 +35,7 @@ pub struct EventStep {
     pub dialog: Option<String>,
     pub spell: Option<String>,
     pub member: Option<String>,
+    pub ms: Option<i32>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -68,6 +69,9 @@ pub enum EventExecutionResult {
     },
     OpenShop {
         shop_id: String,
+    },
+    Wait {
+        ms: u64,
     },
     Completed,
     Abort,
@@ -196,6 +200,10 @@ pub fn apply_event_step(runtime: &mut GameRuntime, step: &EventStep) -> EventExe
                 }
             }
             EventExecutionResult::Continue
+        }
+        "wait" => {
+            let ms = step.ms.unwrap_or(0).max(0) as u64;
+            EventExecutionResult::Wait { ms }
         }
         "learn_spell" => {
             if let (Some(member), Some(spell)) = (&step.member, &step.spell) {

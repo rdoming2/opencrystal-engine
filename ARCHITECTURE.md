@@ -410,3 +410,6 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
 - Overworld + 1 town + 5 dungeons (4 rune sites + bonus).
 - 10-15 enemies, 5 jobs, 6-8 spells, 10 items.
 - Job unlocks tied to boss NPC encounters; airship unlock after all four runes.
+- Jobs use per-job leveling, so changing jobs updates the actor level to the tracked job level.
+- Boss encounters trigger from NPC dialog with post-battle flash/vanish (dragon remains).
+- Boss clear events add narration lines for job unlocks.

@@ -34,6 +34,8 @@ pub fn build_jobs_dashboard(runtime: &GameRuntime) -> MenuPanelView {
         .or_else(|| runtime.party.active.first().cloned());
     let actor = actor_id.and_then(|actor_id| runtime.party.roster.get(&actor_id));
 
+    let progression_mode = runtime.content.rules.job_system.progression_mode.clone();
+    let show_job_level = progression_mode != JobProgressionMode::Character;
     let mut lines = Vec::new();
     if let Some(actor) = actor {
         lines.push(panel_line(format!("Actor: {}", actor.name)));
@@ -67,9 +69,13 @@ pub fn build_jobs_dashboard(runtime: &GameRuntime) -> MenuPanelView {
             };
             let label = match option {
                 JobMenuOption::Primary => format!(
-                    "Primary: {} (Lv {})",
+                    "Primary: {}{}",
                     actor.job_id,
-                    job_level(actor, &actor.job_id)
+                    if show_job_level {
+                        format!(" (Lv {})", job_level(actor, &actor.job_id))
+                    } else {
+                        "".to_string()
+                    }
                 ),
                 JobMenuOption::Secondary => format!(
                     "Secondary: {}",
@@ -107,6 +113,8 @@ pub fn build_job_picker(runtime: &GameRuntime) -> MenuPanelView {
         .min(jobs.len().saturating_sub(1));
     let job = jobs.get(selection).copied();
 
+    let progression_mode = runtime.content.rules.job_system.progression_mode.clone();
+    let show_job_level = progression_mode != JobProgressionMode::Character;
     let mut lines = Vec::new();
     if let Some(actor) = actor {
         lines.push(panel_line(format!("Actor: {}", actor.name)));
@@ -155,12 +163,12 @@ pub fn build_job_picker(runtime: &GameRuntime) -> MenuPanelView {
         }
         let job_level_text = actor.map(|actor| job_level(actor, &job.id)).unwrap_or(1);
         let job_jp_text = actor.map(|actor| job_jp(actor, &job.id)).unwrap_or(0);
-        if runtime.content.rules.job_system.progression_mode == JobProgressionMode::JobPoints {
+        if progression_mode == JobProgressionMode::JobPoints {
             lines.push(panel_line(format!(
                 "Job Lv: {}  JP: {}",
                 job_level_text, job_jp_text
             )));
-        } else {
+        } else if show_job_level {
             lines.push(panel_line(format!("Job Lv: {}", job_level_text)));
         }
     } else {

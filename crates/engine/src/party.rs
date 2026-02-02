@@ -829,12 +829,21 @@ pub fn set_primary_job(actor: &mut Actor, job_id: &str, content: &Content) {
         .job_progress
         .entry(job_id.to_string())
         .or_insert_with(JobProgress::default);
-    if content.rules.job_system.progression_mode == JobProgressionMode::JobPoints {
-        if progress.level == 0 {
-            progress.level = 1;
+    match content.rules.job_system.progression_mode {
+        JobProgressionMode::Job => {
+            if progress.level == 0 {
+                progress.level = 1;
+            }
+            actor.level = progress.level;
         }
-    } else {
-        progress.level = actor.level;
+        JobProgressionMode::JobPoints => {
+            if progress.level == 0 {
+                progress.level = 1;
+            }
+        }
+        JobProgressionMode::Character => {
+            progress.level = actor.level;
+        }
     }
 
     if let Some(job) = content.jobs.jobs.iter().find(|job| job.id == job_id) {

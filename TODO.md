@@ -131,6 +131,9 @@
 - [x] Add missing demo content (town map, shop UI, basic quests).
 - [x] Expand demo content (four rune dungeons, job unlocks, bonus dragon).
 - [x] Move rune boss triggers to NPC interactions.
+- [x] Align job progression mode with per-job leveling and UI.
+- [x] Add boss NPC flash/vanish and immediate dialog event trigger.
+- [x] Add job unlock narration in boss events.
 - [x] Extend validation for event step payloads.
 - [ ] Add content authoring guide.
 - [x] Add `ui/menu.json` schema + validation.

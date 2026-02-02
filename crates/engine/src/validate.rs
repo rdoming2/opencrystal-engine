@@ -18,7 +18,7 @@ use crate::world::WorldsFile;
 
 const BATTLE_POS_MAX_X: i32 = 9;
 const BATTLE_POS_MAX_Y: i32 = 5;
-const EVENT_TYPES: [&str; 14] = [
+const EVENT_TYPES: [&str; 15] = [
     "dialog",
     "narration",
     "set_flag",
@@ -33,6 +33,7 @@ const EVENT_TYPES: [&str; 14] = [
     "npc_hide",
     "npc_move",
     "npc_set_sprite",
+    "wait",
 ];
 
 pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
