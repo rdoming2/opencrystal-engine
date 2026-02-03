@@ -203,6 +203,9 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
 - Enemy selection tied to list on the left column.
 - Visual feedback highlights enemy in battlefield and list simultaneously.
 - Victory flow grants EXP/loot/currency summed from enemies.
+- Battle commands come from `rules.json` `battle.commands` plus job/secondary-job additions.
+- The global command list defines the base menu; job commands augment it without duplicates.
+- Command ordering follows `sort_order`, and the command panel pages when the list overflows.
 
 ### Progress tracking
 

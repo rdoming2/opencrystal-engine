@@ -56,6 +56,9 @@ absolute XP totals per level or `mode: "formula"` with a formula string (use
 `magic_acquisition` defines how spells are obtained (`level`, `item`, `equip`, `jp`) and is required.
 `ability_acquisition` defines how abilities are obtained (`level`, `item`, `equip`, `jp`) and is required.
 `job_system.jp_mode` controls whether JP is spent (`spend`) or earned (`earn`, `earn_job_locked`) and is required.
+`battle` defines the command catalog and the global command set used in battle. The global set is
+the default menu for every job; job `commands` entries add to it (primary + secondary jobs are
+merged, duplicates removed). Command labels come from the catalog so UI text can be overridden.
 `systems` toggles whether a gameplay system/menu is enabled at all. It should be
 used for global availability (e.g., disabling magic equip). Menu entries can still
 add `unlock_flag` gating for progression-driven unlocks.
@@ -83,6 +86,17 @@ only; autosave uses slot 0 and never reduces the manual slot total.
       "y": 14
     },
     "currency": {"id": "gil", "name": "G", "symbol": "G"}
+  },
+  "battle": {
+    "global_commands": ["attack", "defend", "items", "run"],
+    "commands": [
+      {"id": "attack", "label": "Attack", "kind": "attack", "sort_order": 10},
+      {"id": "magic", "label": "Magic", "kind": "magic", "sort_order": 30},
+      {"id": "abilities", "label": "Abilities", "kind": "abilities", "sort_order": 40},
+      {"id": "items", "label": "Items", "kind": "items", "sort_order": 50},
+      {"id": "defend", "label": "Defend", "kind": "defend", "sort_order": 60},
+      {"id": "run", "label": "Run", "kind": "run", "sort_order": 70}
+    ]
   },
   "party_mode": "create",
   "party_create": {
@@ -161,6 +175,21 @@ to enable job-specific leveling, JP spending, and optional secondary jobs.
 Spells and abilities can declare `unlock_level` or `jp_cost` inside the
 job definitions so that the menu and progression logic know whether they
 unlock automatically or need JP spending.
+
+## battle (rules.json)
+
+Battle command catalog and default global command set.
+
+- `global_commands`: list of command IDs available to every job.
+- `commands`: list of command definitions.
+
+Command definition fields:
+
+- `id`: unique command ID (lowercase snake_case).
+- `label`: UI label for the command.
+- `kind`: `attack`, `magic`, `abilities`, `abilities_group`, `items`, `run`, `defend`.
+- `sort_order`: order in the command list (lower values first).
+- `ability_group`: required when `kind` is `abilities_group`; matches abilities `command_group`.
 
 ## party.json
 
@@ -520,7 +549,8 @@ Growth modes:
       "is_default": true,
       "sort_order": 10,
       "spells": [],
-      "abilities": [{"id": "power_strike", "level": 2}]
+      "abilities": [{"id": "power_strike", "level": 2}],
+      "commands": ["abilities"]
     },
     {
       "id": "white_mage",
@@ -569,6 +599,10 @@ Job ability fields:
 - `level`: optional unlock level used for `level` or `jp` earn modes.
 - `unlock_level`: optional prereq level required before a `jp` purchase.
 - `jp_cost`: optional job points cost for manual unlocks in `jp` spend mode.
+
+Job command fields:
+
+- `commands`: optional list of battle command IDs to add to the global command set.
 
 Job acquisition overrides:
 
@@ -649,6 +683,10 @@ Ability costs (optional):
 - `type`: `mp`, `hp`, `currency`, `item`, `death`, `random`
 - `value`: numeric cost amount (ignored for `death`)
 - `item_id`: required when `type` is `item`
+
+Ability command grouping:
+
+- `command_group`: optional string used to route abilities to `abilities_group` commands.
 
 ```json
 {
@@ -1179,6 +1217,7 @@ Battle animation fields:
 
 - `flash_ms`: delay per flash frame.
 - `flash_cycles`: number of flash cycles per action.
+- `panels.commands.page_size`: number of command entries per page (adds page indicator when needed).
 
 ```json
 {
@@ -1235,7 +1274,8 @@ Battle animation fields:
     },
     "commands": {
       "title": "Commands",
-      "items": ["Attack", "Magic", "Abilities", "Items", "Run"]
+      "items": ["Attack", "Magic", "Abilities", "Items", "Defend", "Run"],
+      "page_size": 6
     },
     "party": {
       "title": "Party",

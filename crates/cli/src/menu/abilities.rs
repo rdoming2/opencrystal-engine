@@ -303,7 +303,11 @@ pub fn consume_ability_cost(
     }
 }
 
-pub fn build_battle_ability_entries(runtime: &GameRuntime, actor_id: &str) -> Vec<AbilityEntry> {
+pub fn build_battle_ability_entries(
+    runtime: &GameRuntime,
+    actor_id: &str,
+    command_group: Option<&str>,
+) -> Vec<AbilityEntry> {
     let Some(actor) = runtime.party.roster.get(actor_id) else {
         return Vec::new();
     };
@@ -321,6 +325,11 @@ pub fn build_battle_ability_entries(runtime: &GameRuntime, actor_id: &str) -> Ve
         else {
             continue;
         };
+        if let Some(group) = command_group {
+            if ability.command_group.as_deref() != Some(group) {
+                continue;
+            }
+        }
         let (cost_type, cost_value, cost_item_id) = if let Some(cost) = &ability.cost {
             (cost.r#type.clone(), cost.value, cost.item_id.clone())
         } else {
@@ -349,6 +358,10 @@ pub fn build_battle_ability_entries(runtime: &GameRuntime, actor_id: &str) -> Ve
     }
     entries.sort_by(|left, right| left.name.cmp(&right.name));
     entries
+}
+
+pub fn ability_group_available(runtime: &GameRuntime, actor_id: &str, command_group: &str) -> bool {
+    !build_battle_ability_entries(runtime, actor_id, Some(command_group)).is_empty()
 }
 
 fn ability_header_line(actor: &engine::party::Actor) -> MenuPanelLine {

@@ -7,7 +7,9 @@ use tui::battle::{
 use tui::ui::BattleUiFile;
 
 use super::state::{BattleMenuState, BattlePhase};
+use super::CommandEntry;
 use crate::menu::abilities::ability_cost_label;
+use crate::menu::abilities::ability_group_available;
 use crate::menu::common::{AbilityEntry, InventoryEntry, SpellEntry};
 use crate::menu::magic::spell_cost_label;
 
@@ -16,8 +18,10 @@ pub fn build_battle_render_state(
     battle_state: &BattleState,
     menu_state: &BattleMenuState,
     battle_ui: &BattleUiFile,
+    command_entries: &[CommandEntry],
     spell_entries: &[SpellEntry],
     ability_entries: &[AbilityEntry],
+    ability_entries_all: &[AbilityEntry],
     item_entries: &[InventoryEntry],
     is_player_turn: bool,
 ) -> BattleRenderState {
@@ -92,8 +96,14 @@ pub fn build_battle_render_state(
         runtime,
         menu_state,
         battle_ui,
+        command_entries,
+        battle_state
+            .party_order
+            .get(battle_state.active_index)
+            .map(|id| id.as_str()),
         spell_entries,
         ability_entries,
+        ability_entries_all,
         item_entries,
         is_player_turn,
     );
@@ -141,8 +151,11 @@ pub fn build_battle_command_panel(
     runtime: &GameRuntime,
     menu_state: &BattleMenuState,
     battle_ui: &BattleUiFile,
+    command_entries: &[CommandEntry],
+    actor_id: Option<&str>,
     spell_entries: &[SpellEntry],
     ability_entries: &[AbilityEntry],
+    ability_entries_all: &[AbilityEntry],
     item_entries: &[InventoryEntry],
     is_player_turn: bool,
 ) -> BattleCommandPanelView {
@@ -232,31 +245,63 @@ pub fn build_battle_command_panel(
                 .item_index
                 .min(item_entries.len().saturating_sub(1)),
         },
-        _ => BattleCommandPanelView {
-            mode: BattleCommandPanelMode::Commands,
-            title: battle_ui.panels.commands.title.clone(),
-            items: battle_ui
-                .panels
-                .commands
-                .items
+        _ => {
+            let command_count = command_entries.len();
+            let page_size = battle_ui.panels.commands.page_size.max(1);
+            let selected = if command_count == 0 {
+                0
+            } else {
+                menu_state
+                    .command_index
+                    .min(command_count.saturating_sub(1))
+            };
+            let total_pages = if command_count == 0 {
+                1
+            } else {
+                (command_count + page_size - 1) / page_size
+            };
+            let page = if command_count == 0 {
+                0
+            } else {
+                selected / page_size
+            };
+            let start = page.saturating_mul(page_size);
+            let end = (start + page_size).min(command_count);
+            let title = if total_pages > 1 {
+                format!(
+                    "{} ({}/{})",
+                    battle_ui.panels.commands.title,
+                    page + 1,
+                    total_pages
+                )
+            } else {
+                battle_ui.panels.commands.title.clone()
+            };
+            let items = command_entries
+                .get(start..end)
+                .unwrap_or(&[])
                 .iter()
-                .map(|label| BattleCommandItem {
-                    label: label.clone(),
+                .map(|command| BattleCommandItem {
+                    label: command.label.clone(),
                     enabled: command_enabled(
                         runtime,
-                        label,
+                        actor_id,
+                        command,
                         spell_entries,
-                        ability_entries,
+                        ability_entries_all,
                         item_entries,
                     ),
                 })
-                .collect(),
-            columns: Vec::new(),
-            rows: Vec::new(),
-            selected: menu_state
-                .command_index
-                .min(battle_ui.panels.commands.items.len().saturating_sub(1)),
-        },
+                .collect();
+            BattleCommandPanelView {
+                mode: BattleCommandPanelMode::Commands,
+                title,
+                items,
+                columns: Vec::new(),
+                rows: Vec::new(),
+                selected: selected.saturating_sub(start),
+            }
+        }
     }
 }
 
@@ -280,17 +325,27 @@ pub fn battle_focus(menu_state: &BattleMenuState) -> BattleFocus {
 
 fn command_enabled(
     runtime: &GameRuntime,
-    label: &str,
+    actor_id: Option<&str>,
+    command: &CommandEntry,
     spell_entries: &[SpellEntry],
-    ability_entries: &[AbilityEntry],
+    ability_entries_all: &[AbilityEntry],
     item_entries: &[InventoryEntry],
 ) -> bool {
-    match crate::battle::command_kind(label) {
-        Some(crate::battle::CommandKind::Magic) => {
+    match command.kind {
+        crate::battle::CommandKind::Magic => {
             crate::menu::system_enabled(runtime, Some("magic")) && !spell_entries.is_empty()
         }
-        Some(crate::battle::CommandKind::Abilities) => !ability_entries.is_empty(),
-        Some(crate::battle::CommandKind::Items) => {
+        crate::battle::CommandKind::Abilities => !ability_entries_all.is_empty(),
+        crate::battle::CommandKind::AbilitiesGroup => actor_id
+            .and_then(|actor_id| {
+                command
+                    .ability_group
+                    .as_deref()
+                    .map(|group| (actor_id, group))
+            })
+            .map(|(actor_id, group)| ability_group_available(runtime, actor_id, group))
+            .unwrap_or(false),
+        crate::battle::CommandKind::Items => {
             crate::menu::system_enabled(runtime, Some("items")) && !item_entries.is_empty()
         }
         _ => true,

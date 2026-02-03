@@ -85,6 +85,7 @@
 - [x] ATB timers (wait + active modes).
 - [x] Battle pause toggle (freeze progression).
 - [ ] Status effects and damage formulas (derived stats).
+- [ ] Implement command-specific behaviors (steal, throw, pray, parry, cover).
 - [x] Victory/defeat flow (spoils, level-ups, modals).
 - [x] Scan reveals enemy HP.
 - [x] Define battle rules schema (damage, hit, crit, ATB speed).
@@ -93,6 +94,7 @@
 - [x] Define skills/abilities schema (non-spell actions).
 - [x] Add ability costs (hp/mp/currency/item/death/random).
 - [ ] Add ATB speed setting to main menu.
+- [ ] Add localization support for UI strings and command labels.
 
 ## Magic System
 - [x] Implement job-based spell learnsets (level/item/equip/jp).

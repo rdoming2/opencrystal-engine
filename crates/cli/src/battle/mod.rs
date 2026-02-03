@@ -3,6 +3,7 @@ pub mod logic;
 pub mod render;
 pub mod state;
 
+use std::collections::HashSet;
 use std::thread::sleep;
 use std::time::{Duration, Instant};
 
@@ -31,7 +32,7 @@ use self::state::{
     set_initial_enemy_target, set_initial_party_target, step_target_index, BattleMenuState,
     BattlePhase, BattleTurnActor, BattleTurnState, PendingBattleAction, TargetRule, VictoryState,
 };
-use crate::menu::abilities::build_battle_ability_entries;
+use crate::menu::abilities::{ability_group_available, build_battle_ability_entries};
 use crate::menu::common::{AbilityEntry, InventoryEntry, SpellEntry};
 use crate::menu::inventory::build_battle_item_entries;
 use crate::menu::magic::build_battle_spell_entries;
@@ -80,6 +81,7 @@ pub fn run_battle(
     loop {
         if is_enemies_defeated(&battle_state.enemies) {
             if menu_state.phase != BattlePhase::Victory {
+                let empty_commands: Vec<CommandEntry> = Vec::new();
                 let empty_spells: Vec<SpellEntry> = Vec::new();
                 let empty_abilities: Vec<AbilityEntry> = Vec::new();
                 let empty_items: Vec<InventoryEntry> = Vec::new();
@@ -88,7 +90,9 @@ pub fn run_battle(
                     &battle_state,
                     &menu_state,
                     battle_ui,
+                    &empty_commands,
                     &empty_spells,
+                    &empty_abilities,
                     &empty_abilities,
                     &empty_items,
                     false,
@@ -175,14 +179,22 @@ pub fn run_battle(
                         battle_state.atb_enemy[enemy_index] = 0.0;
                     }
 
-                    if let Some(target_index) =
-                        enemy_take_turn(runtime, &mut battle_state, enemy_index, rng)
-                    {
+                    if let Some(target_index) = enemy_take_turn(
+                        runtime,
+                        &mut battle_state,
+                        enemy_index,
+                        &mut menu_state.defending,
+                        rng,
+                    ) {
+                        let command_entries =
+                            command_entries_for_active_actor(runtime, &battle_state);
                         let render_state = build_battle_render_state(
                             runtime,
                             &battle_state,
                             &menu_state,
                             battle_ui,
+                            &command_entries,
+                            &[],
                             &[],
                             &[],
                             &[],
@@ -234,6 +246,7 @@ pub fn run_battle(
                             }
                         }
                         battle_state.active_index = party_index;
+                        menu_state.defending.remove(&current_id);
                         if last_actor_id.as_deref() != Some(current_id.as_str()) {
                             menu_state.reset_for_actor();
                             last_actor_id = Some(current_id.clone());
@@ -242,14 +255,22 @@ pub fn run_battle(
                     }
                     BattleTurnActor::Enemy(enemy_index) => {
                         if !menu_state.paused {
-                            if let Some(target_index) =
-                                enemy_take_turn(runtime, &mut battle_state, enemy_index, rng)
-                            {
+                            if let Some(target_index) = enemy_take_turn(
+                                runtime,
+                                &mut battle_state,
+                                enemy_index,
+                                &mut menu_state.defending,
+                                rng,
+                            ) {
+                                let command_entries =
+                                    command_entries_for_active_actor(runtime, &battle_state);
                                 let render_state = build_battle_render_state(
                                     runtime,
                                     &battle_state,
                                     &menu_state,
                                     battle_ui,
+                                    &command_entries,
+                                    &[],
                                     &[],
                                     &[],
                                     &[],
@@ -274,16 +295,25 @@ pub fn run_battle(
             }
         }
 
+        let command_entries = command_entries_for_actor(runtime, &actor_id);
+        if menu_state.command_index >= command_entries.len() {
+            menu_state.command_index = command_entries.len().saturating_sub(1);
+        }
         let spell_entries = build_battle_spell_entries(runtime, &actor_id);
-        let ability_entries = build_battle_ability_entries(runtime, &actor_id);
+        let ability_entries_all = build_battle_ability_entries(runtime, &actor_id, None);
+        let command_group = ability_group_for_command(runtime, menu_state.command_id.as_deref());
+        let ability_entries =
+            build_battle_ability_entries(runtime, &actor_id, command_group.as_deref());
         let item_entries = build_battle_item_entries(runtime);
         let render_state = build_battle_render_state(
             runtime,
             &battle_state,
             &menu_state,
             battle_ui,
+            &command_entries,
             &spell_entries,
             &ability_entries,
+            &ability_entries_all,
             &item_entries,
             current_turn.is_some(),
         );
@@ -404,22 +434,44 @@ pub fn run_battle(
                     }
                 }
                 Action::MoveDown => {
-                    let max = battle_ui.panels.commands.items.len();
+                    let max = command_entries.len();
                     if menu_state.command_index + 1 < max {
                         menu_state.command_index += 1;
                     }
                 }
+                Action::MoveLeft => {
+                    let page_size = battle_ui.panels.commands.page_size.max(1);
+                    if menu_state.command_index >= page_size {
+                        menu_state.command_index -= page_size;
+                    } else {
+                        menu_state.command_index = 0;
+                    }
+                }
+                Action::MoveRight => {
+                    let page_size = battle_ui.panels.commands.page_size.max(1);
+                    if menu_state.command_index + page_size < command_entries.len() {
+                        menu_state.command_index += page_size;
+                    } else if !command_entries.is_empty() {
+                        menu_state.command_index = command_entries.len() - 1;
+                    }
+                }
                 Action::Confirm => {
-                    let Some(command_label) = battle_ui
-                        .panels
-                        .commands
-                        .items
-                        .get(menu_state.command_index)
-                    else {
+                    let Some(command) = command_entries.get(menu_state.command_index) else {
                         continue;
                     };
-                    match command_kind(command_label) {
-                        Some(CommandKind::Attack) => {
+                    if !command_is_enabled(
+                        runtime,
+                        &actor_id,
+                        command,
+                        &spell_entries,
+                        &ability_entries_all,
+                        &item_entries,
+                    ) {
+                        push_battle_log(&mut battle_state.log, "Command unavailable.");
+                        continue;
+                    }
+                    match command.kind {
+                        CommandKind::Attack => {
                             menu_state.phase = BattlePhase::TargetEnemy;
                             menu_state.pending_action = Some(PendingBattleAction::Attack);
                             if !set_initial_enemy_target(&mut menu_state, &battle_state) {
@@ -427,7 +479,7 @@ pub fn run_battle(
                                 menu_state.reset_for_actor();
                             }
                         }
-                        Some(CommandKind::Magic) => {
+                        CommandKind::Magic => {
                             if spell_entries.is_empty() {
                                 push_battle_log(&mut battle_state.log, "No spells available.");
                             } else {
@@ -435,15 +487,16 @@ pub fn run_battle(
                                 menu_state.magic_index = 0;
                             }
                         }
-                        Some(CommandKind::Abilities) => {
+                        CommandKind::Abilities | CommandKind::AbilitiesGroup => {
                             if ability_entries.is_empty() {
                                 push_battle_log(&mut battle_state.log, "No abilities available.");
                             } else {
+                                menu_state.command_id = Some(command.id.clone());
                                 menu_state.phase = BattlePhase::Abilities;
                                 menu_state.ability_index = 0;
                             }
                         }
-                        Some(CommandKind::Items) => {
+                        CommandKind::Items => {
                             if item_entries.is_empty() {
                                 push_battle_log(&mut battle_state.log, "No items available.");
                             } else {
@@ -451,7 +504,7 @@ pub fn run_battle(
                                 menu_state.item_index = 0;
                             }
                         }
-                        Some(CommandKind::Run) => {
+                        CommandKind::Run => {
                             if rng.r#gen::<f32>() < 0.5 {
                                 push_battle_log(&mut battle_state.log, "Escaped!");
                                 return Ok(BattleOutcome::Escaped);
@@ -462,8 +515,10 @@ pub fn run_battle(
                                 &battle_state,
                                 &menu_state,
                                 battle_ui,
+                                &command_entries,
                                 &spell_entries,
                                 &ability_entries,
+                                &ability_entries_all,
                                 &item_entries,
                                 false,
                             );
@@ -479,7 +534,42 @@ pub fn run_battle(
                             )?;
                             advance_turn(&mut menu_state, &mut turn_state, &mut battle_state);
                         }
-                        None => {}
+                        CommandKind::Defend => {
+                            menu_state.defending.insert(actor_id.clone());
+                            let actor_name = runtime
+                                .party
+                                .roster
+                                .get(&actor_id)
+                                .map(|actor| actor.name.clone())
+                                .unwrap_or_else(|| actor_id.clone());
+                            push_battle_log(
+                                &mut battle_state.log,
+                                format!("{} defends.", actor_name),
+                            );
+                            let render_state = build_battle_render_state(
+                                runtime,
+                                &battle_state,
+                                &menu_state,
+                                battle_ui,
+                                &command_entries,
+                                &spell_entries,
+                                &ability_entries,
+                                &ability_entries_all,
+                                &item_entries,
+                                false,
+                            );
+                            pause_after_action(
+                                session,
+                                battle_ui,
+                                bindings,
+                                &render_state,
+                                Vec::new(),
+                                vec![battle_state.active_index],
+                                Vec::new(),
+                                Vec::new(),
+                            )?;
+                            advance_turn(&mut menu_state, &mut turn_state, &mut battle_state);
+                        }
                     }
                 }
                 _ => {}
@@ -534,8 +624,10 @@ pub fn run_battle(
                                 &mut battle_state,
                                 &menu_state,
                                 battle_ui,
+                                &command_entries,
                                 &spell_entries,
                                 &ability_entries,
+                                &ability_entries_all,
                                 &item_entries,
                                 false,
                             );
@@ -613,8 +705,10 @@ pub fn run_battle(
                                 &mut battle_state,
                                 &menu_state,
                                 battle_ui,
+                                &command_entries,
                                 &spell_entries,
                                 &ability_entries,
+                                &ability_entries_all,
                                 &item_entries,
                                 false,
                             );
@@ -692,8 +786,10 @@ pub fn run_battle(
                                 &mut battle_state,
                                 &menu_state,
                                 battle_ui,
+                                &command_entries,
                                 &spell_entries,
                                 &ability_entries,
+                                &ability_entries_all,
                                 &item_entries,
                                 false,
                             );
@@ -781,8 +877,10 @@ pub fn run_battle(
                                     &battle_state,
                                     &menu_state,
                                     battle_ui,
+                                    &command_entries,
                                     &spell_entries,
                                     &ability_entries,
+                                    &ability_entries_all,
                                     &item_entries,
                                     false,
                                 );
@@ -811,8 +909,10 @@ pub fn run_battle(
                                     &battle_state,
                                     &menu_state,
                                     battle_ui,
+                                    &command_entries,
                                     &spell_entries,
                                     &ability_entries,
+                                    &ability_entries_all,
                                     &item_entries,
                                     false,
                                 );
@@ -841,8 +941,10 @@ pub fn run_battle(
                                     &battle_state,
                                     &menu_state,
                                     battle_ui,
+                                    &command_entries,
                                     &spell_entries,
                                     &ability_entries,
+                                    &ability_entries_all,
                                     &item_entries,
                                     false,
                                 );
@@ -878,8 +980,10 @@ pub fn run_battle(
                                         &battle_state,
                                         &menu_state,
                                         battle_ui,
+                                        &command_entries,
                                         &spell_entries,
                                         &ability_entries,
+                                        &ability_entries_all,
                                         &item_entries,
                                         false,
                                     );
@@ -903,8 +1007,10 @@ pub fn run_battle(
                             runtime,
                             &mut battle_state,
                             &menu_state,
+                            &command_entries,
                             &spell_entries,
                             &ability_entries,
+                            &ability_entries_all,
                             &item_entries,
                             was_alive,
                             menu_state.enemy_index,
@@ -966,8 +1072,10 @@ pub fn run_battle(
                                 &battle_state,
                                 &menu_state,
                                 battle_ui,
+                                &command_entries,
                                 &spell_entries,
                                 &ability_entries,
+                                &ability_entries_all,
                                 &item_entries,
                                 false,
                             );
@@ -996,8 +1104,10 @@ pub fn run_battle(
                                 &battle_state,
                                 &menu_state,
                                 battle_ui,
+                                &command_entries,
                                 &spell_entries,
                                 &ability_entries,
+                                &ability_entries_all,
                                 &item_entries,
                                 false,
                             );
@@ -1033,8 +1143,10 @@ pub fn run_battle(
                                     &battle_state,
                                     &menu_state,
                                     battle_ui,
+                                    &command_entries,
                                     &spell_entries,
                                     &ability_entries,
+                                    &ability_entries_all,
                                     &item_entries,
                                     false,
                                 );
@@ -1172,8 +1284,10 @@ fn pause_on_enemy_defeat(
     runtime: &GameRuntime,
     battle_state: &mut BattleState,
     menu_state: &BattleMenuState,
+    command_entries: &[CommandEntry],
     spell_entries: &[SpellEntry],
     ability_entries: &[AbilityEntry],
+    ability_entries_all: &[AbilityEntry],
     item_entries: &[InventoryEntry],
     was_alive: bool,
     target_index: usize,
@@ -1194,8 +1308,10 @@ fn pause_on_enemy_defeat(
             battle_state,
             menu_state,
             battle_ui,
+            command_entries,
             spell_entries,
             ability_entries,
+            ability_entries_all,
             item_entries,
             false,
         );
@@ -1356,18 +1472,146 @@ pub enum CommandKind {
     Attack,
     Magic,
     Abilities,
+    AbilitiesGroup,
     Items,
     Run,
+    Defend,
 }
 
-pub fn command_kind(label: &str) -> Option<CommandKind> {
-    match label.to_ascii_lowercase().as_str() {
+#[derive(Clone, Debug)]
+pub struct CommandEntry {
+    pub id: String,
+    pub label: String,
+    pub kind: CommandKind,
+    pub sort_order: i32,
+    pub ability_group: Option<String>,
+}
+
+fn command_kind_from_rule(kind: &str) -> Option<CommandKind> {
+    match kind {
         "attack" => Some(CommandKind::Attack),
         "magic" => Some(CommandKind::Magic),
         "abilities" => Some(CommandKind::Abilities),
+        "abilities_group" => Some(CommandKind::AbilitiesGroup),
         "items" => Some(CommandKind::Items),
         "run" => Some(CommandKind::Run),
+        "defend" => Some(CommandKind::Defend),
         _ => None,
+    }
+}
+
+pub fn command_entries_for_actor(runtime: &GameRuntime, actor_id: &str) -> Vec<CommandEntry> {
+    let mut command_ids: HashSet<String> = runtime
+        .content
+        .rules
+        .battle
+        .global_commands
+        .iter()
+        .cloned()
+        .collect();
+    if let Some(actor) = runtime.party.roster.get(actor_id) {
+        if let Some(job) = runtime
+            .content
+            .jobs
+            .jobs
+            .iter()
+            .find(|job| job.id == actor.job_id)
+        {
+            command_ids.extend(job.commands.iter().cloned());
+        }
+        if runtime.content.rules.job_system.secondary_jobs {
+            if let Some(secondary_job_id) = actor.secondary_job_id.as_deref() {
+                if let Some(job) = runtime
+                    .content
+                    .jobs
+                    .jobs
+                    .iter()
+                    .find(|job| job.id == secondary_job_id)
+                {
+                    command_ids.extend(job.commands.iter().cloned());
+                }
+            }
+        }
+    }
+    let mut entries = Vec::new();
+    for command in &runtime.content.rules.battle.commands {
+        if !command_ids.contains(&command.id) {
+            continue;
+        }
+        let Some(kind) = command_kind_from_rule(command.kind.as_str()) else {
+            continue;
+        };
+        entries.push(CommandEntry {
+            id: command.id.clone(),
+            label: command.label.clone(),
+            kind,
+            sort_order: command.sort_order,
+            ability_group: command.ability_group.clone(),
+        });
+    }
+    entries.sort_by(|left, right| {
+        left.sort_order
+            .cmp(&right.sort_order)
+            .then_with(|| left.label.cmp(&right.label))
+            .then_with(|| left.id.cmp(&right.id))
+    });
+    entries
+}
+
+pub fn command_definition_for_id<'a>(
+    runtime: &'a GameRuntime,
+    command_id: &str,
+) -> Option<&'a engine::rules::BattleCommandDefinition> {
+    runtime
+        .content
+        .rules
+        .battle
+        .commands
+        .iter()
+        .find(|command| command.id == command_id)
+}
+
+fn command_entries_for_active_actor(
+    runtime: &GameRuntime,
+    battle_state: &BattleState,
+) -> Vec<CommandEntry> {
+    let Some(actor_id) = battle_state.party_order.get(battle_state.active_index) else {
+        return Vec::new();
+    };
+    command_entries_for_actor(runtime, actor_id)
+}
+
+fn ability_group_for_command(runtime: &GameRuntime, command_id: Option<&str>) -> Option<String> {
+    let command_id = command_id?;
+    let command = command_definition_for_id(runtime, command_id)?;
+    if command.kind != "abilities_group" {
+        return None;
+    }
+    command.ability_group.clone()
+}
+
+fn command_is_enabled(
+    runtime: &GameRuntime,
+    actor_id: &str,
+    command: &CommandEntry,
+    spell_entries: &[SpellEntry],
+    ability_entries_all: &[AbilityEntry],
+    item_entries: &[InventoryEntry],
+) -> bool {
+    match command.kind {
+        CommandKind::Magic => {
+            crate::menu::system_enabled(runtime, Some("magic")) && !spell_entries.is_empty()
+        }
+        CommandKind::Abilities => !ability_entries_all.is_empty(),
+        CommandKind::AbilitiesGroup => command
+            .ability_group
+            .as_deref()
+            .map(|group| ability_group_available(runtime, actor_id, group))
+            .unwrap_or(false),
+        CommandKind::Items => {
+            crate::menu::system_enabled(runtime, Some("items")) && !item_entries.is_empty()
+        }
+        _ => true,
     }
 }
 

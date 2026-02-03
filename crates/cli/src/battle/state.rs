@@ -1,5 +1,5 @@
 use engine::battle::BattleState;
-
+use std::collections::HashSet;
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum BattlePhase {
     Command,
@@ -30,6 +30,8 @@ pub struct BattleMenuState {
     pub item_index: usize,
     pub pending_action: Option<PendingBattleAction>,
     pub paused: bool,
+    pub command_id: Option<String>,
+    pub defending: HashSet<String>,
 }
 
 impl BattleMenuState {
@@ -44,12 +46,15 @@ impl BattleMenuState {
             item_index: 0,
             pending_action: None,
             paused: false,
+            command_id: None,
+            defending: HashSet::new(),
         }
     }
 
     pub fn reset_for_actor(&mut self) {
         self.phase = BattlePhase::Command;
         self.pending_action = None;
+        self.command_id = None;
     }
 
     pub fn toggle_pause(&mut self) {

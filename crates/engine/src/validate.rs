@@ -151,6 +151,71 @@ pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
                 ));
             }
         }
+        if rules.battle.commands.is_empty() {
+            errors.push("rules.json: battle.commands must define at least one command".to_string());
+        }
+        let mut command_ids = HashSet::new();
+        for command in &rules.battle.commands {
+            let id = command.id.trim();
+            if id.is_empty() {
+                errors.push("rules.json: battle.commands requires non-empty id".to_string());
+            }
+            if !id
+                .chars()
+                .all(|ch| ch.is_ascii_lowercase() || ch.is_ascii_digit() || ch == '_')
+            {
+                errors.push(format!(
+                    "rules.json: battle.commands '{}' must be lowercase snake_case",
+                    command.id
+                ));
+            }
+            if !command_ids.insert(id.to_string()) {
+                errors.push(format!(
+                    "rules.json: battle.commands duplicate id '{}'",
+                    command.id
+                ));
+            }
+            let kind = command.kind.as_str();
+            let valid_kind = matches!(
+                kind,
+                "attack" | "magic" | "abilities" | "items" | "run" | "defend" | "abilities_group"
+            );
+            if !valid_kind {
+                errors.push(format!(
+                    "rules.json: battle.commands '{}' has unknown kind '{}'",
+                    command.id, command.kind
+                ));
+            }
+            if kind == "abilities_group"
+                && command
+                    .ability_group
+                    .as_ref()
+                    .map(|group| group.trim().is_empty())
+                    .unwrap_or(true)
+            {
+                errors.push(format!(
+                    "rules.json: battle.commands '{}' abilities_group requires ability_group",
+                    command.id
+                ));
+            }
+        }
+        for command_id in &rules.battle.global_commands {
+            if !command_ids.contains(command_id) {
+                errors.push(format!(
+                    "rules.json: battle.global_commands references unknown command '{}'",
+                    command_id
+                ));
+            }
+        }
+        let mut global_ids = HashSet::new();
+        for command_id in &rules.battle.global_commands {
+            if !global_ids.insert(command_id.as_str()) {
+                errors.push(format!(
+                    "rules.json: battle.global_commands duplicate command '{}'",
+                    command_id
+                ));
+            }
+        }
     }
 
     if let Some(stats) = &stats {
@@ -373,6 +438,17 @@ pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
         } else if default_jobs > 1 {
             errors.push("jobs.json: only one job can be marked is_default".to_string());
         }
+        let command_ids: HashSet<&str> = rules
+            .as_ref()
+            .map(|rules| {
+                rules
+                    .battle
+                    .commands
+                    .iter()
+                    .map(|command| command.id.as_str())
+                    .collect()
+            })
+            .unwrap_or_default();
         for job in &jobs.jobs {
             match job.growth.mode.as_str() {
                 "table" => {
@@ -428,6 +504,14 @@ pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
                     errors.push(format!(
                         "jobs.json: job '{}' references unknown ability '{}'",
                         job.id, ability.id
+                    ));
+                }
+            }
+            for command_id in &job.commands {
+                if !command_ids.is_empty() && !command_ids.contains(command_id.as_str()) {
+                    errors.push(format!(
+                        "jobs.json: job '{}' references unknown command '{}'",
+                        job.id, command_id
                     ));
                 }
             }

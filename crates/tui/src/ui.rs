@@ -183,6 +183,8 @@ pub struct EnemyPanel {
 pub struct CommandPanel {
     pub title: String,
     pub items: Vec<String>,
+    #[serde(default = "default_command_page_size")]
+    pub page_size: usize,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -319,6 +321,10 @@ fn default_party_grid_columns() -> u16 {
 
 fn default_menu_enabled() -> bool {
     true
+}
+
+fn default_command_page_size() -> usize {
+    6
 }
 
 fn load_json<T: serde::de::DeserializeOwned>(path: impl AsRef<Path>) -> Result<T, String> {

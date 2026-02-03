@@ -7,6 +7,8 @@ use crate::inventory::InventoryStack;
 pub struct RulesFile {
     pub version: u32,
     pub game: GameRules,
+    #[serde(default)]
+    pub battle: BattleRules,
     #[serde(default = "default_party_mode")]
     pub party_mode: PartyMode,
     #[serde(default)]
@@ -63,6 +65,25 @@ pub struct RenderRules {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct BattleRules {
+    #[serde(default = "default_battle_global_commands")]
+    pub global_commands: Vec<String>,
+    #[serde(default = "default_battle_commands")]
+    pub commands: Vec<BattleCommandDefinition>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct BattleCommandDefinition {
+    pub id: String,
+    pub label: String,
+    pub kind: String,
+    #[serde(default = "default_battle_command_sort_order")]
+    pub sort_order: i32,
+    #[serde(default)]
+    pub ability_group: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct StatsRules {
     pub track: Vec<String>,
 }
@@ -84,6 +105,7 @@ pub struct Ruleset {
     pub party_size: usize,
     pub party_reserve_size: usize,
     pub battle_mode: BattleMode,
+    pub battle: BattleRules,
     pub magic_system: MagicSystem,
     pub magic_acquisition: MagicAcquisition,
     pub ability_acquisition: AbilityAcquisition,
@@ -114,6 +136,7 @@ impl Ruleset {
             party_size: 4,
             party_reserve_size: 4,
             battle_mode: BattleMode::Turn,
+            battle: BattleRules::default(),
             magic_system: MagicSystem::Mp,
             magic_acquisition: MagicAcquisition::Level,
             ability_acquisition: AbilityAcquisition::Level,
@@ -141,6 +164,7 @@ impl Ruleset {
             party_size: file.game.party_size,
             party_reserve_size: file.game.party_reserve_size,
             battle_mode: file.game.battle_mode,
+            battle: file.battle,
             magic_system: file.game.magic_system,
             magic_acquisition: file.game.magic_acquisition,
             ability_acquisition: file.game.ability_acquisition,
@@ -247,6 +271,15 @@ impl Default for SaveRules {
     }
 }
 
+impl Default for BattleRules {
+    fn default() -> Self {
+        Self {
+            global_commands: default_battle_global_commands(),
+            commands: default_battle_commands(),
+        }
+    }
+}
+
 fn default_party_mode() -> PartyMode {
     PartyMode::Create
 }
@@ -315,6 +348,68 @@ fn default_inventory_stack() -> i32 {
 
 fn default_atb_speed() -> f32 {
     2.0
+}
+
+fn default_battle_global_commands() -> Vec<String> {
+    vec![
+        "attack".to_string(),
+        "magic".to_string(),
+        "abilities".to_string(),
+        "items".to_string(),
+        "run".to_string(),
+        "defend".to_string(),
+    ]
+}
+
+fn default_battle_commands() -> Vec<BattleCommandDefinition> {
+    vec![
+        BattleCommandDefinition {
+            id: "attack".to_string(),
+            label: "Attack".to_string(),
+            kind: "attack".to_string(),
+            sort_order: 10,
+            ability_group: None,
+        },
+        BattleCommandDefinition {
+            id: "magic".to_string(),
+            label: "Magic".to_string(),
+            kind: "magic".to_string(),
+            sort_order: 30,
+            ability_group: None,
+        },
+        BattleCommandDefinition {
+            id: "abilities".to_string(),
+            label: "Abilities".to_string(),
+            kind: "abilities".to_string(),
+            sort_order: 40,
+            ability_group: None,
+        },
+        BattleCommandDefinition {
+            id: "items".to_string(),
+            label: "Items".to_string(),
+            kind: "items".to_string(),
+            sort_order: 50,
+            ability_group: None,
+        },
+        BattleCommandDefinition {
+            id: "defend".to_string(),
+            label: "Defend".to_string(),
+            kind: "defend".to_string(),
+            sort_order: 60,
+            ability_group: None,
+        },
+        BattleCommandDefinition {
+            id: "run".to_string(),
+            label: "Run".to_string(),
+            kind: "run".to_string(),
+            sort_order: 70,
+            ability_group: None,
+        },
+    ]
+}
+
+fn default_battle_command_sort_order() -> i32 {
+    100
 }
 
 fn default_job_progression_mode() -> JobProgressionMode {

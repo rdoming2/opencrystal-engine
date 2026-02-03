@@ -2,6 +2,7 @@ use engine::battle::BattleMode;
 use engine::runtime::GameRuntime;
 use rand::seq::SliceRandom;
 use rand::Rng;
+use std::collections::HashSet;
 
 use super::state::{BattleMenuState, BattleTurnActor, BattleTurnState};
 
@@ -72,6 +73,7 @@ pub fn enemy_take_turn(
     runtime: &mut GameRuntime,
     battle_state: &mut engine::battle::BattleState,
     enemy_index: usize,
+    defending: &mut HashSet<String>,
     rng: &mut impl Rng,
 ) -> Option<usize> {
     let Some(enemy) = battle_state.enemies.get_mut(enemy_index) else {
@@ -103,7 +105,14 @@ pub fn enemy_take_turn(
         return None;
     };
     let def = target.derived_stats.get("def").copied().unwrap_or(0);
-    let damage = engine::battle::physical_damage(enemy.atk(), def, rng);
+    let mut damage = engine::battle::physical_damage(enemy.atk(), def, rng);
+    if defending.remove(&target_id) {
+        damage = (damage / 2).max(1);
+        push_battle_log(
+            &mut battle_state.log,
+            format!("{} braces for impact!", target.name),
+        );
+    }
     engine::battle::apply_damage_to_actor(target, damage);
     push_battle_log(
         &mut battle_state.log,

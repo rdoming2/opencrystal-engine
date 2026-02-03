@@ -43,6 +43,8 @@ pub struct JobDefinition {
     #[serde(default)]
     pub abilities: Vec<JobAbility>,
     #[serde(default)]
+    pub commands: Vec<String>,
+    #[serde(default)]
     pub starting_equipment: HashMap<String, String>,
     #[serde(default)]
     pub sprite: JobSprite,
@@ -209,6 +211,8 @@ pub struct AbilityDefinition {
     pub name: String,
     #[serde(default)]
     pub description: Option<String>,
+    #[serde(default)]
+    pub command_group: Option<String>,
     pub default_target: String,
     pub allowed_targets: Vec<String>,
     pub effect: AbilityEffect,
