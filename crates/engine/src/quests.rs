@@ -30,6 +30,8 @@ pub struct QuestStep {
     pub text: String,
     pub flag: String,
     #[serde(default)]
+    pub show_flag: Option<String>,
+    #[serde(default)]
     pub substeps: Vec<QuestStep>,
 }
 
@@ -81,25 +83,26 @@ impl QuestsFile {
     }
 
     fn resolve_quest(&self, quest: &Quest, flags: &HashSet<String>) -> Option<QuestState> {
-        // Check if any step flag is set (quest is visible)
-        let has_any_flag = quest.steps.iter().any(|step| flags.contains(&step.flag));
-        if !has_any_flag {
+        let Some(first_step) = quest.steps.first() else {
+            return None;
+        };
+
+        // Quest becomes visible only when the first step is set (quest acquired)
+        if !flags.contains(&first_step.flag) {
             return None;
         }
 
-        let mut step_states = Vec::new();
+        let step_states = self.resolve_step_list(&quest.steps, flags, true);
         let mut all_complete = true;
         let mut any_complete = false;
 
-        for step in &quest.steps {
-            let step_state = self.resolve_step(step, flags, true);
+        for step_state in &step_states {
             if !step_state.complete {
                 all_complete = false;
             }
             if step_state.complete {
                 any_complete = true;
             }
-            step_states.push(step_state);
         }
 
         let status = if all_complete {
@@ -117,19 +120,53 @@ impl QuestsFile {
         })
     }
 
+    fn resolve_step_list(
+        &self,
+        steps: &[QuestStep],
+        flags: &HashSet<String>,
+        parent_revealed: bool,
+    ) -> Vec<QuestStepState> {
+        let mut states = Vec::new();
+        let mut previous_complete = false;
+
+        for (index, step) in steps.iter().enumerate() {
+            let can_reveal = if index == 0 {
+                parent_revealed
+            } else {
+                parent_revealed && previous_complete
+            };
+            let step_state = self.resolve_step(step, flags, parent_revealed, can_reveal);
+            previous_complete = step_state.complete;
+            states.push(step_state);
+        }
+
+        states
+    }
+
     fn resolve_step(
         &self,
         step: &QuestStep,
         flags: &HashSet<String>,
-        parent_visible: bool,
+        parent_revealed: bool,
+        can_reveal: bool,
     ) -> QuestStepState {
         let complete = flags.contains(&step.flag);
-        let visible = parent_visible || complete;
+        let gate_revealed = step
+            .show_flag
+            .as_ref()
+            .map(|flag| flags.contains(flag))
+            .unwrap_or(false);
+        let mut visible = complete
+            || (parent_revealed
+                && if step.show_flag.is_some() {
+                    gate_revealed
+                } else {
+                    can_reveal
+                });
 
-        let mut substep_states = Vec::new();
-        for substep in &step.substeps {
-            let substep_state = self.resolve_step(substep, flags, visible);
-            substep_states.push(substep_state);
+        let substep_states = self.resolve_step_list(&step.substeps, flags, visible || complete);
+        if !visible && substep_states.iter().any(|substep| substep.visible) {
+            visible = true;
         }
 
         QuestStepState {
@@ -145,28 +182,31 @@ impl QuestsFile {
 
         for quest in &self.quests {
             for step in &quest.steps {
-                if flags.contains(&step.flag) {
-                    history.push(QuestHistoryEntry {
-                        quest_id: quest.id.clone(),
-                        quest_title: quest.title.clone(),
-                        step_id: step.id.clone(),
-                        step_text: step.text.clone(),
-                    });
-                }
-                // Check substeps
-                for substep in &step.substeps {
-                    if flags.contains(&substep.flag) {
-                        history.push(QuestHistoryEntry {
-                            quest_id: quest.id.clone(),
-                            quest_title: quest.title.clone(),
-                            step_id: substep.id.clone(),
-                            step_text: substep.text.clone(),
-                        });
-                    }
-                }
+                self.collect_history(&mut history, quest, step, flags);
             }
         }
 
         history
+    }
+
+    fn collect_history(
+        &self,
+        history: &mut Vec<QuestHistoryEntry>,
+        quest: &Quest,
+        step: &QuestStep,
+        flags: &HashSet<String>,
+    ) {
+        if flags.contains(&step.flag) {
+            history.push(QuestHistoryEntry {
+                quest_id: quest.id.clone(),
+                quest_title: quest.title.clone(),
+                step_id: step.id.clone(),
+                step_text: step.text.clone(),
+            });
+        }
+
+        for substep in &step.substeps {
+            self.collect_history(history, quest, substep, flags);
+        }
     }
 }

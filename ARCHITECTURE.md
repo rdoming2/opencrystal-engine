@@ -231,9 +231,11 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
 - Categories define display labels and sort order (e.g., main, side, faction, bounty).
 - Quests reference a category and contain ordered steps with optional substeps.
 - Quest progress tracked via flags using `quest.<quest_id>.<step_id>` naming convention.
-- Quest visibility: a quest appears when any of its step flags are set.
-- Step visibility: a step is visible when its flag is set or a previous step is complete.
+- Quest visibility: a quest appears only when its first step flag is set (quest acquired).
 - Step completion: a step is complete when its flag is set.
+- Step visibility: completed steps always show once the quest is acquired.
+- Step visibility: when `show_flag` is present, incomplete steps stay hidden until that flag is set.
+- Step visibility: when `show_flag` is absent, incomplete steps are revealed after the previous step in the same list is complete.
 - History entries derived from completed steps in the order they appear in the quest definition.
 - Substeps follow the same visibility/completion rules as parent steps.
 - Flag namespaces: `quest.*` for quests, `map.*` for map state, `system.*` for features, `vehicle.*` for vehicles, `dungeon.*` for dungeons.

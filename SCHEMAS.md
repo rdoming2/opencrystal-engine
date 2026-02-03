@@ -1032,6 +1032,7 @@ Quest step fields:
 - `id`: unique step identifier within the quest (lowercase snake_case).
 - `text`: description shown in the Journal UI.
 - `flag`: flag name that tracks step completion (format: `quest.<quest_id>.<step_id>`).
+- `show_flag`: optional flag name that reveals the step before it is complete.
 - `substeps`: optional nested steps for multi-part objectives.
 
 Flag naming conventions:
@@ -1044,9 +1045,11 @@ Flag naming conventions:
 
 Quest visibility and completion rules:
 
-- A quest becomes visible when any of its step flags are set.
-- A step is visible when its flag is set or when a previous step in the same quest is complete.
-- A step is complete when its flag is set.
+- A quest becomes visible only when its first step flag is set (quest acquired).
+- A step is complete when its `flag` is set.
+- A completed step is always visible once the quest is acquired.
+- If `show_flag` is set, incomplete steps remain hidden until that flag is set.
+- If `show_flag` is omitted, an incomplete step is visible only after the previous step in the same list is complete.
 - Substeps follow the same visibility/completion rules as parent steps.
 - History entries are derived from completed steps in the order they appear in the quest definition.
 

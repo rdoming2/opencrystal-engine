@@ -1118,6 +1118,15 @@ fn validate_step_flags(
         ));
     }
 
+    if let Some(show_flag) = &step.show_flag {
+        if show_flag.trim().is_empty() {
+            errors.push(format!(
+                "quests: quest '{}' step '{}' has empty show_flag",
+                quest_id, step.id
+            ));
+        }
+    }
+
     // Check for duplicate step IDs within the same quest
     let mut seen_step_ids = HashSet::new();
     if !seen_step_ids.insert(&step.id) {

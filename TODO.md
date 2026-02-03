@@ -123,6 +123,7 @@
 - [ ] Implement NPC script event triggers.
 - [ ] Move WorldState from CLI to GameRuntime.
 - [x] Implement quest resolver (flag-driven steps and journal updates).
+- [x] Add quest step reveal flags (show_flag) and acquisition gating.
 - [ ] Implement NPC roaming (persisted positions).
 - [ ] Implement event-driven NPC controls (show/hide/move/set_sprite).
 - [x] Implement inn rest feature (dialog action `rest_party`).
