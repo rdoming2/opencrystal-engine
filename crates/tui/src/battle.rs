@@ -33,7 +33,7 @@ pub struct BattlePartyView {
     pub mp: i32,
     pub max_mp: i32,
     pub show_mp: bool,
-    pub atb: f32,
+    pub readiness: f32,
     pub status: Vec<String>,
     pub alive: bool,
     pub active: bool,
@@ -520,13 +520,48 @@ fn draw_party_panel(
     state: &BattleRenderState,
     hide_titles: bool,
 ) {
-    fn atb_glyph(atb: f32) -> char {
+    fn readiness_glyph(readiness: f32) -> char {
         let glyphs = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
-        let clamped = atb.max(0.0).min(100.0);
+        let clamped = readiness.max(0.0).min(100.0);
         let normalized = clamped / 100.0;
         let index = (normalized * (glyphs.len() as f32 - 1.0)).floor() as usize;
         glyphs[index]
     }
+
+    let name_width = state
+        .party
+        .iter()
+        .map(|member| member.name.len())
+        .max()
+        .unwrap_or(1)
+        .max(1);
+    let hp_width = state
+        .party
+        .iter()
+        .map(|member| {
+            let current = member.hp.max(0);
+            let max = member.max_hp.max(1);
+            current.max(max).to_string().len()
+        })
+        .max()
+        .unwrap_or(1)
+        .max(1);
+    let show_mp = state.party.iter().any(|member| member.show_mp);
+    let mp_width = if show_mp {
+        state
+            .party
+            .iter()
+            .map(|member| {
+                let current = member.mp.max(0);
+                let max = member.max_mp.max(1);
+                current.max(max).to_string().len()
+            })
+            .max()
+            .unwrap_or(1)
+            .max(1)
+    } else {
+        0
+    };
 
     let mut lines = Vec::new();
     for (index, member) in state.party.iter().enumerate() {
@@ -544,24 +579,29 @@ fn draw_party_panel(
         } else if member.active {
             style = style.fg(Color::Cyan).add_modifier(Modifier::BOLD);
         }
-        let atb_display = atb_glyph(member.atb);
-        let line = if member.show_mp {
+        let readiness_display = readiness_glyph(member.readiness);
+        let line = if show_mp {
             format!(
-                "{} HP {}/{}  MP {}/{}  ATB: {}",
+                "{:<name_width$}  HP {:>hp_width$}/{:>hp_width$}  MP {:>mp_width$}/{:>mp_width$}  {}",
                 member.name,
                 member.hp.max(0),
                 member.max_hp.max(1),
                 member.mp.max(0),
                 member.max_mp.max(1),
-                atb_display
+                readiness_display,
+                name_width = name_width,
+                hp_width = hp_width,
+                mp_width = mp_width,
             )
         } else {
             format!(
-                "{} HP {}/{}  ATB: {}",
+                "{:<name_width$}  HP {:>hp_width$}/{:>hp_width$}  {}",
                 member.name,
                 member.hp.max(0),
                 member.max_hp.max(1),
-                atb_display
+                readiness_display,
+                name_width = name_width,
+                hp_width = hp_width,
             )
         };
         lines.push(Line::from(Span::styled(line, style)));

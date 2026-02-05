@@ -19,8 +19,8 @@ pub struct BattleState {
     pub enemies: Vec<BattleEnemy>,
     pub active_index: usize,
     pub log: Vec<String>,
-    pub atb_party: HashMap<String, f32>,
-    pub atb_enemy: Vec<f32>,
+    pub readiness_party: HashMap<String, f32>,
+    pub readiness_enemy: Vec<f32>,
     pub mode: BattleMode,
 }
 
@@ -117,11 +117,11 @@ pub fn build_battle_state(
     };
 
     let mut rng = rand::thread_rng();
-    let atb_party = party_order
+    let readiness_party = party_order
         .iter()
         .map(|id| (id.clone(), rng.gen_range(0.0..10.0)))
         .collect();
-    let atb_enemy = (0..enemies.len())
+    let readiness_enemy = (0..enemies.len())
         .map(|_| rng.gen_range(0.0..10.0))
         .collect();
 
@@ -130,8 +130,8 @@ pub fn build_battle_state(
         enemies,
         active_index: 0,
         log: Vec::new(),
-        atb_party,
-        atb_enemy,
+        readiness_party,
+        readiness_enemy,
         mode,
     }
 }

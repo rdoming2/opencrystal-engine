@@ -7,7 +7,7 @@ use std::collections::HashSet;
 use std::thread::sleep;
 use std::time::{Duration, Instant};
 
-use self::logic::update_atb;
+use self::logic::update_readiness;
 use engine::battle::{
     build_battle_state, collect_rewards, is_enemies_defeated, is_party_defeated, BattleMode,
     BattleResult, BattleState, LevelUpDiff,
@@ -140,7 +140,7 @@ pub fn run_battle(
                 return Ok(BattleOutcome::Defeat);
             }
         } else {
-            // ATB Logic
+            // Readiness logic
             let paused = menu_state.paused
                 || (battle_state.mode == BattleMode::DynamicWait
                     && matches!(
@@ -153,7 +153,7 @@ pub fn run_battle(
                     ));
 
             if !paused {
-                let new_ready = update_atb(runtime, &mut battle_state, delta);
+                let new_ready = update_readiness(runtime, &mut battle_state, delta);
                 turn_state.order.extend(new_ready);
             }
 
@@ -174,9 +174,9 @@ pub fn run_battle(
                 });
 
                 for enemy_index in enemy_indices {
-                    // Reset ATB
-                    if enemy_index < battle_state.atb_enemy.len() {
-                        battle_state.atb_enemy[enemy_index] = 0.0;
+                    // Reset readiness
+                    if enemy_index < battle_state.readiness_enemy.len() {
+                        battle_state.readiness_enemy[enemy_index] = 0.0;
                     }
 
                     if let Some(target_index) = enemy_take_turn(

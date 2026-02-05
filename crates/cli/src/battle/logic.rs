@@ -49,16 +49,16 @@ pub fn advance_turn(
         BattleMode::Dynamic | BattleMode::DynamicWait => {
             if !turn_state.order.is_empty() {
                 let actor = turn_state.order.remove(0);
-                // Reset ATB
+                // Reset readiness
                 match actor {
                     BattleTurnActor::Party(idx) => {
                         if let Some(id) = battle_state.party_order.get(idx) {
-                            battle_state.atb_party.insert(id.clone(), 0.0);
+                            battle_state.readiness_party.insert(id.clone(), 0.0);
                         }
                     }
                     BattleTurnActor::Enemy(idx) => {
-                        if idx < battle_state.atb_enemy.len() {
-                            battle_state.atb_enemy[idx] = 0.0;
+                        if idx < battle_state.readiness_enemy.len() {
+                            battle_state.readiness_enemy[idx] = 0.0;
                         }
                     }
                 }
@@ -136,19 +136,22 @@ pub fn push_battle_log(log: &mut Vec<String>, message: impl Into<String>) {
     }
 }
 
-pub fn update_atb(
+pub fn update_readiness(
     runtime: &engine::runtime::GameRuntime,
     battle_state: &mut engine::battle::BattleState,
     delta_seconds: f32,
 ) -> Vec<BattleTurnActor> {
     let mut ready_candidates = Vec::new();
-    let multiplier = runtime.content.rules.game.atb_speed;
+    let multiplier = runtime.content.rules.game.readiness_speed;
 
     // Update Party
     for (index, id) in battle_state.party_order.iter().enumerate() {
         if let Some(actor) = runtime.party.roster.get(id) {
             if actor.current_hp > 0 {
-                let current = battle_state.atb_party.entry(id.clone()).or_insert(0.0);
+                let current = battle_state
+                    .readiness_party
+                    .entry(id.clone())
+                    .or_insert(0.0);
                 if *current < 100.0 {
                     let speed = actor.base_stats.get("agi").copied().unwrap_or(1).max(1) as f32;
                     *current += speed * delta_seconds * multiplier;
@@ -159,21 +162,21 @@ pub fn update_atb(
                     }
                 }
             } else {
-                // Reset ATB if dead?
-                battle_state.atb_party.insert(id.clone(), 0.0);
+                // Reset readiness if dead?
+                battle_state.readiness_party.insert(id.clone(), 0.0);
             }
         }
     }
 
     // Update Enemies
-    if battle_state.atb_enemy.len() < battle_state.enemies.len() {
+    if battle_state.readiness_enemy.len() < battle_state.enemies.len() {
         battle_state
-            .atb_enemy
+            .readiness_enemy
             .resize(battle_state.enemies.len(), 0.0);
     }
     for (index, enemy) in battle_state.enemies.iter().enumerate() {
         if enemy.is_alive() {
-            let current = &mut battle_state.atb_enemy[index];
+            let current = &mut battle_state.readiness_enemy[index];
             if *current < 100.0 {
                 let speed = enemy.stats.get("agi").copied().unwrap_or(1).max(1) as f32;
                 *current += speed * delta_seconds * multiplier;
@@ -184,7 +187,7 @@ pub fn update_atb(
                 }
             }
         } else {
-            battle_state.atb_enemy[index] = 0.0;
+            battle_state.readiness_enemy[index] = 0.0;
         }
     }
 

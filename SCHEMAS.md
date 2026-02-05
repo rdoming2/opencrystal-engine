@@ -74,7 +74,7 @@ only; autosave uses slot 0 and never reduces the manual slot total.
     "party_size": 4,
     "party_reserve_size": 4,
     "battle_mode": "dynamic",
-    "atb_speed": 2.0,
+    "readiness_speed": 2.0,
     "magic_system": "mp",
     "magic_acquisition": "level",
     "ability_acquisition": "level",
@@ -1294,7 +1294,7 @@ Battle animation fields:
     },
     "party": {
       "title": "Party",
-      "show": ["hp", "mp", "atb", "status"],
+      "show": ["hp", "mp", "readiness", "status"],
       "highlight": {"style": "underline", "link_to_battlefield": true}
     }
   },

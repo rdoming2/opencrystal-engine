@@ -9,7 +9,7 @@ It aims to be prescriptive while keeping content authoring simple.
 - Command area occupies the bottom portion and is split into three columns:
   - Left: enemy list and target selection.
   - Center: command menu (Attack, Magic, Items, Run).
-  - Right: party list with HP/MP/ATB/status.
+- Right: party list with HP/MP/Readiness/status.
 - No custom column widths in content; layout uses code heuristics.
 - Panel titles can be hidden on compact terminals.
 
@@ -31,7 +31,7 @@ It aims to be prescriptive while keeping content authoring simple.
 
 ## 4) Interaction flow
 
-1. Active party member becomes ready (turn-based or ATB).
+1. Active party member becomes ready (turn-based or Readiness).
 2. Command menu opens with default selection on Attack.
 3. Player selects a command:
    - Attack: enemy list focus opens.
@@ -39,7 +39,7 @@ It aims to be prescriptive while keeping content authoring simple.
    - Items: item list opens, then target selection (if needed).
    - Run: execute immediately.
 4. Target selection confirms action.
-5. Enemy actions resolve on their turn or when their ATB fills (depending on mode).
+5. Enemy actions resolve on their turn or when their Readiness fills (depending on mode).
 6. Action resolves, UI returns to command or next party member.
 
 ## 5) Menu list content constraints
@@ -47,14 +47,14 @@ It aims to be prescriptive while keeping content authoring simple.
 - Magic list shows columns: Spell, MP.
 - Items list shows columns: Item, Qty.
 - Enemy list shows enemy name and optional status markers.
-- Party list shows HP/MP/ATB/status in a fixed order.
+- Party list shows HP/MP/Readiness/status in a fixed order.
 
 ## 6) Battle pause behavior
 
 - Space toggles pause.
 - When paused:
   - Display "PAUSE" overlay centered.
-  - ATB timers stop.
+- Readiness timers stop.
   - Input ignores command selection except unpause.
 
 ## 7) Target rules

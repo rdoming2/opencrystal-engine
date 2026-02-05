@@ -8,7 +8,7 @@ It is a design reference meant to guide initial implementation.
 - Terminal-first, wide compatibility (ANSI + 256 colors), with optional modern enhancements later.
 - Data-driven engine: worlds, maps, entities, rules, and events defined via JSON.
 - Support multiple gameplay styles: FF1-style party creation, job system with unlock flags,
-  turn-based and ATB variants, and multiple worlds with vehicle travel.
+  turn-based and Readiness variants, and multiple worlds with vehicle travel.
 - Maintain accessibility with flexible input bindings and scalable layouts.
 
 ## CLI
@@ -59,7 +59,7 @@ It is a design reference meant to guide initial implementation.
 - Bottom: command region, split into three columns:
   - Left: enemy list with target highlighting.
   - Center: command menu (Attack, Magic, Abilities, Items, Run, etc.).
-  - Right: party list with HP/MP/ATB/status.
+- Right: party list with HP/MP/Readiness/status.
 - Battle dialog can float at the top as a log overlay.
 
 ### Overworld map zoom
@@ -196,9 +196,9 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
 ### Battle system
 
 - Supports three timing modes:
-  - Turn-based (no ATB)
-  - Dynamic Wait (ATB with pause in menus)
-  - Dynamic (ATB active, continues during menus)
+- Turn-based (no Readiness)
+- Dynamic Wait (Readiness with pause in menus)
+- Dynamic (Readiness active, continues during menus)
 - Turn order ranks all actors by speed each round (party + enemies).
 - Battle pause toggles a PAUSED overlay and freezes battle progression until resumed.
 - Enemy selection tied to list on the left column.
@@ -255,7 +255,7 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
 - `crates/engine/`
   - `world`: world state, maps, travel rules
   - `entities`: jobs, items, equipment, spells, enemies, vehicles
-  - `battle`: turn/ATB systems, damage, status
+- `battle`: turn/Readiness systems, damage, status
   - `events`: event runner, triggers, flags
   - `save`: serialization and schema versions
   - `rules`: rules loader and validation
@@ -311,7 +311,7 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
     "party_size": 4,
     "party_reserve_size": 4,
     "battle_mode": "dynamic",
-    "atb_speed": 2.0,
+    "readiness_speed": 2.0,
     "magic_system": "mp",
     "magic_acquisition": "level",
     "ability_acquisition": "level",

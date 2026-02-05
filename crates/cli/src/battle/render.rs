@@ -80,7 +80,7 @@ pub fn build_battle_render_state(
                 mp: actor.current_mp,
                 max_mp: actor.derived_stats.get("mp").copied().unwrap_or(0),
                 show_mp,
-                atb: battle_state.atb_party.get(id).copied().unwrap_or(0.0),
+                readiness: battle_state.readiness_party.get(id).copied().unwrap_or(0.0),
                 status: Vec::new(),
                 alive: actor.current_hp > 0,
                 active: index == battle_state.active_index,

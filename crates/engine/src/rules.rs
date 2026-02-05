@@ -46,8 +46,8 @@ pub struct GameRules {
     pub start_event: Option<String>,
     pub start_location: StartLocation,
     pub currency: Currency,
-    #[serde(default = "default_atb_speed")]
-    pub atb_speed: f32,
+    #[serde(default = "default_readiness_speed")]
+    pub readiness_speed: f32,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -117,7 +117,7 @@ pub struct Ruleset {
     pub inventory: InventoryRules,
     pub systems: HashMap<String, bool>,
     pub save: SaveRules,
-    pub atb_speed: f32,
+    pub readiness_speed: f32,
     pub job_system: JobSystemRules,
 }
 
@@ -153,7 +153,7 @@ impl Ruleset {
             inventory: InventoryRules::default(),
             systems: HashMap::new(),
             save: SaveRules::default(),
-            atb_speed: 2.0,
+            readiness_speed: 2.0,
             job_system: JobSystemRules::default(),
         }
     }
@@ -176,7 +176,7 @@ impl Ruleset {
             inventory: file.inventory,
             systems: file.systems,
             save: file.save,
-            atb_speed: file.game.atb_speed,
+            readiness_speed: file.game.readiness_speed,
             job_system: file.job_system,
         }
     }
@@ -346,7 +346,7 @@ fn default_inventory_stack() -> i32 {
     99
 }
 
-fn default_atb_speed() -> f32 {
+fn default_readiness_speed() -> f32 {
     2.0
 }
 

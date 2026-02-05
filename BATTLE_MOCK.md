@@ -234,7 +234,7 @@ Each snippet corresponds to an existing schema.
   "panels": {
     "enemies": {"title": "Enemies", "highlight": {"style": "invert", "link_to_battlefield": true}},
     "commands": {"title": "Commands", "items": ["Attack", "Magic", "Items", "Run"]},
-    "party": {"title": "Party", "show": ["hp", "mp", "atb", "status"], "highlight": {"style": "underline", "link_to_battlefield": true}}
+    "party": {"title": "Party", "show": ["hp", "mp", "readiness", "status"], "highlight": {"style": "underline", "link_to_battlefield": true}}
   },
   "menus": {
     "attack": {"target": "enemy"},
