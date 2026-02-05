@@ -142,6 +142,7 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
 - Vehicles are entities with movement constraints.
 - Vehicle unlocks controlled by event flags.
 - Travel routes can require specific vehicles.
+- Overworld vehicle placements live in map data and render using optional glyph/palette.
 
 ### Party creation
 
@@ -244,7 +245,7 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
 
 - JSON saves with versioning fields for future obfuscation.
 - Use a reserved field for `encoding` (e.g., "plain") to allow future formats.
-- Save data includes map state (flags + entity state) and global entities (vehicles).
+- Save data includes map state (flags + entity state), active vehicle, and vehicle positions.
 - Autosave writes to slot 0 after every map transition when enabled.
 - Save files live under the user data directory (`~/.local/share/opencrystal/saves/<content>/`).
 - Title "Load" opens a slot picker and restores the runtime state.

@@ -5,7 +5,7 @@ use engine::runtime::{GameRuntime, GameState};
 use tui::input::{Action, InputBindings};
 use tui::overworld::{
     draw_overworld, draw_overworld_with_tooltip, show_centered_dialog_on_map, MapView, NpcView,
-    TileRender, TransitionView,
+    TileRender, TransitionView, VehicleView,
 };
 use tui::session::TuiSession;
 use tui::ui::{BattleUiFile, DialogUiFile, MenuUiFile};
@@ -58,26 +58,94 @@ pub fn run_overworld_loop(
         }
 
         let previous_pos = player_pos;
+        let mut moved = false;
+        let mut transitioned = false;
         if let Some(action) = read_action(bindings) {
             match action {
-                Action::MoveUp => {
-                    player_pos.1 -= 1;
-                    area_name_active = false;
-                }
-                Action::MoveDown => {
-                    player_pos.1 += 1;
-                    area_name_active = false;
-                }
-                Action::MoveLeft => {
-                    player_pos.0 -= 1;
-                    area_name_active = false;
-                }
-                Action::MoveRight => {
-                    player_pos.0 += 1;
-                    area_name_active = false;
+                Action::MoveUp | Action::MoveDown | Action::MoveLeft | Action::MoveRight => {
+                    let (dx, dy) = match action {
+                        Action::MoveUp => (0, -1),
+                        Action::MoveDown => (0, 1),
+                        Action::MoveLeft => (-1, 0),
+                        Action::MoveRight => (1, 0),
+                        _ => (0, 0),
+                    };
+                    let speed = movement_speed(runtime);
+                    for _ in 0..speed {
+                        let next_pos = (player_pos.0 + dx, player_pos.1 + dy);
+                        if !can_move_to(runtime, &current_map_id, next_pos) {
+                            break;
+                        }
+                        player_pos = next_pos;
+                        moved = true;
+                        area_name_active = false;
+                        if let Some(active_vehicle) = runtime.active_vehicle.clone() {
+                            update_vehicle_position(
+                                runtime,
+                                &active_vehicle,
+                                &current_map_id,
+                                next_pos,
+                            );
+                        }
+                        if runtime.active_vehicle.is_none() {
+                            if let Some(transition) =
+                                find_transition(runtime, &current_map_id, player_pos)
+                            {
+                                let (next_map, next_pos) = if transition.return_to_last {
+                                    return_positions
+                                        .get(&current_map_id)
+                                        .cloned()
+                                        .map(|(return_map, return_pos)| (return_map, return_pos))
+                                        .unwrap_or_else(|| {
+                                            (
+                                                transition.target_map.clone(),
+                                                (
+                                                    transition.target_pos[0],
+                                                    transition.target_pos[1],
+                                                ),
+                                            )
+                                        })
+                                } else {
+                                    (
+                                        transition.target_map.clone(),
+                                        (transition.target_pos[0], transition.target_pos[1]),
+                                    )
+                                };
+
+                                if !transition.return_to_last
+                                    && !is_returning_from_child(
+                                        &return_positions,
+                                        &current_map_id,
+                                        &next_map,
+                                    )
+                                {
+                                    return_positions.insert(
+                                        next_map.clone(),
+                                        (current_map_id.clone(), player_pos),
+                                    );
+                                }
+                                current_map_id = next_map;
+                                player_pos = next_pos;
+                                runtime.world.map_id = current_map_id.clone();
+                                runtime.world.position = player_pos;
+                                transitioned = true;
+                                break;
+                            }
+                        }
+                    }
                 }
                 Action::Confirm => {
-                    if is_on_save_point(runtime, &current_map_id, player_pos) {
+                    if runtime.active_vehicle.is_some() {
+                        if let Some(new_pos) =
+                            find_disembark_pos(runtime, &current_map_id, player_pos)
+                        {
+                            runtime.active_vehicle = None;
+                            player_pos = new_pos;
+                            runtime.world.position = player_pos;
+                            moved = true;
+                            area_name_active = false;
+                        }
+                    } else if is_on_save_point(runtime, &current_map_id, player_pos) {
                         runtime.open_menu();
                         runtime.menu_state.active_submenu = Some("save".to_string());
                         runtime.menu_state.focus = MenuFocus::Detail;
@@ -133,6 +201,14 @@ pub fn run_overworld_loop(
                                 }
                             }
                         }
+                    } else if let Some((vehicle_id, vehicle_pos)) =
+                        find_adjacent_vehicle(runtime, &current_map_id, player_pos)
+                    {
+                        runtime.active_vehicle = Some(vehicle_id.clone());
+                        player_pos = vehicle_pos;
+                        runtime.world.position = player_pos;
+                        update_vehicle_position(runtime, &vehicle_id, &current_map_id, player_pos);
+                        area_name_active = false;
                     }
                 }
                 Action::Menu => {
@@ -163,45 +239,6 @@ pub fn run_overworld_loop(
             }
         }
 
-        let mut transitioned = false;
-        if let Some(transition) = find_transition(runtime, &current_map_id, player_pos) {
-            let (next_map, next_pos) = if transition.return_to_last {
-                return_positions
-                    .get(&current_map_id)
-                    .cloned()
-                    .map(|(return_map, return_pos)| (return_map, return_pos))
-                    .unwrap_or_else(|| {
-                        (
-                            transition.target_map.clone(),
-                            (transition.target_pos[0], transition.target_pos[1]),
-                        )
-                    })
-            } else {
-                (
-                    transition.target_map.clone(),
-                    (transition.target_pos[0], transition.target_pos[1]),
-                )
-            };
-
-            if !transition.return_to_last
-                && !is_returning_from_child(&return_positions, &current_map_id, &next_map)
-            {
-                return_positions.insert(next_map.clone(), (current_map_id.clone(), player_pos));
-            }
-            current_map_id = next_map;
-            player_pos = next_pos;
-            transitioned = true;
-        }
-
-        if !is_passable(runtime, &current_map_id, player_pos)
-            || npc_at(runtime, &current_map_id, player_pos)
-            || sign_at(runtime, &current_map_id, player_pos)
-            || chest_at(runtime, &current_map_id, player_pos)
-        {
-            player_pos = previous_pos;
-            transitioned = false;
-        }
-
         if transitioned {
             if runtime.content.rules.save.autosave_enabled {
                 if let Err(err) = write_autosave(runtime, save_dir) {
@@ -230,7 +267,6 @@ pub fn run_overworld_loop(
             }
         }
 
-        let moved = player_pos != previous_pos;
         if moved && !transitioned {
             runtime.world.map_id = current_map_id.clone();
             runtime.world.position = player_pos;
@@ -381,6 +417,67 @@ pub fn build_map_view(runtime: &GameRuntime, map_id: &str) -> Option<MapView> {
             palette: transition.palette.clone(),
         })
         .collect();
+    let vehicles = map
+        .vehicles
+        .iter()
+        .filter_map(|vehicle| {
+            let vehicle_def = runtime
+                .content
+                .vehicles
+                .vehicles
+                .iter()
+                .find(|entry| entry.id == vehicle.vehicle_id)?;
+            if !is_vehicle_unlocked(runtime, vehicle_def)
+                || !requires_flags_met(runtime, &vehicle.requires_flags)
+            {
+                return None;
+            }
+            let position = runtime
+                .vehicle_positions
+                .get(&vehicle.vehicle_id)
+                .map(|entry| (entry.map_id.clone(), entry.pos))
+                .unwrap_or_else(|| (map.id.clone(), (vehicle.pos[0], vehicle.pos[1])));
+            if position.0 != map.id {
+                return None;
+            }
+            if runtime
+                .active_vehicle
+                .as_deref()
+                .is_some_and(|id| id == vehicle.vehicle_id)
+            {
+                return None;
+            }
+            Some(VehicleView {
+                id: vehicle.vehicle_id.clone(),
+                pos: position.1,
+                glyph: vehicle_def
+                    .glyph
+                    .as_ref()
+                    .and_then(|glyph| glyph.chars().next())
+                    .unwrap_or('V'),
+                palette: vehicle_def.palette.clone(),
+            })
+        })
+        .collect();
+    let active_vehicle = runtime
+        .active_vehicle
+        .as_ref()
+        .and_then(|vehicle_id| {
+            runtime
+                .content
+                .vehicles
+                .vehicles
+                .iter()
+                .find(|vehicle| vehicle.id == *vehicle_id)
+        })
+        .map(|vehicle| tui::overworld::ActiveVehicleView {
+            glyph: vehicle
+                .glyph
+                .as_ref()
+                .and_then(|glyph| glyph.chars().next())
+                .unwrap_or('V'),
+            palette: vehicle.palette.clone(),
+        });
     let use_color = runtime
         .content
         .rules
@@ -396,6 +493,8 @@ pub fn build_map_view(runtime: &GameRuntime, map_id: &str) -> Option<MapView> {
         tiles: map.tiles.clone(),
         legend,
         transitions,
+        vehicles,
+        active_vehicle,
         npcs,
         signs,
         chests,
@@ -426,6 +525,212 @@ pub fn is_passable(runtime: &GameRuntime, map_id: &str, pos: (i32, i32)) -> bool
         .get(&key)
         .map(|entry| entry.passable)
         .unwrap_or(false)
+}
+
+fn tile_id_at(runtime: &GameRuntime, map_id: &str, pos: (i32, i32)) -> Option<String> {
+    let index = runtime.content.map_index.get(map_id)?;
+    let map = runtime.content.maps.get(*index)?;
+    if pos.0 < 0 || pos.1 < 0 || pos.0 >= map.width as i32 || pos.1 >= map.height as i32 {
+        return None;
+    }
+    let tile = map
+        .tiles
+        .get(pos.1 as usize)
+        .and_then(|row| row.chars().nth(pos.0 as usize))?;
+    map.legend
+        .get(&tile.to_string())
+        .map(|entry| entry.tile.clone())
+}
+
+fn is_vehicle_passable(
+    runtime: &GameRuntime,
+    map_id: &str,
+    pos: (i32, i32),
+    vehicle_id: &str,
+) -> bool {
+    let vehicle = match runtime
+        .content
+        .vehicles
+        .vehicles
+        .iter()
+        .find(|vehicle| vehicle.id == vehicle_id)
+    {
+        Some(vehicle) => vehicle,
+        None => return false,
+    };
+    let tile_id = match tile_id_at(runtime, map_id, pos) {
+        Some(tile_id) => tile_id,
+        None => return false,
+    };
+    vehicle.allowed_tiles.iter().any(|tile| tile == &tile_id)
+}
+
+fn is_vehicle_unlocked(
+    runtime: &GameRuntime,
+    vehicle: &engine::entities::VehicleDefinition,
+) -> bool {
+    if vehicle.unlock_flag.trim().is_empty() {
+        return true;
+    }
+    runtime.has_flag(&vehicle.unlock_flag)
+}
+
+fn requires_flags_met(runtime: &GameRuntime, flags: &Option<Vec<String>>) -> bool {
+    flags.as_ref().map_or(true, |flags| {
+        flags.iter().all(|flag| runtime.has_flag(flag))
+    })
+}
+
+fn vehicle_at(
+    runtime: &GameRuntime,
+    map_id: &str,
+    pos: (i32, i32),
+    active_vehicle: Option<&str>,
+) -> bool {
+    let index = match runtime.content.map_index.get(map_id) {
+        Some(index) => *index,
+        None => return false,
+    };
+    let map = match runtime.content.maps.get(index) {
+        Some(map) => map,
+        None => return false,
+    };
+    map.vehicles.iter().any(|vehicle| {
+        if active_vehicle.is_some_and(|id| id == vehicle.vehicle_id) {
+            return false;
+        }
+        let vehicle_def = runtime
+            .content
+            .vehicles
+            .vehicles
+            .iter()
+            .find(|entry| entry.id == vehicle.vehicle_id);
+        let Some(vehicle_def) = vehicle_def else {
+            return false;
+        };
+        if !is_vehicle_unlocked(runtime, vehicle_def)
+            || !requires_flags_met(runtime, &vehicle.requires_flags)
+        {
+            return false;
+        }
+        let position = runtime
+            .vehicle_positions
+            .get(&vehicle.vehicle_id)
+            .map(|entry| (entry.map_id.clone(), entry.pos))
+            .unwrap_or_else(|| (map.id.clone(), (vehicle.pos[0], vehicle.pos[1])));
+        position.0 == map.id && position.1 == pos
+    })
+}
+
+fn can_move_to(runtime: &GameRuntime, map_id: &str, pos: (i32, i32)) -> bool {
+    let passable = if let Some(vehicle_id) = runtime.active_vehicle.as_deref() {
+        is_vehicle_passable(runtime, map_id, pos, vehicle_id)
+    } else {
+        is_passable(runtime, map_id, pos)
+    };
+    if !passable {
+        return false;
+    }
+    if npc_at(runtime, map_id, pos)
+        || sign_at(runtime, map_id, pos)
+        || chest_at(runtime, map_id, pos)
+        || vehicle_at(runtime, map_id, pos, runtime.active_vehicle.as_deref())
+    {
+        return false;
+    }
+    true
+}
+
+fn movement_speed(runtime: &GameRuntime) -> i32 {
+    if let Some(vehicle_id) = runtime.active_vehicle.as_deref() {
+        if let Some(vehicle) = runtime
+            .content
+            .vehicles
+            .vehicles
+            .iter()
+            .find(|vehicle| vehicle.id == vehicle_id)
+        {
+            return vehicle.speed.max(1);
+        }
+    }
+    1
+}
+
+fn update_vehicle_position(
+    runtime: &mut GameRuntime,
+    vehicle_id: &str,
+    map_id: &str,
+    pos: (i32, i32),
+) {
+    runtime.vehicle_positions.insert(
+        vehicle_id.to_string(),
+        engine::runtime::VehiclePosition {
+            map_id: map_id.to_string(),
+            pos,
+        },
+    );
+}
+
+fn find_adjacent_vehicle(
+    runtime: &GameRuntime,
+    map_id: &str,
+    pos: (i32, i32),
+) -> Option<(String, (i32, i32))> {
+    let index = runtime.content.map_index.get(map_id)?;
+    let map = runtime.content.maps.get(*index)?;
+    for vehicle in &map.vehicles {
+        if runtime
+            .active_vehicle
+            .as_deref()
+            .is_some_and(|id| id == vehicle.vehicle_id)
+        {
+            continue;
+        }
+        let Some(vehicle_def) = runtime
+            .content
+            .vehicles
+            .vehicles
+            .iter()
+            .find(|entry| entry.id == vehicle.vehicle_id)
+        else {
+            continue;
+        };
+        if !is_vehicle_unlocked(runtime, vehicle_def)
+            || !requires_flags_met(runtime, &vehicle.requires_flags)
+        {
+            continue;
+        }
+        let position = runtime
+            .vehicle_positions
+            .get(&vehicle.vehicle_id)
+            .map(|entry| (entry.map_id.clone(), entry.pos))
+            .unwrap_or_else(|| (map.id.clone(), (vehicle.pos[0], vehicle.pos[1])));
+        if position.0 != map.id {
+            continue;
+        }
+        let dx = (position.1 .0 - pos.0).abs();
+        let dy = (position.1 .1 - pos.1).abs();
+        if dx + dy == 1 {
+            return Some((vehicle.vehicle_id.clone(), position.1));
+        }
+    }
+    None
+}
+
+fn find_disembark_pos(runtime: &GameRuntime, map_id: &str, pos: (i32, i32)) -> Option<(i32, i32)> {
+    let candidates = [(0, -1), (0, 1), (-1, 0), (1, 0)];
+    for (dx, dy) in candidates {
+        let target = (pos.0 + dx, pos.1 + dy);
+        if is_passable(runtime, map_id, target)
+            && !npc_at(runtime, map_id, target)
+            && !sign_at(runtime, map_id, target)
+            && !chest_at(runtime, map_id, target)
+            && !vehicle_at(runtime, map_id, target, runtime.active_vehicle.as_deref())
+        {
+            return Some(target);
+        }
+    }
+    None
 }
 
 pub fn find_spawn(runtime: &GameRuntime, map_id: &str, fallback: (i32, i32)) -> (i32, i32) {

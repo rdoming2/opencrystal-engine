@@ -343,6 +343,10 @@ pub struct VehicleDefinition {
     pub speed: i32,
     pub allowed_tiles: Vec<String>,
     pub unlock_flag: String,
+    #[serde(default)]
+    pub glyph: Option<String>,
+    #[serde(default)]
+    pub palette: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

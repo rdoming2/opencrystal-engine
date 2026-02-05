@@ -16,6 +16,8 @@ pub struct SaveFile {
     pub inventory: SaveInventory,
     pub flags: HashSet<String>,
     pub map_states: HashMap<String, MapState>,
+    #[serde(default)]
+    pub vehicles: HashMap<String, SaveVehicleState>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -31,6 +33,8 @@ pub struct SaveWorld {
     pub world_id: String,
     pub map_id: String,
     pub pos: [i32; 2],
+    #[serde(default)]
+    pub vehicle: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -75,6 +79,12 @@ pub struct SaveInventory {
     pub currency: HashMap<String, i32>,
 }
 
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct SaveVehicleState {
+    pub map_id: String,
+    pub pos: [i32; 2],
+}
+
 impl SaveFile {
     pub fn from_runtime(runtime: &GameRuntime, slot: u8) -> Self {
         let play_time_seconds = runtime.playtime + runtime.start_time.elapsed().as_secs();
@@ -95,11 +105,25 @@ impl SaveFile {
                 world_id: runtime.world.world_id.clone(),
                 map_id: runtime.world.map_id.clone(),
                 pos: [runtime.world.position.0, runtime.world.position.1],
+                vehicle: runtime.active_vehicle.clone(),
             },
             party: SaveParty::from_party(&runtime.party),
             inventory: SaveInventory::from_inventory(&runtime.inventory),
             flags: runtime.flags.clone(),
             map_states: runtime.map_states.clone(),
+            vehicles: runtime
+                .vehicle_positions
+                .iter()
+                .map(|(id, entry)| {
+                    (
+                        id.clone(),
+                        SaveVehicleState {
+                            map_id: entry.map_id.clone(),
+                            pos: [entry.pos.0, entry.pos.1],
+                        },
+                    )
+                })
+                .collect(),
         }
     }
 
@@ -109,6 +133,20 @@ impl SaveFile {
         runtime.world.world_id = self.world.world_id.clone();
         runtime.world.map_id = self.world.map_id.clone();
         runtime.world.position = (self.world.pos[0], self.world.pos[1]);
+        runtime.active_vehicle = self.world.vehicle.clone();
+        runtime.vehicle_positions = self
+            .vehicles
+            .iter()
+            .map(|(id, entry)| {
+                (
+                    id.clone(),
+                    crate::runtime::VehiclePosition {
+                        map_id: entry.map_id.clone(),
+                        pos: (entry.pos[0], entry.pos[1]),
+                    },
+                )
+            })
+            .collect();
         runtime.party = self.party.to_party();
         runtime.inventory = self.inventory.to_inventory();
         runtime.playtime = self.metadata.play_time_seconds;

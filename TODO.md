@@ -114,6 +114,7 @@
 - [x] Map transitions (enter/exit dungeons, overworld zoom).
 - [x] NPC interactions with flag gating.
 - [x] Airship unlock flow (demo completion).
+- [x] Implement overworld vehicle traversal (boarding, movement constraints, persistence).
 - [x] Define NPC schema (behavior, dialog, schedules).
 - [x] Move event execution logic to engine (apply_event_step).
 - [ ] Add EventExecutionResult enum for UI action communication.

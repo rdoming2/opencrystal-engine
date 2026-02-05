@@ -3,7 +3,7 @@ use crate::events::{EventExecutionResult, EventStep};
 use crate::inventory::InventoryState;
 use crate::maps::MapState;
 use crate::menu::{MenuFocus, MenuState};
-use crate::party::{PartyState, reset_magic_tier_charges};
+use crate::party::{reset_magic_tier_charges, PartyState};
 use crate::rules::Ruleset;
 use crate::world::WorldState;
 use std::collections::{HashMap, HashSet};
@@ -31,13 +31,22 @@ pub struct GameRuntime {
     pub party: PartyState,
     pub inventory: InventoryState,
     pub world: WorldState,
+    pub active_vehicle: Option<String>,
+    pub vehicle_positions: HashMap<String, VehiclePosition>,
     pub playtime: u64,
     pub start_time: Instant,
+}
+
+#[derive(Clone, Debug)]
+pub struct VehiclePosition {
+    pub map_id: String,
+    pub pos: (i32, i32),
 }
 
 impl GameRuntime {
     pub fn new(content: Content) -> Self {
         let start_location = content.rules.game.start_location.clone();
+        let vehicle_positions = initial_vehicle_positions(&content);
         Self {
             content,
             state: GameState::Title,
@@ -54,6 +63,8 @@ impl GameRuntime {
                 &start_location.map,
                 (start_location.x, start_location.y),
             ),
+            active_vehicle: None,
+            vehicle_positions,
             playtime: 0,
             start_time: Instant::now(),
         }
@@ -113,6 +124,8 @@ impl GameRuntime {
         self.world.world_id = rules.start_location.world.clone();
         self.world.map_id = rules.start_location.map.clone();
         self.world.position = (rules.start_location.x, rules.start_location.y);
+        self.active_vehicle = None;
+        self.vehicle_positions = initial_vehicle_positions(&self.content);
         if let Some(event_id) = &rules.start_event {
             self.queue_event(event_id);
             self.state = GameState::Event;
@@ -233,4 +246,20 @@ impl GameRuntime {
     ) -> EventExecutionResult {
         crate::dialog::apply_dialog_action(self, action)
     }
+}
+
+fn initial_vehicle_positions(content: &Content) -> HashMap<String, VehiclePosition> {
+    let mut positions = HashMap::new();
+    for map in &content.maps {
+        for vehicle in &map.vehicles {
+            positions.insert(
+                vehicle.vehicle_id.clone(),
+                VehiclePosition {
+                    map_id: map.id.clone(),
+                    pos: (vehicle.pos[0], vehicle.pos[1]),
+                },
+            );
+        }
+    }
+    positions
 }

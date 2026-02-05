@@ -32,6 +32,8 @@ pub struct MapFile {
     pub save_points: Vec<[i32; 2]>,
     #[serde(default)]
     pub transitions: Vec<MapTransition>,
+    #[serde(default)]
+    pub vehicles: Vec<MapVehicle>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -129,6 +131,14 @@ pub struct MapTransition {
     pub glyph: Option<String>,
     #[serde(default)]
     pub palette: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct MapVehicle {
+    pub vehicle_id: String,
+    pub pos: [i32; 2],
+    #[serde(default)]
+    pub requires_flags: Option<Vec<String>>,
 }
 
 impl MapFile {

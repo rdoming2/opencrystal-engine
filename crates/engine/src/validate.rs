@@ -778,6 +778,34 @@ pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
         }
     }
 
+    if let Some(vehicles) = &vehicles {
+        let vehicle_ids: HashSet<&str> = vehicles
+            .vehicles
+            .iter()
+            .map(|vehicle| vehicle.id.as_str())
+            .collect();
+        for map in &maps {
+            for vehicle in &map.vehicles {
+                if !vehicle_ids.contains(vehicle.vehicle_id.as_str()) {
+                    errors.push(format!(
+                        "maps/{}: vehicle '{}' not found",
+                        map.id, vehicle.vehicle_id
+                    ));
+                }
+                if vehicle.pos[0] < 0
+                    || vehicle.pos[1] < 0
+                    || vehicle.pos[0] >= map.width as i32
+                    || vehicle.pos[1] >= map.height as i32
+                {
+                    errors.push(format!(
+                        "maps/{}: vehicle '{}' position {:?} out of bounds",
+                        map.id, vehicle.vehicle_id, vehicle.pos
+                    ));
+                }
+            }
+        }
+    }
+
     if let Some(npcs) = &npcs {
         let npc_ids: HashSet<&str> = npcs.npcs.iter().map(|npc| npc.id.as_str()).collect();
         for map in &maps {

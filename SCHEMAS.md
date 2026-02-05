@@ -373,6 +373,11 @@ Rendering notes:
 - `legend.palette` sets the terminal palette name for the tile glyph.
 - `transitions` may include a `glyph` override and `palette` to highlight exits.
 
+Vehicle notes:
+
+- `vehicles` defines overworld vehicle placements by `vehicle_id` and `pos`.
+- `vehicles.requires_flags` optionally gates visibility until all flags are set.
+
 Sign notes:
 
 - `signs.glyph` is optional; defaults to `⚑` if omitted.
@@ -842,11 +847,18 @@ Traits are used by effects (e.g., `undead` can invert healing).
       "name": "Ship",
       "speed": 2,
       "allowed_tiles": ["water"],
-      "unlock_flag": "vehicle.ship_unlocked"
+      "unlock_flag": "vehicle.ship_unlocked",
+      "glyph": "S",
+      "palette": "bright_cyan"
     }
   ]
 }
 ```
+
+Vehicle fields:
+
+- `glyph`: optional single-character glyph used for overworld rendering (defaults to `V`).
+- `palette`: optional palette name for the vehicle glyph.
 
 ## events/*.json
 
@@ -1380,6 +1392,11 @@ functions: `RAND(min,max)` (inclusive, float), `ROUND(value)` (nearest int), `FL
 Save data captures the full runtime state. This format is stored as JSON in phase 1.
 `timestamp_seconds` is a UNIX epoch timestamp (UTC) for the save creation time.
 
+Vehicle fields:
+
+- `world.vehicle`: active vehicle id or null when on foot.
+- `vehicles`: per-vehicle map positions keyed by vehicle id.
+
 ```json
 {
   "version": 1,
@@ -1398,7 +1415,11 @@ Save data captures the full runtime state. This format is stored as JSON in phas
     "world_id": "gaia",
     "map_id": "overworld_gaia",
     "pos": [20, 14],
-    "vehicle": null
+    "vehicle": "ship"
+  },
+  "vehicles": {
+    "ship": {"map_id": "overworld_gaia", "pos": [0, 1]},
+    "airship": {"map_id": "overworld_gaia", "pos": [8, 8]}
   },
   "map_state": {
     "overworld_gaia": {

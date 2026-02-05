@@ -1,15 +1,14 @@
 use std::collections::HashMap;
 use std::io::{self, ErrorKind};
 
-use ratatui::Frame;
 use ratatui::layout::Alignment;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
+use ratatui::Frame;
 
 use crate::dialog::{
-    ChoiceView, centered_dialog_width_for_area, confirm_quit, dialog_inner_width,
-    draw_centered_dialog_overlay, draw_choice_box, draw_dialog_overlay, paginate_lines,
-    wait_for_continue,
+    centered_dialog_width_for_area, confirm_quit, dialog_inner_width, draw_centered_dialog_overlay,
+    draw_choice_box, draw_dialog_overlay, paginate_lines, wait_for_continue, ChoiceView,
 };
 use crate::input::{Action, InputBindings};
 use crate::session::TuiSession;
@@ -25,6 +24,8 @@ pub struct MapView {
     pub tiles: Vec<String>,
     pub legend: HashMap<char, TileRender>,
     pub transitions: Vec<TransitionView>,
+    pub vehicles: Vec<VehicleView>,
+    pub active_vehicle: Option<ActiveVehicleView>,
     pub npcs: Vec<NpcView>,
     pub signs: Vec<SignView>,
     pub chests: Vec<ChestView>,
@@ -41,6 +42,20 @@ pub struct TileRender {
 pub struct TransitionView {
     pub pos: (i32, i32),
     pub glyph: Option<char>,
+    pub palette: Option<String>,
+}
+
+#[derive(Clone)]
+pub struct VehicleView {
+    pub id: String,
+    pub pos: (i32, i32),
+    pub glyph: char,
+    pub palette: Option<String>,
+}
+
+#[derive(Clone)]
+pub struct ActiveVehicleView {
+    pub glyph: char,
     pub palette: Option<String>,
 }
 
@@ -77,6 +92,7 @@ const DEFAULT_TRANSITION_PALETTE: &str = "bright_magenta";
 const DEFAULT_SAVE_POINT_PALETTE: &str = "bright_blue";
 const DEFAULT_SIGN_PALETTE: &str = "bright_yellow";
 const DEFAULT_CHEST_PALETTE: &str = "bright_yellow";
+const DEFAULT_VEHICLE_PALETTE: &str = "bright_cyan";
 
 pub fn show_dialog_on_map(
     session: &mut TuiSession,
@@ -204,11 +220,26 @@ pub fn draw_overworld_frame(frame: &mut Frame, map: &MapView, player_pos: (i32, 
                 .and_then(|entry| entry.palette.as_deref());
 
             if (map_x, map_y) == player_pos {
-                glyph = '@';
-                palette = Some(DEFAULT_PLAYER_PALETTE);
+                if let Some(active_vehicle) = &map.active_vehicle {
+                    glyph = active_vehicle.glyph;
+                    palette = active_vehicle
+                        .palette
+                        .as_deref()
+                        .or(Some(DEFAULT_VEHICLE_PALETTE));
+                } else {
+                    glyph = '@';
+                    palette = Some(DEFAULT_PLAYER_PALETTE);
+                }
             } else if let Some(npc) = map.npcs.iter().find(|npc| npc.pos == (map_x, map_y)) {
                 glyph = npc.glyph;
                 palette = npc.palette.as_deref().or(Some(DEFAULT_NPC_PALETTE));
+            } else if let Some(vehicle) = map
+                .vehicles
+                .iter()
+                .find(|vehicle| vehicle.pos == (map_x, map_y))
+            {
+                glyph = vehicle.glyph;
+                palette = vehicle.palette.as_deref().or(Some(DEFAULT_VEHICLE_PALETTE));
             } else if let Some(chest) = map.chests.iter().find(|chest| chest.pos == (map_x, map_y))
             {
                 glyph = if chest.opened {
