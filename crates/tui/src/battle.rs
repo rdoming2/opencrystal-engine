@@ -520,6 +520,14 @@ fn draw_party_panel(
     state: &BattleRenderState,
     hide_titles: bool,
 ) {
+    fn atb_glyph(atb: f32) -> char {
+        let glyphs = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
+        let clamped = atb.max(0.0).min(100.0);
+        let normalized = clamped / 100.0;
+        let index = (normalized * (glyphs.len() as f32 - 1.0)).floor() as usize;
+        glyphs[index]
+    }
+
     let mut lines = Vec::new();
     for (index, member) in state.party.iter().enumerate() {
         let focused = matches!(state.focus, BattleFocus::Party);
@@ -536,23 +544,24 @@ fn draw_party_panel(
         } else if member.active {
             style = style.fg(Color::Cyan).add_modifier(Modifier::BOLD);
         }
+        let atb_display = atb_glyph(member.atb);
         let line = if member.show_mp {
             format!(
-                "{} HP {}/{}  MP {}/{}  ATB: {:.0}%",
+                "{} HP {}/{}  MP {}/{}  ATB: {}",
                 member.name,
                 member.hp.max(0),
                 member.max_hp.max(1),
                 member.mp.max(0),
                 member.max_mp.max(1),
-                member.atb
+                atb_display
             )
         } else {
             format!(
-                "{} HP {}/{}  ATB: {:.0}%",
+                "{} HP {}/{}  ATB: {}",
                 member.name,
                 member.hp.max(0),
                 member.max_hp.max(1),
-                member.atb
+                atb_display
             )
         };
         lines.push(Line::from(Span::styled(line, style)));
