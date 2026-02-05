@@ -140,6 +140,7 @@ pub fn run_overworld_loop(
                             find_disembark_pos(runtime, &current_map_id, player_pos)
                         {
                             runtime.active_vehicle = None;
+                            runtime.vehicle_slow_mode = false;
                             player_pos = new_pos;
                             runtime.world.position = player_pos;
                             moved = true;
@@ -205,6 +206,7 @@ pub fn run_overworld_loop(
                         find_adjacent_vehicle(runtime, &current_map_id, player_pos)
                     {
                         runtime.active_vehicle = Some(vehicle_id.clone());
+                        runtime.vehicle_slow_mode = false;
                         player_pos = vehicle_pos;
                         runtime.world.position = player_pos;
                         update_vehicle_position(runtime, &vehicle_id, &current_map_id, player_pos);
@@ -227,7 +229,11 @@ pub fn run_overworld_loop(
                         }
                     }
                 }
-                Action::Cancel => {}
+                Action::Cancel => {
+                    if runtime.active_vehicle.is_some() {
+                        runtime.vehicle_slow_mode = !runtime.vehicle_slow_mode;
+                    }
+                }
                 Action::Quit => {
                     if tui::dialog::confirm_quit(session, |frame| {
                         tui::overworld::draw_overworld_frame(frame, &map, player_pos);
@@ -643,6 +649,9 @@ fn can_move_to(runtime: &GameRuntime, map_id: &str, pos: (i32, i32)) -> bool {
 
 fn movement_speed(runtime: &GameRuntime) -> i32 {
     if let Some(vehicle_id) = runtime.active_vehicle.as_deref() {
+        if runtime.vehicle_slow_mode {
+            return 1;
+        }
         if let Some(vehicle) = runtime
             .content
             .vehicles

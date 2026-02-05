@@ -33,6 +33,7 @@ pub struct GameRuntime {
     pub world: WorldState,
     pub active_vehicle: Option<String>,
     pub vehicle_positions: HashMap<String, VehiclePosition>,
+    pub vehicle_slow_mode: bool,
     pub playtime: u64,
     pub start_time: Instant,
 }
@@ -65,6 +66,7 @@ impl GameRuntime {
             ),
             active_vehicle: None,
             vehicle_positions,
+            vehicle_slow_mode: false,
             playtime: 0,
             start_time: Instant::now(),
         }
@@ -126,6 +128,7 @@ impl GameRuntime {
         self.world.position = (rules.start_location.x, rules.start_location.y);
         self.active_vehicle = None;
         self.vehicle_positions = initial_vehicle_positions(&self.content);
+        self.vehicle_slow_mode = false;
         if let Some(event_id) = &rules.start_event {
             self.queue_event(event_id);
             self.state = GameState::Event;

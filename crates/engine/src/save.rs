@@ -147,6 +147,7 @@ impl SaveFile {
                 )
             })
             .collect();
+        runtime.vehicle_slow_mode = false;
         runtime.party = self.party.to_party();
         runtime.inventory = self.inventory.to_inventory();
         runtime.playtime = self.metadata.play_time_seconds;
