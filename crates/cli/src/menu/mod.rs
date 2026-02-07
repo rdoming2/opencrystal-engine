@@ -19,7 +19,7 @@ use engine::save::SaveFile;
 use tui::input::{Action, InputBindings};
 use tui::menu::{MenuEntryView, MenuPane, MenuPanelLine, MenuPanelView, PanelSpanStyle};
 use tui::session::TuiSession;
-use tui::ui::MenuUiFile;
+use tui::ui::{DialogUiFile, MenuUiFile};
 
 use crate::utils::read_action;
 
@@ -61,6 +61,7 @@ pub fn run_menu_loop(
     session: &mut TuiSession,
     runtime: &mut GameRuntime,
     menu_ui: &MenuUiFile,
+    dialog_ui: &DialogUiFile,
     bindings: &InputBindings,
     map_id: &str,
     player_pos: (i32, i32),
@@ -476,8 +477,17 @@ pub fn run_menu_loop(
                                 if runtime.menu_state.detail_page == 0 {
                                     let targets = item_targets_for_entry(runtime, entry);
                                     if entry.usage_target == "party" {
-                                        if apply_item_to_targets(runtime, entry, &targets) {
+                                        let result =
+                                            apply_item_to_targets(runtime, entry, &targets);
+                                        if result.consumed {
                                             runtime.inventory.remove_item(&entry.id, 1);
+                                        }
+                                        if result.consumed {
+                                            if let Some(message) = result.warp_message {
+                                                tui::dialog::show_dialog(
+                                                    session, dialog_ui, bindings, "", &message,
+                                                )?;
+                                            }
                                         }
                                     } else if targets.is_empty() {
                                         runtime.menu_state.detail_page = 0;
@@ -490,12 +500,20 @@ pub fn run_menu_loop(
                                     if let Some(target_id) =
                                         targets.get(runtime.menu_state.detail_target)
                                     {
-                                        if apply_item_to_targets(
+                                        let result = apply_item_to_targets(
                                             runtime,
                                             entry,
                                             &[target_id.clone()],
-                                        ) {
+                                        );
+                                        if result.consumed {
                                             runtime.inventory.remove_item(&entry.id, 1);
+                                        }
+                                        if result.consumed {
+                                            if let Some(message) = result.warp_message {
+                                                tui::dialog::show_dialog(
+                                                    session, dialog_ui, bindings, "", &message,
+                                                )?;
+                                            }
                                         }
                                     }
                                     runtime.menu_state.detail_page = 0;

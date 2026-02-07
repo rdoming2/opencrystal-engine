@@ -118,11 +118,17 @@ pub fn item_targets_for_entry(runtime: &GameRuntime, entry: &InventoryEntry) -> 
     build_item_targets(runtime, item)
 }
 
+pub struct ItemUseResult {
+    pub consumed: bool,
+    pub warp_message: Option<String>,
+}
+
 pub fn apply_item_to_targets(
     runtime: &mut GameRuntime,
     entry: &InventoryEntry,
     targets: &[String],
-) -> bool {
+) -> ItemUseResult {
+    let warp_message = Some("The party was whisked outside.".to_string());
     let item = match runtime
         .content
         .items
@@ -132,25 +138,45 @@ pub fn apply_item_to_targets(
         .cloned()
     {
         Some(item) => item,
-        None => return false,
+        None => {
+            return ItemUseResult {
+                consumed: false,
+                warp_message: None,
+            }
+        }
     };
     if !item_usage_allows_field(&item.usage.context) {
-        return false;
+        return ItemUseResult {
+            consumed: false,
+            warp_message: None,
+        };
     }
     if item.effect.r#type == "warp" {
         if let Some(destination) = &item.effect.destination {
             runtime.warp_to_map(&destination.map, (destination.pos[0], destination.pos[1]));
-            return true;
+            return ItemUseResult {
+                consumed: true,
+                warp_message,
+            };
         }
         if item.effect.target.as_deref() == Some("last_overworld") {
-            return runtime.warp_to_last_overworld();
+            return ItemUseResult {
+                consumed: runtime.warp_to_last_overworld(),
+                warp_message,
+            };
         }
-        return false;
+        return ItemUseResult {
+            consumed: false,
+            warp_message: None,
+        };
     }
     for target_id in targets {
         apply_item_to_actor(runtime, &item, target_id);
     }
-    true
+    ItemUseResult {
+        consumed: true,
+        warp_message: None,
+    }
 }
 
 pub fn list_line_width(entries: &[InventoryEntry]) -> usize {
