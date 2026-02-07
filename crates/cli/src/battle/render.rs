@@ -1,4 +1,5 @@
 use engine::battle::BattleState;
+use engine::party::BattleRow;
 use engine::runtime::GameRuntime;
 use tui::battle::{
     BattleCommandItem, BattleCommandPanelMode, BattleCommandPanelView, BattleEnemyView,
@@ -48,6 +49,12 @@ pub fn build_battle_render_state(
         battle_ui.layout.party_grid.columns,
     );
     let show_mp = runtime.content.rules.game.magic_system == engine::rules::MagicSystem::Mp;
+    let row_rules = &runtime.content.rules.battle.rows;
+    let row_shift = if row_rules.enabled {
+        row_rules.battle_shift.max(0) as i32
+    } else {
+        0
+    };
     let party = battle_state
         .party_order
         .iter()
@@ -96,7 +103,13 @@ pub fn build_battle_render_state(
                 palette,
                 art,
                 art_palette,
-                pos: *party_positions.get(index).unwrap_or(&(8, 4)),
+                pos: {
+                    let mut pos = *party_positions.get(index).unwrap_or(&(8, 4));
+                    if row_rules.enabled && actor.row == BattleRow::Back && row_shift > 0 {
+                        pos.0 = (pos.0 + row_shift).min(9);
+                    }
+                    pos
+                },
             }
         })
         .collect();
@@ -383,6 +396,10 @@ fn command_enabled(
             .unwrap_or(false),
         crate::battle::CommandKind::Items => {
             crate::menu::system_enabled(runtime, Some("items")) && !item_entries.is_empty()
+        }
+        crate::battle::CommandKind::Row => {
+            let rows = &runtime.content.rules.battle.rows;
+            rows.enabled && rows.allow_battle_switch
         }
         _ => true,
     }

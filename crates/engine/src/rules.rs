@@ -74,6 +74,24 @@ pub struct BattleRules {
     pub global_commands: Vec<String>,
     #[serde(default = "default_battle_commands")]
     pub commands: Vec<BattleCommandDefinition>,
+    #[serde(default)]
+    pub rows: BattleRowRules,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct BattleRowRules {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default)]
+    pub allow_battle_switch: bool,
+    #[serde(default = "default_back_row_attack_multiplier")]
+    pub back_row_attack_multiplier: f32,
+    #[serde(default = "default_back_row_defense_multiplier")]
+    pub back_row_defense_multiplier: f32,
+    #[serde(default)]
+    pub ranged_weapon_categories: Vec<String>,
+    #[serde(default = "default_back_row_battle_shift")]
+    pub battle_shift: i32,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -286,6 +304,20 @@ impl Default for BattleRules {
         Self {
             global_commands: default_battle_global_commands(),
             commands: default_battle_commands(),
+            rows: BattleRowRules::default(),
+        }
+    }
+}
+
+impl Default for BattleRowRules {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            allow_battle_switch: false,
+            back_row_attack_multiplier: default_back_row_attack_multiplier(),
+            back_row_defense_multiplier: default_back_row_defense_multiplier(),
+            ranged_weapon_categories: Vec::new(),
+            battle_shift: default_back_row_battle_shift(),
         }
     }
 }
@@ -416,6 +448,18 @@ fn default_battle_commands() -> Vec<BattleCommandDefinition> {
             ability_group: None,
         },
     ]
+}
+
+fn default_back_row_attack_multiplier() -> f32 {
+    0.5
+}
+
+fn default_back_row_defense_multiplier() -> f32 {
+    0.5
+}
+
+fn default_back_row_battle_shift() -> i32 {
+    1
 }
 
 fn default_battle_command_sort_order() -> i32 {

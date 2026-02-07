@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 
-use engine::party::{actor_magic_tiers, exp_for_level, get_actor_max_charges, job_jp};
+use engine::party::{
+    actor_magic_tiers, actor_row_label, exp_for_level, get_actor_max_charges, job_jp,
+};
 use engine::rules::{JobProgressionMode, MagicSystem};
 use engine::runtime::GameRuntime;
 use tui::menu::{MenuPanelLine, MenuPanelSpan, PanelSpanStyle};
@@ -10,6 +12,7 @@ pub fn build_status_panel(runtime: &GameRuntime, page: usize) -> Vec<MenuPanelLi
         return vec![panel_line("No party members.")];
     }
     let mut lines = Vec::new();
+    let rows_enabled = runtime.content.rules.battle.rows.enabled;
     for member_id in &runtime.party.active {
         if let Some(actor) = runtime.party.roster.get(member_id) {
             let job_name = runtime
@@ -63,6 +66,9 @@ pub fn build_status_panel(runtime: &GameRuntime, page: usize) -> Vec<MenuPanelLi
                 };
                 lines.push(panel_line(status_line));
                 lines.push(panel_line(format!("Job: {}", job_name)));
+                if rows_enabled {
+                    lines.push(panel_line(format!("Row: {}", actor_row_label(actor))));
+                }
                 if runtime.content.rules.job_system.progression_mode
                     == JobProgressionMode::JobPoints
                 {
@@ -85,6 +91,9 @@ pub fn build_status_panel(runtime: &GameRuntime, page: usize) -> Vec<MenuPanelLi
             } else {
                 lines.push(panel_line(format!("{}  Lv{}", actor.name, actor.level)));
                 lines.push(panel_line(format!("Job: {}", job_name)));
+                if rows_enabled {
+                    lines.push(panel_line(format!("Row: {}", actor_row_label(actor))));
+                }
                 let base_entries =
                     if runtime.content.rules.game.magic_system == MagicSystem::TierCharges {
                         runtime

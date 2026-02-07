@@ -2,6 +2,7 @@ use engine::battle::{
     apply_damage_to_actor, apply_damage_to_enemy, apply_status_effects, damage_multiplier,
     healing_inverted, physical_damage, roll_damage, DamageKind,
 };
+use engine::party::row_attack_multiplier;
 use engine::rules::MagicSystem;
 use engine::runtime::GameRuntime;
 use rand::Rng;
@@ -28,6 +29,8 @@ pub fn execute_attack_action(
     }
     let atk = actor.derived_stats.get("atk").copied().unwrap_or(0);
     let mut damage = physical_damage(atk, enemy.def(), rng);
+    let row_multiplier = row_attack_multiplier(&runtime.content, actor);
+    damage = ((damage as f32) * row_multiplier).round().max(0.0) as i32;
     let multiplier = damage_multiplier(
         &runtime.content,
         &enemy.statuses,

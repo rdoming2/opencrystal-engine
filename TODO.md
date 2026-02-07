@@ -64,7 +64,7 @@
 - [ ] Menu + progress UI.
   - [ ] Status menu panels from `ui/progress.json`.
   - [x] Journal/quest display.
-  - [ ] Party management UI.
+  - [x] Party management UI.
 - [x] Main menu UI.
   - [x] Two-pane layout (left list, right detail pane).
   - [x] Default party summary panel.
@@ -86,6 +86,7 @@
 - [x] Readiness timers (wait + active modes).
 - [x] Battle pause toggle (freeze progression).
 - [ ] Status effects and damage formulas (derived stats).
+- [x] Optional front/back row rules (battle + menu toggles).
 - [x] Status persistence rules and overworld poison ticks.
 - [ ] Implement command-specific behaviors (steal, throw, pray, parry, cover).
 - [x] Victory/defeat flow (spoils, level-ups, modals).

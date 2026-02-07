@@ -1,5 +1,5 @@
 use engine::battle::{apply_turn_start_statuses, damage_multiplier, BattleMode, DamageKind};
-use engine::party::actor_traits;
+use engine::party::{actor_traits, row_defense_multiplier};
 use engine::runtime::GameRuntime;
 use rand::seq::SliceRandom;
 use rand::Rng;
@@ -139,7 +139,10 @@ pub fn enemy_take_turn(
         DamageKind::Physical,
         None,
     );
-    damage = ((damage as f32) * multiplier).round().max(0.0) as i32;
+    let row_multiplier = row_defense_multiplier(&runtime.content, target);
+    damage = ((damage as f32) * multiplier * row_multiplier)
+        .round()
+        .max(0.0) as i32;
     engine::battle::apply_damage_to_actor(target, damage);
     push_battle_log(
         &mut battle_state.log,

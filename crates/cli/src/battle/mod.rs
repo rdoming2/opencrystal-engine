@@ -12,7 +12,7 @@ use engine::battle::{
     apply_turn_start_statuses, build_battle_state, collect_rewards, is_enemies_defeated,
     is_party_defeated, BattleMode, BattleResult, BattleState, LevelUpDiff,
 };
-use engine::party::gain_exp;
+use engine::party::{actor_row_label, gain_exp, toggle_actor_row};
 use engine::rules::{JobProgressionMode, Ruleset};
 use engine::runtime::GameRuntime;
 use rand::Rng;
@@ -590,6 +590,39 @@ pub fn run_battle(
                                 &mut battle_state.log,
                                 format!("{} defends.", actor_name),
                             );
+                            let render_state = build_battle_render_state(
+                                runtime,
+                                &battle_state,
+                                &menu_state,
+                                battle_ui,
+                                &command_entries,
+                                &spell_entries,
+                                &ability_entries,
+                                &ability_entries_all,
+                                &item_entries,
+                                false,
+                            );
+                            pause_after_action(
+                                session,
+                                battle_ui,
+                                bindings,
+                                &render_state,
+                                Vec::new(),
+                                vec![battle_state.active_index],
+                                Vec::new(),
+                                Vec::new(),
+                            )?;
+                            advance_turn(&mut menu_state, &mut turn_state, &mut battle_state);
+                        }
+                        CommandKind::Row => {
+                            if let Some(actor) = runtime.party.roster.get_mut(&actor_id) {
+                                toggle_actor_row(actor);
+                                let row_label = actor_row_label(actor);
+                                push_battle_log(
+                                    &mut battle_state.log,
+                                    format!("{} moves to the {} row.", actor.name, row_label),
+                                );
+                            }
                             let render_state = build_battle_render_state(
                                 runtime,
                                 &battle_state,
@@ -1710,6 +1743,7 @@ pub enum CommandKind {
     Items,
     Run,
     Defend,
+    Row,
 }
 
 #[derive(Clone, Debug)]
@@ -1730,6 +1764,7 @@ fn command_kind_from_rule(kind: &str) -> Option<CommandKind> {
         "items" => Some(CommandKind::Items),
         "run" => Some(CommandKind::Run),
         "defend" => Some(CommandKind::Defend),
+        "row" => Some(CommandKind::Row),
         _ => None,
     }
 }
@@ -1844,6 +1879,10 @@ fn command_is_enabled(
             .unwrap_or(false),
         CommandKind::Items => {
             crate::menu::system_enabled(runtime, Some("items")) && !item_entries.is_empty()
+        }
+        CommandKind::Row => {
+            let rows = &runtime.content.rules.battle.rows;
+            rows.enabled && rows.allow_battle_switch
         }
         _ => true,
     }

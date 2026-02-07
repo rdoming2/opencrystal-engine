@@ -51,6 +51,8 @@ pub struct SaveActor {
     pub job_id: String,
     pub level: u32,
     pub exp: i32,
+    #[serde(default = "default_battle_row")]
+    pub row: crate::party::BattleRow,
     pub current_hp: i32,
     pub current_mp: i32,
     pub base_stats: HashMap<String, i32>,
@@ -210,6 +212,7 @@ impl SaveActor {
             job_id: actor.job_id.clone(),
             level: actor.level,
             exp: actor.exp,
+            row: actor.row,
             current_hp: actor.current_hp,
             current_mp: actor.current_mp,
             base_stats: actor.base_stats.clone(),
@@ -236,6 +239,7 @@ impl SaveActor {
             job_id: self.job_id.clone(),
             level: self.level,
             exp: self.exp,
+            row: self.row,
             current_hp: self.current_hp,
             current_mp: self.current_mp,
             base_stats: self.base_stats.clone(),
@@ -250,6 +254,10 @@ impl SaveActor {
             statuses: Vec::new(),
         }
     }
+}
+
+fn default_battle_row() -> crate::party::BattleRow {
+    crate::party::BattleRow::Front
 }
 
 impl SaveJobProgress {

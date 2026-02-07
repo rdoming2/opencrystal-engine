@@ -59,6 +59,8 @@ absolute XP totals per level or `mode: "formula"` with a formula string (use
 `battle` defines the command catalog and the global command set used in battle. The global set is
 the default menu for every job; job `commands` entries add to it (primary + secondary jobs are
 merged, duplicates removed). Command labels come from the catalog so UI text can be overridden.
+`battle.rows` enables optional front/back row rules; when enabled, back row reduces physical attack
+unless using a ranged weapon category and reduces incoming physical damage.
 `systems` toggles whether a gameplay system/menu is enabled at all. It should be
 used for global availability (e.g., disabling magic equip). Menu entries can still
 add `unlock_flag` gating for progression-driven unlocks.
@@ -99,7 +101,15 @@ only; autosave uses slot 0 and never reduces the manual slot total.
       {"id": "items", "label": "Items", "kind": "items", "sort_order": 50},
       {"id": "defend", "label": "Defend", "kind": "defend", "sort_order": 60},
       {"id": "run", "label": "Run", "kind": "run", "sort_order": 70}
-    ]
+    ],
+    "rows": {
+      "enabled": true,
+      "allow_battle_switch": true,
+      "back_row_attack_multiplier": 0.5,
+      "back_row_defense_multiplier": 0.5,
+      "ranged_weapon_categories": ["bow", "crossbow", "gun"],
+      "battle_shift": 1
+    }
   },
   "party_mode": "create",
   "party_create": {
@@ -190,9 +200,18 @@ Command definition fields:
 
 - `id`: unique command ID (lowercase snake_case).
 - `label`: UI label for the command.
-- `kind`: `attack`, `magic`, `abilities`, `abilities_group`, `items`, `run`, `defend`.
+- `kind`: `attack`, `magic`, `abilities`, `abilities_group`, `items`, `run`, `defend`, `row`.
 - `sort_order`: order in the command list (lower values first).
 - `ability_group`: required when `kind` is `abilities_group`; matches abilities `command_group`.
+
+Battle row fields:
+
+- `enabled`: toggles front/back row rules.
+- `allow_battle_switch`: allow row switching via the battle command.
+- `back_row_attack_multiplier`: multiplier applied to physical attack when in back row (<= 1).
+- `back_row_defense_multiplier`: multiplier applied to physical damage taken in back row (<= 1).
+- `ranged_weapon_categories`: equipment categories that ignore the back-row attack penalty.
+- `battle_shift`: horizontal grid shift for back-row sprites in battle rendering.
 
 ## party.json
 
@@ -1497,6 +1516,7 @@ Vehicle fields:
 
 - `world.vehicle`: active vehicle id or null when on foot.
 - `vehicles`: per-vehicle map positions keyed by vehicle id.
+- `party.members.*.row`: `front` or `back` when battle rows are enabled.
 
 ```json
 {
@@ -1551,6 +1571,7 @@ Vehicle fields:
       "hero_1": {
         "name": "Luna",
         "job": "white_mage",
+        "row": "front",
         "level": 3,
         "exp": 120,
         "stats": {"hp": 28, "mp": 12, "str": 2, "int": 8, "vit": 4, "agi": 5, "lck": 3},

@@ -211,6 +211,8 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
 - Battle commands come from `rules.json` `battle.commands` plus job/secondary-job additions.
 - The global command list defines the base menu; job commands augment it without duplicates.
 - Command ordering follows `sort_order`, and the command panel pages when the list overflows.
+- Optional front/back row rules can reduce physical damage in back row and reduce melee damage unless
+  using a ranged weapon category; row switching can be enabled as a battle command.
 - Status effects and traits are resolved via `effects.json` definitions (poison ticks, protect/shell, elemental multipliers).
 - Spells and abilities declare target modes (`single`/`multi`) with optional attenuation for group targeting.
 - Statuses can be configured to clear at battle end; poison also ticks on overworld movement steps.
@@ -229,6 +231,8 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
 - Menu is modal and pauses overworld updates.
 - Menu entries are optional and can be gated by rules `systems` toggles and optional
   unlock flags (e.g., Summons, Materia, Job Change, Journal, Save).
+- Party submenu allows swapping active and reserve members when the current map allows saving; row
+  selection is shown when battle row rules are enabled.
 - Custom status/progress panels are handled via configurable menu panels in `ui/menu.json`.
 - Magic Equip is an optional submenu for equipping spell-granting items.
 

@@ -16,6 +16,19 @@ pub struct StatusInstance {
     pub remaining_turns: i32,
 }
 
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum BattleRow {
+    Front,
+    Back,
+}
+
+impl Default for BattleRow {
+    fn default() -> Self {
+        BattleRow::Front
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct PartyFile {
     pub version: u32,
@@ -55,6 +68,7 @@ pub struct Actor {
     pub job_id: String,
     pub level: u32,
     pub exp: i32,
+    pub row: BattleRow,
     pub current_hp: i32,
     pub current_mp: i32,
     pub base_stats: HashMap<String, i32>,
@@ -307,6 +321,7 @@ fn build_actor(
         job_id: actor.job_id.clone(),
         level: actor.level,
         exp: 0,
+        row: BattleRow::Front,
         current_hp: max_hp,
         current_mp: max_mp,
         base_stats,
@@ -905,6 +920,61 @@ pub fn rest_party(party: &mut PartyState, content: &Content, rules: &RulesFile) 
     }
     let ruleset = Ruleset::from_file(rules.clone());
     reset_magic_tier_charges(party, content, &ruleset);
+}
+
+pub fn toggle_actor_row(actor: &mut Actor) {
+    actor.row = match actor.row {
+        BattleRow::Front => BattleRow::Back,
+        BattleRow::Back => BattleRow::Front,
+    };
+}
+
+pub fn actor_row_label(actor: &Actor) -> &'static str {
+    match actor.row {
+        BattleRow::Front => "Front",
+        BattleRow::Back => "Back",
+    }
+}
+
+pub fn row_attack_multiplier(content: &Content, actor: &Actor) -> f32 {
+    let rows = &content.rules.battle.rows;
+    if !rows.enabled || actor.row != BattleRow::Back {
+        return 1.0;
+    }
+    if is_ranged_weapon(content, actor) {
+        return 1.0;
+    }
+    rows.back_row_attack_multiplier
+}
+
+pub fn row_defense_multiplier(content: &Content, actor: &Actor) -> f32 {
+    let rows = &content.rules.battle.rows;
+    if !rows.enabled || actor.row != BattleRow::Back {
+        return 1.0;
+    }
+    rows.back_row_defense_multiplier
+}
+
+fn is_ranged_weapon(content: &Content, actor: &Actor) -> bool {
+    let rows = &content.rules.battle.rows;
+    if rows.ranged_weapon_categories.is_empty() {
+        return false;
+    }
+    let Some(weapon_id) = actor.equipment.get("weapon") else {
+        return false;
+    };
+    let Some(category) = content
+        .equipment
+        .equipment
+        .iter()
+        .find(|item| item.id == *weapon_id)
+        .map(|item| item.category.as_str())
+    else {
+        return false;
+    };
+    rows.ranged_weapon_categories
+        .iter()
+        .any(|entry| entry == category)
 }
 
 fn clamp_current_stats(actor: &mut Actor) {

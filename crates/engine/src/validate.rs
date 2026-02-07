@@ -180,7 +180,14 @@ pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
             let kind = command.kind.as_str();
             let valid_kind = matches!(
                 kind,
-                "attack" | "magic" | "abilities" | "items" | "run" | "defend" | "abilities_group"
+                "attack"
+                    | "magic"
+                    | "abilities"
+                    | "items"
+                    | "run"
+                    | "defend"
+                    | "abilities_group"
+                    | "row"
             );
             if !valid_kind {
                 errors.push(format!(
@@ -216,6 +223,27 @@ pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
                     "rules.json: battle.global_commands duplicate command '{}'",
                     command_id
                 ));
+            }
+        }
+        if rules.battle.rows.enabled {
+            if rules.battle.rows.back_row_attack_multiplier <= 0.0
+                || rules.battle.rows.back_row_attack_multiplier > 1.0
+            {
+                errors.push(
+                    "rules.json: battle.rows.back_row_attack_multiplier must be between 0 and 1"
+                        .to_string(),
+                );
+            }
+            if rules.battle.rows.back_row_defense_multiplier <= 0.0
+                || rules.battle.rows.back_row_defense_multiplier > 1.0
+            {
+                errors.push(
+                    "rules.json: battle.rows.back_row_defense_multiplier must be between 0 and 1"
+                        .to_string(),
+                );
+            }
+            if rules.battle.rows.battle_shift < 0 {
+                errors.push("rules.json: battle.rows.battle_shift must be >= 0".to_string());
             }
         }
     }
