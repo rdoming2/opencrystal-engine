@@ -8,18 +8,20 @@ mod shop;
 mod utils;
 
 use std::env;
+use std::fs;
 use std::path::PathBuf;
 
 use engine::{
     content::Content,
     party::PartyState,
-    rules::{PartyMode, Ruleset},
+    rules::{PartyMode, RulesFile, Ruleset},
     runtime::{GameRuntime, GameState},
     save::SaveFile,
     world::WorldState,
     Engine,
 };
 use tui::input::{InputBindings, InputFile};
+use tui::menu::{run_content_menu, ContentMenuEntry};
 use tui::renderer::RenderMode;
 use tui::session::TuiSession;
 use tui::title::{run_load_menu, run_title, LoadSlotEntry, TitleAction};
@@ -73,7 +75,22 @@ fn main() {
 
 fn run_play(args: Vec<String>) {
     let render_mode = parse_render_mode(&args).unwrap_or(RenderMode::Auto);
-    let content_dir = parse_content_dir(&args).unwrap_or_else(|| PathBuf::from("content/demo"));
+    let mut session_guard = SessionGuard::start();
+    let content_dir = match parse_content_dir(&args) {
+        Some(dir) => dir,
+        None => {
+            let base_dir = PathBuf::from("content");
+            if let Some(session) = session_guard.as_mut() {
+                let bindings = InputBindings::default_bindings();
+                match choose_content_dir(session, &bindings, &base_dir) {
+                    Some(dir) => dir,
+                    None => return,
+                }
+            } else {
+                PathBuf::from("content/demo")
+            }
+        }
+    };
     let input_path = content_dir.join("input.json");
     let title_ui_path = content_dir.join("ui").join("title.json");
     let menu_ui_path = content_dir.join("ui").join("menu.json");
@@ -152,15 +169,18 @@ fn run_play(args: Vec<String>) {
     let mut runtime = GameRuntime::new(content);
     let save_dir = default_save_dir(&content_dir);
 
-    match render_mode {
-        RenderMode::Auto => println!("Starting OpenCrystal (render: auto)..."),
-        RenderMode::Wide => println!("Starting OpenCrystal (render: wide)..."),
-        RenderMode::Modern => println!("Starting OpenCrystal (render: modern)..."),
+    if session_guard.as_mut().is_none() {
+        match render_mode {
+            RenderMode::Auto => println!("Starting OpenCrystal (render: auto)..."),
+            RenderMode::Wide => println!("Starting OpenCrystal (render: wide)..."),
+            RenderMode::Modern => println!("Starting OpenCrystal (render: modern)..."),
+        }
     }
 
-    let mut session_guard = SessionGuard::start();
-
     let action = if let Some(session) = session_guard.as_mut() {
+        if let Err(err) = session.terminal_mut().clear() {
+            eprintln!("Failed to clear TUI: {}", err);
+        }
         match run_title(session, &title_ui, &input_bindings) {
             Ok(action) => action,
             Err(err) => {
@@ -333,6 +353,109 @@ fn run_new_project() {
 
 fn run_build() {
     println!("Building OpenCrystal content...");
+}
+
+fn choose_content_dir(
+    session: &mut TuiSession,
+    bindings: &InputBindings,
+    base_dir: &PathBuf,
+) -> Option<PathBuf> {
+    let entries = discover_content_entries(base_dir);
+    match run_content_menu(session, bindings, &entries) {
+        Ok(Some(index)) => entries
+            .get(index)
+            .filter(|entry| entry.enabled)
+            .map(|entry| PathBuf::from(entry.path.clone())),
+        Ok(None) => None,
+        Err(err) => {
+            eprintln!("Failed to run content chooser: {}", err);
+            None
+        }
+    }
+}
+
+fn discover_content_entries(base_dir: &PathBuf) -> Vec<ContentMenuEntry> {
+    let mut entries = Vec::new();
+    let Ok(dir_entries) = fs::read_dir(base_dir) else {
+        entries.push(ContentMenuEntry {
+            label: "No content found".to_string(),
+            title: "No content found".to_string(),
+            description: None,
+            author: None,
+            path: base_dir.display().to_string(),
+            enabled: false,
+            error: Some(format!("{} not found", base_dir.display())),
+        });
+        return entries;
+    };
+
+    for entry in dir_entries.flatten() {
+        let path = entry.path();
+        if !path.is_dir() {
+            continue;
+        }
+        let label = path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or("content")
+            .to_string();
+        let rules_path = path.join("rules.json");
+        if !rules_path.exists() {
+            entries.push(ContentMenuEntry {
+                label: label.clone(),
+                title: "Missing rules.json".to_string(),
+                description: None,
+                author: None,
+                path: path.display().to_string(),
+                enabled: false,
+                error: Some("rules.json not found".to_string()),
+            });
+            continue;
+        }
+        match RulesFile::load(&rules_path) {
+            Ok(rules) => entries.push(ContentMenuEntry {
+                label,
+                title: rules.game.title,
+                description: rules
+                    .game
+                    .description
+                    .filter(|text| !text.trim().is_empty()),
+                author: rules.game.author.filter(|text| !text.trim().is_empty()),
+                path: path.display().to_string(),
+                enabled: true,
+                error: None,
+            }),
+            Err(err) => entries.push(ContentMenuEntry {
+                label,
+                title: "Invalid rules.json".to_string(),
+                description: None,
+                author: None,
+                path: path.display().to_string(),
+                enabled: false,
+                error: Some(err),
+            }),
+        }
+    }
+
+    if entries.is_empty() {
+        entries.push(ContentMenuEntry {
+            label: "No content found".to_string(),
+            title: "No content found".to_string(),
+            description: None,
+            author: None,
+            path: base_dir.display().to_string(),
+            enabled: false,
+            error: Some("No subdirectories under content/".to_string()),
+        });
+        return entries;
+    }
+
+    entries.sort_by(|a, b| {
+        a.label
+            .to_ascii_lowercase()
+            .cmp(&b.label.to_ascii_lowercase())
+    });
+    entries
 }
 
 fn parse_render_mode(args: &[String]) -> Option<RenderMode> {

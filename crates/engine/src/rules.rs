@@ -37,6 +37,10 @@ pub struct StartLocation {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct GameRules {
     pub title: String,
+    #[serde(default)]
+    pub description: Option<String>,
+    #[serde(default)]
+    pub author: Option<String>,
     pub party_size: usize,
     pub party_reserve_size: usize,
     pub battle_mode: BattleMode,
@@ -102,6 +106,8 @@ pub struct JobSystemRules {
 #[derive(Clone, Debug)]
 pub struct Ruleset {
     pub title: String,
+    pub description: Option<String>,
+    pub author: Option<String>,
     pub party_size: usize,
     pub party_reserve_size: usize,
     pub battle_mode: BattleMode,
@@ -133,6 +139,8 @@ impl Ruleset {
     pub fn demo() -> Self {
         Self {
             title: "OpenCrystal".to_string(),
+            description: None,
+            author: None,
             party_size: 4,
             party_reserve_size: 4,
             battle_mode: BattleMode::Turn,
@@ -161,6 +169,8 @@ impl Ruleset {
     pub fn from_file(file: RulesFile) -> Self {
         Self {
             title: file.game.title,
+            description: file.game.description,
+            author: file.game.author,
             party_size: file.game.party_size,
             party_reserve_size: file.game.party_reserve_size,
             battle_mode: file.game.battle_mode,

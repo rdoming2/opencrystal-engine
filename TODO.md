@@ -78,7 +78,8 @@
 - [x] Inventory + equipment UI.
   - [x] Inventory filters + sorting.
   - [x] Item field use (heal/revive).
-  - [x] Equipment swap flow with stat preview.
+- [x] Equipment swap flow with stat preview.
+- [x] Add startup content chooser when `--content` is omitted.
 
 ## Battle System
 - [x] Turn-based flow (command selection, targeting, resolve action).

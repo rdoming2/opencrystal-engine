@@ -1,11 +1,14 @@
 use std::io;
 
-use ratatui::Frame;
+use crossterm::event::{self, Event};
 use ratatui::layout::{Alignment, Constraint, Direction, Layout};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
+use ratatui::Frame;
 
+use crate::dialog::confirm_quit;
+use crate::input::{Action, InputBindings};
 use crate::session::TuiSession;
 use crate::ui::{MenuLayout, MenuUiFile};
 
@@ -60,6 +63,64 @@ pub struct InventoryHeader {
     pub title: String,
     pub filters: Vec<(String, bool)>,
     pub sort_label: String,
+}
+
+#[derive(Clone, Debug)]
+pub struct ContentMenuEntry {
+    pub label: String,
+    pub title: String,
+    pub description: Option<String>,
+    pub author: Option<String>,
+    pub path: String,
+    pub enabled: bool,
+    pub error: Option<String>,
+}
+
+pub fn run_content_menu(
+    session: &mut TuiSession,
+    bindings: &InputBindings,
+    entries: &[ContentMenuEntry],
+) -> io::Result<Option<usize>> {
+    if entries.is_empty() {
+        return Ok(None);
+    }
+    let mut selected = first_enabled_content(entries).unwrap_or(0);
+    loop {
+        session.terminal_mut().draw(|frame| {
+            draw_content_frame(frame, entries, selected);
+        })?;
+
+        if let Event::Key(key) = event::read()? {
+            if let Some(action) = bindings.action_for(key.code) {
+                match action {
+                    Action::MoveUp => {
+                        selected = move_content_selection(selected, entries, -1);
+                    }
+                    Action::MoveDown => {
+                        selected = move_content_selection(selected, entries, 1);
+                    }
+                    Action::Confirm => {
+                        if entries
+                            .get(selected)
+                            .map(|entry| entry.enabled)
+                            .unwrap_or(false)
+                        {
+                            return Ok(Some(selected));
+                        }
+                    }
+                    Action::Cancel | Action::Menu => return Ok(None),
+                    Action::Quit => {
+                        if confirm_quit(session, |frame| {
+                            draw_content_frame(frame, entries, selected)
+                        })? {
+                            return Ok(None);
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
 }
 
 pub fn draw_menu(
@@ -318,6 +379,140 @@ pub fn draw_inventory_frame(
     frame.render_widget(footer, layout[1]);
 }
 
+fn draw_content_frame(frame: &mut Frame, entries: &[ContentMenuEntry], selected: usize) {
+    let size = frame.size();
+    let layout = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(1),
+            Constraint::Min(1),
+            Constraint::Length(1),
+        ])
+        .split(size);
+    let columns = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([Constraint::Percentage(40), Constraint::Percentage(60)])
+        .split(layout[1]);
+
+    let header = Paragraph::new("Select Content")
+        .alignment(Alignment::Center)
+        .block(Block::default().borders(Borders::NONE));
+    frame.render_widget(header, layout[0]);
+
+    let menu_lines = entries
+        .iter()
+        .enumerate()
+        .map(|(index, entry)| {
+            let is_selected = index == selected;
+            let mut style = if entry.enabled {
+                Style::default().fg(Color::White)
+            } else {
+                Style::default().fg(Color::DarkGray)
+            };
+            if is_selected {
+                style = if entry.enabled {
+                    style.fg(Color::Yellow).add_modifier(Modifier::BOLD)
+                } else {
+                    style.fg(Color::DarkGray).add_modifier(Modifier::BOLD)
+                };
+            }
+            let prefix = if is_selected { "> " } else { "  " };
+            Line::from(Span::styled(format!("{}{}", prefix, entry.label), style))
+        })
+        .collect::<Vec<_>>();
+
+    let menu_panel = Paragraph::new(menu_lines)
+        .block(Block::default().borders(Borders::ALL).title("Games"))
+        .alignment(Alignment::Left)
+        .wrap(Wrap { trim: false });
+    frame.render_widget(menu_panel, columns[0]);
+
+    let details = entries.get(selected);
+    let detail_lines = build_content_details(details);
+    let detail_panel = Paragraph::new(detail_lines)
+        .block(Block::default().borders(Borders::ALL).title("Details"))
+        .alignment(Alignment::Left)
+        .wrap(Wrap { trim: false });
+    frame.render_widget(detail_panel, columns[1]);
+
+    let footer = Paragraph::new("Confirm: select  Cancel: back")
+        .alignment(Alignment::Center)
+        .block(Block::default().borders(Borders::NONE));
+    frame.render_widget(footer, layout[2]);
+}
+
+fn build_content_details(entry: Option<&ContentMenuEntry>) -> Vec<Line<'_>> {
+    let Some(entry) = entry else {
+        return vec![Line::from(Span::styled(
+            "No content available",
+            Style::default().fg(Color::DarkGray),
+        ))];
+    };
+
+    let mut lines = Vec::new();
+    let title_style = if entry.enabled {
+        Style::default()
+            .fg(Color::Cyan)
+            .add_modifier(Modifier::BOLD)
+    } else {
+        Style::default()
+            .fg(Color::DarkGray)
+            .add_modifier(Modifier::BOLD)
+    };
+    lines.push(Line::from(vec![
+        Span::styled("Title: ", Style::default().fg(Color::White)),
+        Span::styled(entry.title.as_str(), title_style),
+    ]));
+
+    if let Some(author) = entry
+        .author
+        .as_ref()
+        .filter(|value| !value.trim().is_empty())
+    {
+        lines.push(Line::from(vec![
+            Span::styled("Author: ", Style::default().fg(Color::White)),
+            Span::styled(author.as_str(), Style::default().fg(Color::Cyan)),
+        ]));
+    }
+
+    if let Some(description) = entry
+        .description
+        .as_ref()
+        .filter(|value| !value.trim().is_empty())
+    {
+        lines.push(Line::from(Span::styled(
+            "Description:",
+            Style::default().fg(Color::White),
+        )));
+        lines.push(Line::from(Span::styled(
+            description.as_str(),
+            Style::default().fg(Color::White),
+        )));
+    }
+
+    lines.push(Line::from(vec![
+        Span::styled("Folder: ", Style::default().fg(Color::White)),
+        Span::styled(entry.path.as_str(), Style::default().fg(Color::DarkGray)),
+    ]));
+
+    if let Some(error) = entry
+        .error
+        .as_ref()
+        .filter(|value| !value.trim().is_empty())
+    {
+        lines.push(Line::from(Span::styled(
+            "Error:",
+            Style::default().fg(Color::DarkGray),
+        )));
+        lines.push(Line::from(Span::styled(
+            error.as_str(),
+            Style::default().fg(Color::DarkGray),
+        )));
+    }
+
+    lines
+}
+
 fn menu_layout_percentages(layout: &MenuLayout) -> (u16, u16) {
     let total = layout.left_width_ratio + layout.right_width_ratio;
     let left_ratio = if total > 0.0 {
@@ -348,4 +543,28 @@ pub fn panel_span_style(style: PanelSpanStyle) -> Style {
         PanelSpanStyle::Muted => Style::default().fg(Color::DarkGray),
         PanelSpanStyle::Accent => Style::default().fg(Color::Cyan),
     }
+}
+
+fn first_enabled_content(entries: &[ContentMenuEntry]) -> Option<usize> {
+    entries.iter().position(|entry| entry.enabled)
+}
+
+fn move_content_selection(current: usize, entries: &[ContentMenuEntry], direction: i32) -> usize {
+    if entries.is_empty() {
+        return 0;
+    }
+    let mut index = current.min(entries.len().saturating_sub(1));
+    let mut remaining = entries.len();
+    while remaining > 0 {
+        if direction < 0 {
+            index = index.saturating_sub(1);
+        } else {
+            index = (index + 1).min(entries.len().saturating_sub(1));
+        }
+        if entries[index].enabled {
+            return index;
+        }
+        remaining -= 1;
+    }
+    current
 }

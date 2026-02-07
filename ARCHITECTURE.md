@@ -18,6 +18,9 @@ It is a design reference meant to guide initial implementation.
 - `cryst new-project`
 - `cryst build`
 
+`cryst play` opens a content chooser when `--content` is omitted, listing subfolders under
+`content/` and showing `rules.json` metadata (title, optional description/author).
+
 ## Rendering & UI
 
 ### Rendering tiers

@@ -62,6 +62,7 @@ merged, duplicates removed). Command labels come from the catalog so UI text can
 `systems` toggles whether a gameplay system/menu is enabled at all. It should be
 used for global availability (e.g., disabling magic equip). Menu entries can still
 add `unlock_flag` gating for progression-driven unlocks.
+`game.description` and `game.author` are optional metadata used for content selection screens.
 Tier charges are defined within each job's `magic_slots`; `magic_system` `tier_charges` uses those definitions per actor.
 `save` configures slot count and autosave behavior. `slots_max` counts manual slots
 only; autosave uses slot 0 and never reduces the manual slot total.
@@ -71,6 +72,8 @@ only; autosave uses slot 0 and never reduces the manual slot total.
   "version": 1,
   "game": {
     "title": "OpenCrystal",
+    "description": "A crystal-bound journey",
+    "author": "OpenCrystal Team",
     "party_size": 4,
     "party_reserve_size": 4,
     "battle_mode": "dynamic",
