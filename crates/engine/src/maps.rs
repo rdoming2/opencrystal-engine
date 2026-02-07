@@ -126,6 +126,12 @@ pub struct MapTransition {
     pub target_map: String,
     pub target_pos: [i32; 2],
     #[serde(default)]
+    pub label: Option<String>,
+    #[serde(default)]
+    pub requires_flag: Option<String>,
+    #[serde(default)]
+    pub cost: Option<MapCurrencyStack>,
+    #[serde(default)]
     pub return_to_last: bool,
     #[serde(default)]
     pub glyph: Option<String>,

@@ -134,7 +134,7 @@
 - [x] Implement inn rest feature (dialog action `rest_party`).
 - [x] Add configurable NPC interaction range (default 1 tile).
 - [x] Add event action to teach spells (learn_spell).
-- [ ] Add fast travel menu (free and paid variants).
+- [x] Add fast travel menu (free and paid variants).
 
 ## Content + Validation
 - [x] Add missing demo content (town map, shop UI, basic quests).

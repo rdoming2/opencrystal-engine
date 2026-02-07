@@ -10,8 +10,10 @@ pub mod party;
 pub mod settings;
 pub mod status;
 
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
+use engine::maps::MapFile;
 use engine::menu::MenuFocus;
 use engine::party::{actor_row_label, get_actor_max_charges, job_jp};
 use engine::rules::JobProgressionMode;
@@ -190,6 +192,13 @@ pub fn run_menu_loop(
                         } else if runtime.menu_state.detail_selection > 0 {
                             runtime.menu_state.detail_selection -= 1;
                         }
+                    } else if submenu_action == "overworld_map" || submenu_action == "fast_travel" {
+                        let destinations = build_overworld_destinations(runtime);
+                        runtime.menu_state.detail_selection = move_overworld_selection(
+                            runtime.menu_state.detail_selection,
+                            destinations.len(),
+                            -1,
+                        );
                     } else if submenu_action == "magic_equip" {
                         if runtime.menu_state.detail_selection > 0 {
                             runtime.menu_state.detail_selection -= 1;
@@ -326,6 +335,13 @@ pub fn run_menu_loop(
                                 runtime.menu_state.detail_selection += 1;
                             }
                         }
+                    } else if submenu_action == "overworld_map" || submenu_action == "fast_travel" {
+                        let destinations = build_overworld_destinations(runtime);
+                        runtime.menu_state.detail_selection = move_overworld_selection(
+                            runtime.menu_state.detail_selection,
+                            destinations.len(),
+                            1,
+                        );
                     } else if submenu_action == "magic_equip" {
                         let limit = if runtime.menu_state.detail_page == 0 {
                             magic_equip_slots_for_menu(runtime).len()
@@ -428,6 +444,20 @@ pub fn run_menu_loop(
                                         runtime.menu_state.detail_page = 0;
                                         runtime.menu_state.detail_selection = 0;
                                     }
+                                    "overworld_map" => {
+                                        runtime.menu_state.focus = MenuFocus::Detail;
+                                        runtime.menu_state.active_submenu =
+                                            Some(entry.action.clone());
+                                        runtime.menu_state.detail_page = 0;
+                                        runtime.menu_state.detail_selection = 0;
+                                    }
+                                    "fast_travel" => {
+                                        runtime.menu_state.focus = MenuFocus::Detail;
+                                        runtime.menu_state.active_submenu =
+                                            Some(entry.action.clone());
+                                        runtime.menu_state.detail_page = 0;
+                                        runtime.menu_state.detail_selection = 0;
+                                    }
                                     "save" => {
                                         runtime.menu_state.focus = MenuFocus::Detail;
                                         runtime.menu_state.active_submenu =
@@ -488,6 +518,28 @@ pub fn run_menu_loop(
                                 }
                             }
                         }
+                    } else if submenu_action == "fast_travel" {
+                        let destinations = build_overworld_destinations(runtime);
+                        if destinations.is_empty() {
+                            continue;
+                        }
+                        let selection = runtime
+                            .menu_state
+                            .detail_selection
+                            .min(destinations.len().saturating_sub(1));
+                        let destination = match destinations.get(selection) {
+                            Some(destination) => destination,
+                            None => continue,
+                        };
+                        if !destination.enabled {
+                            continue;
+                        }
+                        if let Some(cost) = &destination.cost {
+                            runtime.inventory.add_currency(&cost.id, -cost.amount);
+                        }
+                        runtime.warp_to_map(&destination.map_id, destination.target_pos);
+                        runtime.close_menu();
+                        return Ok(());
                     } else if submenu_action == "items" {
                         let entries = build_inventory_entries(
                             runtime,
@@ -1070,6 +1122,8 @@ fn build_menu_entries(
     player_pos: (i32, i32),
 ) -> Vec<MenuEntryState> {
     let save_allowed = map_save_allowed(runtime, map_id, player_pos);
+    let overview_available = overworld_map_available(runtime);
+    let fast_travel_available = fast_travel_enabled(runtime);
     menu_ui
         .menu
         .iter()
@@ -1083,9 +1137,18 @@ fn build_menu_entries(
             if entry.action == "save" && !save_allowed {
                 selectable = false;
             }
+            if entry.action == "overworld_map" && !overview_available {
+                selectable = false;
+            }
+            if entry.action == "fast_travel" && (!overview_available || !fast_travel_available) {
+                selectable = false;
+            }
             let show = selectable
                 || (!entry.enabled && entry.locked_behavior.as_deref() == Some("disable"))
                 || (!unlock_enabled && entry.locked_behavior.as_deref() == Some("disable"))
+                || (entry.action == "fast_travel"
+                    && !selectable
+                    && entry.locked_behavior.as_deref() == Some("disable"))
                 || (entry.action == "save"
                     && !save_allowed
                     && entry.locked_behavior.as_deref() == Some("disable"));
@@ -1176,6 +1239,12 @@ fn menu_detail_panel(
             lines,
         };
     }
+    if action == "overworld_map" {
+        return build_overworld_map_panel(runtime, "Overworld Map", false);
+    }
+    if action == "fast_travel" {
+        return build_overworld_map_panel(runtime, "Fast Travel", true);
+    }
     if action == "settings" {
         return build_settings_panel(runtime, runtime.menu_state.detail_selection);
     }
@@ -1231,6 +1300,8 @@ fn menu_footer_text(focus: MenuPane, submenu: &str, page: usize) -> &'static str
                     "Left/Right: summary  Cancel: back"
                 }
             }
+            "overworld_map" => "Up/Down: select  Cancel: back",
+            "fast_travel" => "Confirm: travel  Up/Down: select  Cancel: back",
             "settings" => "Confirm: toggle  Left/Right: adjust  Cancel: back",
             "items" => {
                 if page == 0 {
@@ -1554,6 +1625,255 @@ fn build_party_summary(runtime: &GameRuntime) -> Vec<MenuPanelLine> {
         }
     }
     lines
+}
+
+struct OverworldDestination {
+    label: String,
+    map_id: String,
+    target_pos: (i32, i32),
+    map_pos: (i32, i32),
+    enabled: bool,
+    reason: Option<String>,
+    cost: Option<engine::maps::MapCurrencyStack>,
+}
+
+fn build_overworld_map_panel(
+    runtime: &GameRuntime,
+    title: &str,
+    allow_travel: bool,
+) -> MenuPanelView {
+    let Some(map) = overview_map(runtime) else {
+        return MenuPanelView {
+            title: title.to_string(),
+            lines: vec![panel_line("Overworld map unavailable.")],
+        };
+    };
+    if allow_travel && !fast_travel_enabled(runtime) {
+        return MenuPanelView {
+            title: title.to_string(),
+            lines: vec![
+                panel_line("Fast travel unavailable."),
+                panel_line("Unlock fast travel to use destinations."),
+            ],
+        };
+    }
+    let destinations = build_overworld_destinations(runtime);
+    let selection = runtime
+        .menu_state
+        .detail_selection
+        .min(destinations.len().saturating_sub(1));
+    let mut lines = build_overworld_map_lines(map, &destinations, selection);
+    lines.push(panel_line(""));
+    lines.push(panel_line_spans(vec![panel_span(
+        "Destinations",
+        PanelSpanStyle::Accent,
+    )]));
+    if destinations.is_empty() {
+        lines.push(panel_line("No destinations available."));
+    } else {
+        for (index, destination) in destinations.iter().enumerate() {
+            lines.push(build_destination_line(
+                runtime,
+                destination,
+                index,
+                selection,
+                allow_travel,
+            ));
+        }
+    }
+    MenuPanelView {
+        title: title.to_string(),
+        lines,
+    }
+}
+
+fn build_overworld_map_lines(
+    map: &MapFile,
+    destinations: &[OverworldDestination],
+    selection: usize,
+) -> Vec<MenuPanelLine> {
+    let mut dest_positions: HashMap<(i32, i32), usize> = HashMap::new();
+    for (index, destination) in destinations.iter().enumerate() {
+        dest_positions.insert(destination.map_pos, index);
+    }
+    let mut lines = Vec::new();
+    for y in 0..map.height as i32 {
+        let row = map
+            .tiles
+            .get(y as usize)
+            .map(|row| row.as_str())
+            .unwrap_or("");
+        let mut spans = Vec::new();
+        for x in 0..map.width as i32 {
+            let mut ch = row.chars().nth(x as usize).unwrap_or(' ');
+            let mut style = PanelSpanStyle::Normal;
+            if let Some(index) = dest_positions.get(&(x, y)) {
+                let selected = *index == selection;
+                ch = if selected { 'X' } else { '*' };
+                style = if selected {
+                    PanelSpanStyle::Highlight
+                } else if destinations[*index].enabled {
+                    PanelSpanStyle::Accent
+                } else {
+                    PanelSpanStyle::Muted
+                };
+            }
+            spans.push(panel_span(ch.to_string(), style));
+        }
+        lines.push(panel_line_spans(spans));
+    }
+    lines
+}
+
+fn build_destination_line(
+    runtime: &GameRuntime,
+    destination: &OverworldDestination,
+    index: usize,
+    selection: usize,
+    allow_travel: bool,
+) -> MenuPanelLine {
+    let selected = index == selection;
+    let mut label = format!("{:>2}. {}", index + 1, destination.label);
+    if let Some(cost) = destination.cost.as_ref() {
+        label.push_str(" ");
+        label.push_str(&format_currency_amount(&runtime.content.rules, cost));
+    }
+    if let Some(reason) = destination.reason.as_ref() {
+        label.push_str(" (");
+        label.push_str(reason);
+        label.push_str(")");
+    } else if !allow_travel {
+        label.push_str(" (view)");
+    }
+    let style = if selected {
+        PanelSpanStyle::Highlight
+    } else if destination.enabled {
+        PanelSpanStyle::Normal
+    } else {
+        PanelSpanStyle::Muted
+    };
+    panel_line_spans(vec![panel_span(label, style)])
+}
+
+fn build_overworld_destinations(runtime: &GameRuntime) -> Vec<OverworldDestination> {
+    let Some(map) = overview_map(runtime) else {
+        return Vec::new();
+    };
+    let mut destinations = Vec::new();
+    for transition in &map.transitions {
+        let target_index = match runtime.content.map_index.get(&transition.target_map) {
+            Some(index) => *index,
+            None => continue,
+        };
+        let target_map = match runtime.content.maps.get(target_index) {
+            Some(map) => map,
+            None => continue,
+        };
+        let label = transition
+            .label
+            .as_ref()
+            .filter(|label| !label.trim().is_empty())
+            .cloned()
+            .unwrap_or_else(|| {
+                if target_map.name.trim().is_empty() {
+                    transition.target_map.clone()
+                } else {
+                    target_map.name.clone()
+                }
+            });
+        let mut enabled = true;
+        let mut reason = None;
+        if let Some(flag) = transition
+            .requires_flag
+            .as_ref()
+            .filter(|flag| !flag.trim().is_empty())
+        {
+            if !runtime.has_flag(flag) {
+                enabled = false;
+                reason = Some("Locked".to_string());
+            }
+        }
+        if let Some(cost) = transition.cost.as_ref() {
+            let available = runtime.inventory.currency_amount(&cost.id);
+            if available < cost.amount {
+                enabled = false;
+                reason = Some(format!(
+                    "Need {}",
+                    format_currency_amount(&runtime.content.rules, cost)
+                ));
+            }
+        }
+        destinations.push(OverworldDestination {
+            label,
+            map_id: transition.target_map.clone(),
+            target_pos: (transition.target_pos[0], transition.target_pos[1]),
+            map_pos: (transition.pos[0], transition.pos[1]),
+            enabled,
+            reason,
+            cost: transition.cost.clone(),
+        });
+    }
+    destinations
+}
+
+fn move_overworld_selection(current: usize, count: usize, direction: i32) -> usize {
+    if count == 0 {
+        return 0;
+    }
+    if direction < 0 {
+        current.saturating_sub(1)
+    } else {
+        (current + 1).min(count.saturating_sub(1))
+    }
+}
+
+fn overview_map(runtime: &GameRuntime) -> Option<&MapFile> {
+    let world = runtime
+        .content
+        .worlds
+        .worlds
+        .iter()
+        .find(|world| world.id == runtime.world.world_id)?;
+    if !world.overview.enabled {
+        return None;
+    }
+    let map_index = runtime.content.map_index.get(&world.overview.map_id)?;
+    runtime.content.maps.get(*map_index)
+}
+
+fn overworld_map_available(runtime: &GameRuntime) -> bool {
+    overview_map(runtime).is_some()
+}
+
+fn fast_travel_enabled(runtime: &GameRuntime) -> bool {
+    let world = match runtime
+        .content
+        .worlds
+        .worlds
+        .iter()
+        .find(|world| world.id == runtime.world.world_id)
+    {
+        Some(world) => world,
+        None => return false,
+    };
+    if !world.fast_travel.enabled {
+        return false;
+    }
+    if world.fast_travel.requires_flag.trim().is_empty() {
+        return true;
+    }
+    runtime.has_flag(&world.fast_travel.requires_flag)
+}
+
+fn format_currency_amount(
+    rules: &engine::rules::RulesFile,
+    cost: &engine::maps::MapCurrencyStack,
+) -> String {
+    if cost.id == rules.game.currency.id {
+        format!("{}{}", rules.game.currency.symbol, cost.amount)
+    } else {
+        format!("{} {}", cost.amount, cost.id)
+    }
 }
 
 fn map_save_allowed(runtime: &GameRuntime, map_id: &str, player_pos: (i32, i32)) -> bool {

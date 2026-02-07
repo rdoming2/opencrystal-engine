@@ -474,6 +474,9 @@ start an event, then the event can `npc_hide` to prevent re-triggering.
       "pos": [5, 8],
       "target_map": "dungeon_ember",
       "target_pos": [1, 1],
+      "label": "Ember",
+      "requires_flag": "dungeon.ember_unlocked",
+      "cost": {"id": "gil", "amount": 200},
       "return_to_last": false,
       "glyph": "D",
       "palette": "bright_magenta"
@@ -489,6 +492,9 @@ Saving rules:
   `allow_save` is false.
 - `return_to_last` on transitions uses the last entry position for the current map
   when leaving (falls back to `target_map` + `target_pos` if unavailable).
+- `label` is optional display text for fast-travel/overview menus.
+- `requires_flag` gates access to the transition until a flag is set.
+- `cost` is an optional currency stack charged on fast travel.
 
 Rendering notes:
 

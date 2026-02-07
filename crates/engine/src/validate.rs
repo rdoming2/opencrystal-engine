@@ -569,6 +569,36 @@ pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
                     map.id, transition.id, transition.target_map
                 ));
             }
+            if let Some(label) = transition.label.as_ref() {
+                if label.trim().is_empty() {
+                    errors.push(format!(
+                        "maps/{}: transition '{}' has empty label",
+                        map.id, transition.id
+                    ));
+                }
+            }
+            if let Some(flag) = transition.requires_flag.as_ref() {
+                if flag.trim().is_empty() {
+                    errors.push(format!(
+                        "maps/{}: transition '{}' has empty requires_flag",
+                        map.id, transition.id
+                    ));
+                }
+            }
+            if let Some(cost) = transition.cost.as_ref() {
+                if cost.id.trim().is_empty() {
+                    errors.push(format!(
+                        "maps/{}: transition '{}' has cost with empty id",
+                        map.id, transition.id
+                    ));
+                }
+                if cost.amount <= 0 {
+                    errors.push(format!(
+                        "maps/{}: transition '{}' has non-positive cost",
+                        map.id, transition.id
+                    ));
+                }
+            }
             if transition.pos[0] < 0 || transition.pos[1] < 0 {
                 errors.push(format!(
                     "maps/{}: transition '{}' has negative position",
