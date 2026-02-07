@@ -112,6 +112,12 @@ pub fn run_overworld_loop(
                                     )
                                 };
 
+                                if runtime.is_overworld_map(&current_map_id)
+                                    && !runtime.is_overworld_map(&next_map)
+                                {
+                                    runtime.record_last_overworld(&current_map_id, player_pos);
+                                }
+
                                 if !transition.return_to_last
                                     && !is_returning_from_child(
                                         &return_positions,
@@ -243,6 +249,17 @@ pub fn run_overworld_loop(
                 }
                 _ => {}
             }
+        }
+
+        if !moved
+            && !transitioned
+            && (runtime.world.map_id != current_map_id || runtime.world.position != player_pos)
+        {
+            current_map_id = runtime.world.map_id.clone();
+            player_pos = runtime.world.position;
+            transitioned = true;
+            moved = true;
+            area_name_active = false;
         }
 
         if transitioned {

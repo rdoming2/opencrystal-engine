@@ -11,6 +11,7 @@ pub struct WorldDefinition {
     pub id: String,
     pub name: String,
     pub starting_map: String,
+    pub overworld_map_id: String,
     pub zoom_levels: Vec<String>,
     pub overview: OverviewConfig,
     pub vehicles: Vec<String>,

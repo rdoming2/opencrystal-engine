@@ -38,6 +38,7 @@
   - [ ] Dialog vs event selection.
   - [x] Shop opening via dialog actions.
   - [x] Shop purchase flow (currency, inventory updates).
+  - [ ] Shop sell flow (convert items/equipment to currency).
 - [x] Add map treasure chests (loot + opened flags).
 - [x] Implement save/load system.
   - [x] Define save file schema + versioning.
@@ -133,6 +134,7 @@
 - [x] Implement inn rest feature (dialog action `rest_party`).
 - [x] Add configurable NPC interaction range (default 1 tile).
 - [x] Add event action to teach spells (learn_spell).
+- [ ] Add fast travel menu (free and paid variants).
 
 ## Content + Validation
 - [x] Add missing demo content (town map, shop UI, basic quests).

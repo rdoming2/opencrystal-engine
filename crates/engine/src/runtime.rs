@@ -31,6 +31,7 @@ pub struct GameRuntime {
     pub party: PartyState,
     pub inventory: InventoryState,
     pub world: WorldState,
+    pub last_overworld: Option<LastOverworld>,
     pub active_vehicle: Option<String>,
     pub vehicle_positions: HashMap<String, VehiclePosition>,
     pub vehicle_slow_mode: bool,
@@ -40,6 +41,13 @@ pub struct GameRuntime {
 
 #[derive(Clone, Debug)]
 pub struct VehiclePosition {
+    pub map_id: String,
+    pub pos: (i32, i32),
+}
+
+#[derive(Clone, Debug)]
+pub struct LastOverworld {
+    pub world_id: String,
     pub map_id: String,
     pub pos: (i32, i32),
 }
@@ -64,6 +72,7 @@ impl GameRuntime {
                 &start_location.map,
                 (start_location.x, start_location.y),
             ),
+            last_overworld: None,
             active_vehicle: None,
             vehicle_positions,
             vehicle_slow_mode: false,
@@ -102,6 +111,62 @@ impl GameRuntime {
         self.flags.contains(flag)
     }
 
+    pub fn overworld_map_id(&self, world_id: &str) -> Option<&str> {
+        self.content
+            .worlds
+            .worlds
+            .iter()
+            .find(|world| world.id == world_id)
+            .map(|world| world.overworld_map_id.as_str())
+    }
+
+    pub fn is_overworld_map(&self, map_id: &str) -> bool {
+        self.overworld_map_id(&self.world.world_id)
+            .map(|overworld_map_id| overworld_map_id == map_id)
+            .unwrap_or(false)
+    }
+
+    pub fn record_last_overworld(&mut self, map_id: &str, pos: (i32, i32)) {
+        if !self.is_overworld_map(map_id) {
+            return;
+        }
+        self.last_overworld = Some(LastOverworld {
+            world_id: self.world.world_id.clone(),
+            map_id: map_id.to_string(),
+            pos,
+        });
+    }
+
+    pub fn record_last_overworld_on_exit(&mut self, next_map_id: &str) {
+        let is_overworld = self.is_overworld_map(&self.world.map_id);
+        let is_next_overworld = self.is_overworld_map(next_map_id);
+        if is_overworld && !is_next_overworld {
+            let map_id = self.world.map_id.clone();
+            let pos = self.world.position;
+            self.record_last_overworld(&map_id, pos);
+        }
+    }
+
+    pub fn warp_to_last_overworld(&mut self) -> bool {
+        let Some(last_overworld) = self.last_overworld.clone() else {
+            return false;
+        };
+        self.world.world_id = last_overworld.world_id;
+        self.world.map_id = last_overworld.map_id;
+        self.world.position = last_overworld.pos;
+        self.active_vehicle = None;
+        self.vehicle_slow_mode = false;
+        true
+    }
+
+    pub fn warp_to_map(&mut self, map_id: &str, pos: (i32, i32)) {
+        self.record_last_overworld_on_exit(map_id);
+        self.world.map_id = map_id.to_string();
+        self.world.position = pos;
+        self.active_vehicle = None;
+        self.vehicle_slow_mode = false;
+    }
+
     pub fn start_new_game(&mut self, rules: &Ruleset) {
         if matches!(
             rules.party_mode,
@@ -126,6 +191,15 @@ impl GameRuntime {
         self.world.world_id = rules.start_location.world.clone();
         self.world.map_id = rules.start_location.map.clone();
         self.world.position = (rules.start_location.x, rules.start_location.y);
+        if self.is_overworld_map(&self.world.map_id) {
+            self.last_overworld = Some(LastOverworld {
+                world_id: self.world.world_id.clone(),
+                map_id: self.world.map_id.clone(),
+                pos: self.world.position,
+            });
+        } else {
+            self.last_overworld = None;
+        }
         self.active_vehicle = None;
         self.vehicle_positions = initial_vehicle_positions(&self.content);
         self.vehicle_slow_mode = false;

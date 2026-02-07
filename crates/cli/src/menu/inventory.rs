@@ -137,6 +137,16 @@ pub fn apply_item_to_targets(
     if !item_usage_allows_field(&item.usage.context) {
         return false;
     }
+    if item.effect.r#type == "warp" {
+        if let Some(destination) = &item.effect.destination {
+            runtime.warp_to_map(&destination.map, (destination.pos[0], destination.pos[1]));
+            return true;
+        }
+        if item.effect.target.as_deref() == Some("last_overworld") {
+            return runtime.warp_to_last_overworld();
+        }
+        return false;
+    }
     for target_id in targets {
         apply_item_to_actor(runtime, &item, target_id);
     }

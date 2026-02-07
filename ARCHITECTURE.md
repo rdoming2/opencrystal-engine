@@ -108,11 +108,13 @@ All runtime data is loaded from JSON. Files are organized into top-level categor
 
 - Supports multiple worlds (classic FF-style world jumps).
 - Each world contains maps, travel rules, and zoom config.
+- Worlds define `overworld_map_id` to anchor overworld-only travel and warp returns.
 - Travel mechanisms:
   - Event/NPC travel.
   - Item-based travel (warp/escape).
   - Overworld fast travel (unlockable).
   - Vehicle travel with unlock flags.
+- Warp items return to the last recorded overworld entry unless a specific destination is provided.
 
 ### Event triggers
 
@@ -393,6 +395,7 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
       "id": "gaia",
       "name": "Gaia",
       "starting_map": "overworld_gaia",
+      "overworld_map_id": "overworld_gaia",
       "zoom_levels": ["overview", "explore"],
       "overview": {"enabled": true, "map_id": "gaia_overview"},
       "vehicles": ["ship", "airship"],

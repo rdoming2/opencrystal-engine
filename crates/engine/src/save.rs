@@ -135,6 +135,15 @@ impl SaveFile {
         runtime.world.world_id = self.world.world_id.clone();
         runtime.world.map_id = self.world.map_id.clone();
         runtime.world.position = (self.world.pos[0], self.world.pos[1]);
+        if runtime.is_overworld_map(&runtime.world.map_id) {
+            runtime.last_overworld = Some(crate::runtime::LastOverworld {
+                world_id: runtime.world.world_id.clone(),
+                map_id: runtime.world.map_id.clone(),
+                pos: runtime.world.position,
+            });
+        } else {
+            runtime.last_overworld = None;
+        }
         runtime.active_vehicle = self.world.vehicle.clone();
         runtime.vehicle_positions = self
             .vehicles

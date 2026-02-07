@@ -318,6 +318,9 @@ Trait fields:
 
 Defines multiple worlds and inter-world travel.
 
+- `overworld_map_id` identifies the world map used for overworld travel, warp returns, and fast
+  travel. It should reference a map in `maps/*.json`.
+
 ```json
 {
   "version": 1,
@@ -326,6 +329,7 @@ Defines multiple worlds and inter-world travel.
       "id": "gaia",
       "name": "Gaia",
       "starting_map": "overworld_gaia",
+      "overworld_map_id": "overworld_gaia",
       "zoom_levels": ["overview", "explore"],
       "overview": {
         "enabled": true,
@@ -831,6 +835,8 @@ Item usage defines where and how items can be used. `context` values: `field`,
 Common effect types: `heal_hp`, `heal_mp`, `revive`, `warp`, `learn_spell`, `cure_status`.
 `learn_spell` uses `effect.target` to specify the spell ID to teach.
 `cure_status` uses `effect.statuses` to list status IDs to remove.
+`warp` supports `effect.target: "last_overworld"` to return to the last overworld entry and
+`effect.destination` to warp to a specific map/position.
 
 ```json
 {
@@ -855,11 +861,10 @@ Common effect types: `heal_hp`, `heal_mp`, `revive`, `warp`, `learn_spell`, `cur
       "id": "warp_scroll",
       "name": "Warp Scroll",
       "type": "travel",
-      "usage": {"context": "field", "target": "self"},
+      "usage": {"context": "field", "target": "party"},
       "effect": {
         "type": "warp",
-        "target": "world_map",
-        "destination": {"map": "overworld_gaia", "pos": [20, 14]}
+        "target": "last_overworld"
       }
     },
     {
@@ -1007,7 +1012,7 @@ Supported event step types:
 - `give_item` (fields: `item`, `qty`)
 - `give_equipment` (fields: `item`, `qty`)
 - `learn_spell` (fields: `member`, `spell`)
-- `warp` (fields: `target` with `map` and `pos`)
+- `warp` (fields: `target` with `map` and `pos`; use `map: "last_overworld"` to return to the last overworld entry)
 - `start_battle` (fields: `encounter`, `formation`)
 - `open_shop` (fields: `shop`)
 - `npc_show`, `npc_hide`, `npc_move`, `npc_set_sprite` (fields: `npc`, `pos`, `sprite`)

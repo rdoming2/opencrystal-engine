@@ -146,8 +146,11 @@ pub fn apply_event_step(runtime: &mut GameRuntime, step: &EventStep) -> EventExe
         }
         "warp" => {
             if let Some(target) = &step.target {
-                runtime.world.map_id = target.map.clone();
-                runtime.world.position = (target.pos[0], target.pos[1]);
+                if target.map == "last_overworld" {
+                    runtime.warp_to_last_overworld();
+                } else {
+                    runtime.warp_to_map(&target.map, (target.pos[0], target.pos[1]));
+                }
             }
             EventExecutionResult::Continue
         }

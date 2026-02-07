@@ -435,6 +435,12 @@ pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
                     world.id, world.starting_map
                 ));
             }
+            if !map_ids.contains(&world.overworld_map_id) {
+                errors.push(format!(
+                    "worlds.json: world '{}' overworld_map_id '{}' not found",
+                    world.id, world.overworld_map_id
+                ));
+            }
         }
     }
 
@@ -571,6 +577,33 @@ pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
                     "events/{}: unknown step type '{}'",
                     event.id, step.r#type
                 ));
+            }
+            if step.r#type == "warp" {
+                let Some(target) = &step.target else {
+                    errors.push(format!("events/{}: warp step missing target", event.id));
+                    continue;
+                };
+                if target.map != "last_overworld" {
+                    if !map_ids.contains(&target.map) {
+                        errors.push(format!(
+                            "events/{}: warp target '{}' not found",
+                            event.id, target.map
+                        ));
+                        continue;
+                    }
+                    if let Some((width, height)) = map_dims.get(target.map.as_str()) {
+                        if target.pos[0] < 0
+                            || target.pos[1] < 0
+                            || target.pos[0] >= *width as i32
+                            || target.pos[1] >= *height as i32
+                        {
+                            errors.push(format!(
+                                "events/{}: warp target_pos {:?} out of bounds",
+                                event.id, target.pos
+                            ));
+                        }
+                    }
+                }
             }
         }
     }
@@ -942,6 +975,40 @@ pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
                         ));
                     }
                 }
+            }
+        }
+    }
+
+    if let Some(items) = &items {
+        for item in &items.items {
+            if item.effect.r#type != "warp" {
+                continue;
+            }
+            if let Some(destination) = &item.effect.destination {
+                if !map_ids.contains(&destination.map) {
+                    errors.push(format!(
+                        "items.json: item '{}' warp destination '{}' not found",
+                        item.id, destination.map
+                    ));
+                    continue;
+                }
+                if let Some((width, height)) = map_dims.get(destination.map.as_str()) {
+                    if destination.pos[0] < 0
+                        || destination.pos[1] < 0
+                        || destination.pos[0] >= *width as i32
+                        || destination.pos[1] >= *height as i32
+                    {
+                        errors.push(format!(
+                            "items.json: item '{}' warp destination {:?} out of bounds",
+                            item.id, destination.pos
+                        ));
+                    }
+                }
+            } else if item.effect.target.as_deref() != Some("last_overworld") {
+                errors.push(format!(
+                    "items.json: item '{}' warp requires destination or target last_overworld",
+                    item.id
+                ));
             }
         }
     }
