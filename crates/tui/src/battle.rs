@@ -648,6 +648,7 @@ fn draw_battlefield(
     let inner_width = inner.width as usize;
     let inner_height = inner.height as usize;
     let mut cells = vec![vec![BattleCell::new(' ', Style::default()); inner_width]; inner_height];
+    let max_x = inner_width.saturating_sub(1) as i32;
     let cell_width = inner.width as f32 / 10.0;
     let cell_height = inner.height as f32 / 6.0;
     let highlight_modifier =
@@ -698,12 +699,13 @@ fn draw_battlefield(
                 for (line_index, line) in lines.iter().enumerate() {
                     let line_width = line.chars().count() as i32;
                     let start_x = center_x as i32 - line_width / 2 + acting_offset;
+                    let start_x = start_x.clamp(0, max_x);
                     let start_y = center_y as i32 - art_height / 2 + line_index as i32;
                     place_text(&mut cells, line, start_x, start_y, art_style);
                 }
             }
         } else {
-            let x = center_x as i32 + acting_offset;
+            let x = (center_x as i32 + acting_offset).clamp(0, max_x);
             let y = center_y as i32;
             place_glyph(&mut cells, enemy.glyph, x, y, style);
         }
@@ -751,12 +753,13 @@ fn draw_battlefield(
                 for (line_index, line) in lines.iter().enumerate() {
                     let line_width = line.chars().count() as i32;
                     let start_x = center_x as i32 - line_width / 2 + acting_offset + row_offset;
+                    let start_x = start_x.clamp(0, max_x);
                     let start_y = center_y as i32 - art_height / 2 + line_index as i32;
                     place_text(&mut cells, line, start_x, start_y, art_style);
                 }
             }
         } else {
-            let x = center_x as i32 + acting_offset + row_offset;
+            let x = (center_x as i32 + acting_offset + row_offset).clamp(0, max_x);
             let y = center_y as i32;
             place_glyph(&mut cells, member.glyph, x, y, style);
         }

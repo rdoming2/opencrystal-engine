@@ -51,7 +51,7 @@ pub fn build_battle_render_state(
     let show_mp = runtime.content.rules.game.magic_system == engine::rules::MagicSystem::Mp;
     let row_rules = &runtime.content.rules.battle.rows;
     let row_shift = if row_rules.enabled {
-        row_rules.battle_shift.max(0).min(1) as i32
+        row_rules.battle_shift.max(0) as i32
     } else {
         0
     };
