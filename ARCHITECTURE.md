@@ -231,8 +231,8 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
 - Menu is modal and pauses overworld updates.
 - Menu entries are optional and can be gated by rules `systems` toggles and optional
   unlock flags (e.g., Summons, Materia, Job Change, Journal, Save).
-- Party submenu allows swapping active and reserve members when the current map allows saving; row
-  selection is shown when battle row rules are enabled.
+- Party submenu exposes actions per member (reorder, swap with reserve, switch row). Swap actions are
+  gated by save-allowed maps; row selection is shown when battle row rules are enabled.
 - Custom status/progress panels are handled via configurable menu panels in `ui/menu.json`.
 - Magic Equip is an optional submenu for equipping spell-granting items.
 

@@ -51,7 +51,7 @@ pub fn build_battle_render_state(
     let show_mp = runtime.content.rules.game.magic_system == engine::rules::MagicSystem::Mp;
     let row_rules = &runtime.content.rules.battle.rows;
     let row_shift = if row_rules.enabled {
-        row_rules.battle_shift.max(0) as i32
+        row_rules.battle_shift.max(0).min(1) as i32
     } else {
         0
     };
@@ -103,12 +103,11 @@ pub fn build_battle_render_state(
                 palette,
                 art,
                 art_palette,
-                pos: {
-                    let mut pos = *party_positions.get(index).unwrap_or(&(8, 4));
-                    if row_rules.enabled && actor.row == BattleRow::Back && row_shift > 0 {
-                        pos.0 = (pos.0 + row_shift).min(9);
-                    }
-                    pos
+                pos: *party_positions.get(index).unwrap_or(&(8, 4)),
+                row_offset: if row_rules.enabled && actor.row == BattleRow::Back {
+                    row_shift
+                } else {
+                    0
                 },
             }
         })

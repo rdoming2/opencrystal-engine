@@ -42,6 +42,7 @@ pub struct BattlePartyView {
     pub art: Option<Vec<String>>,
     pub art_palette: Option<String>,
     pub pos: (i32, i32),
+    pub row_offset: i32,
 }
 
 #[derive(Clone, Debug)]
@@ -719,6 +720,7 @@ fn draw_battlefield(
         } else {
             0
         };
+        let row_offset = member.row_offset;
         let selected = matches!(state.focus, BattleFocus::Party) && index == state.selected_party;
         let flashing = state.flash_party.contains(&index);
         let mut style = palette_style(state.use_color, member.palette.as_deref());
@@ -748,13 +750,13 @@ fn draw_battlefield(
                 let art_height = lines.len() as i32;
                 for (line_index, line) in lines.iter().enumerate() {
                     let line_width = line.chars().count() as i32;
-                    let start_x = center_x as i32 - line_width / 2 + acting_offset;
+                    let start_x = center_x as i32 - line_width / 2 + acting_offset + row_offset;
                     let start_y = center_y as i32 - art_height / 2 + line_index as i32;
                     place_text(&mut cells, line, start_x, start_y, art_style);
                 }
             }
         } else {
-            let x = center_x as i32 + acting_offset;
+            let x = center_x as i32 + acting_offset + row_offset;
             let y = center_y as i32;
             place_glyph(&mut cells, member.glyph, x, y, style);
         }

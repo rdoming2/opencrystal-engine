@@ -52,7 +52,9 @@ use self::magic_equip::{
     build_magic_equip_panel, magic_equip_entries_for_menu, magic_equip_slot_for_menu,
     magic_equip_slots_for_menu,
 };
-use self::party::{build_party_panel, party_menu_entries};
+use self::party::{
+    build_party_panel, party_actions, party_list_entries, party_member_id, PartyActionId, PartyList,
+};
 use self::status::build_status_panel;
 
 pub fn run_menu_loop(
@@ -176,7 +178,11 @@ pub fn run_menu_loop(
                             runtime.menu_state.detail_selection -= 1;
                         }
                     } else if submenu_action == "party" {
-                        if runtime.menu_state.detail_selection > 0 {
+                        if runtime.menu_state.detail_page == 0 {
+                            if runtime.menu_state.detail_selection > 0 {
+                                runtime.menu_state.detail_selection -= 1;
+                            }
+                        } else if runtime.menu_state.detail_selection > 0 {
                             runtime.menu_state.detail_selection -= 1;
                         }
                     } else if submenu_action == "magic_equip" {
@@ -275,14 +281,41 @@ pub fn run_menu_loop(
                             runtime.menu_state.detail_selection += 1;
                         }
                     } else if submenu_action == "party" {
-                        let (active, reserve) = party_menu_entries(runtime);
-                        let limit = if runtime.menu_state.detail_page == 0 {
-                            active.len()
-                        } else {
-                            reserve.len()
-                        };
-                        if runtime.menu_state.detail_selection + 1 < limit {
-                            runtime.menu_state.detail_selection += 1;
+                        if runtime.menu_state.detail_page == 0 {
+                            let list = if runtime.menu_state.detail_target == 0 {
+                                PartyList::Active
+                            } else {
+                                PartyList::Reserve
+                            };
+                            let entries = party_list_entries(runtime, list);
+                            if runtime.menu_state.detail_selection + 1 < entries.len() {
+                                runtime.menu_state.detail_selection += 1;
+                            }
+                        } else if runtime.menu_state.detail_page == 1 {
+                            let list = if runtime.menu_state.detail_target == 0 {
+                                PartyList::Active
+                            } else {
+                                PartyList::Reserve
+                            };
+                            let member_index = runtime.menu_state.detail_slot;
+                            if member_index == usize::MAX {
+                                continue;
+                            }
+                            let swap_allowed = map_save_allowed(runtime, map_id, player_pos);
+                            let actions = party_actions(runtime, list, member_index, swap_allowed);
+                            if runtime.menu_state.detail_selection + 1 < actions.len() {
+                                runtime.menu_state.detail_selection += 1;
+                            }
+                        } else if runtime.menu_state.detail_page == 2 {
+                            let list = if runtime.menu_state.detail_target == 0 {
+                                PartyList::Active
+                            } else {
+                                PartyList::Reserve
+                            };
+                            let target_entries = party_list_entries(runtime, list.toggle());
+                            if runtime.menu_state.detail_selection + 1 < target_entries.len() {
+                                runtime.menu_state.detail_selection += 1;
+                            }
                         }
                     } else if submenu_action == "magic_equip" {
                         let limit = if runtime.menu_state.detail_page == 0 {
@@ -372,6 +405,7 @@ pub fn run_menu_loop(
                                         runtime.menu_state.detail_page = 0;
                                         runtime.menu_state.detail_selection = 0;
                                         runtime.menu_state.detail_slot = usize::MAX;
+                                        runtime.menu_state.detail_target = 0;
                                     }
                                     "journal" => {
                                         runtime.menu_state.focus = MenuFocus::Detail;
@@ -568,43 +602,118 @@ pub fn run_menu_loop(
                         }
                     } else if submenu_action == "party" {
                         let swap_allowed = map_save_allowed(runtime, map_id, player_pos);
-                        let (active_entries, reserve_entries) = party_menu_entries(runtime);
+                        let list = if runtime.menu_state.detail_target == 0 {
+                            PartyList::Active
+                        } else {
+                            PartyList::Reserve
+                        };
                         if runtime.menu_state.detail_page == 0 {
-                            if !swap_allowed
-                                || reserve_entries.is_empty()
-                                || active_entries.is_empty()
-                            {
+                            let entries = party_list_entries(runtime, list);
+                            if entries.is_empty() {
                                 continue;
                             }
                             let selection = runtime
                                 .menu_state
                                 .detail_selection
-                                .min(active_entries.len().saturating_sub(1));
+                                .min(entries.len().saturating_sub(1));
                             runtime.menu_state.detail_slot = selection;
                             runtime.menu_state.detail_page = 1;
                             runtime.menu_state.detail_selection = 0;
-                        } else {
+                        } else if runtime.menu_state.detail_page == 1 {
+                            let member_index = runtime.menu_state.detail_slot;
+                            if member_index == usize::MAX {
+                                continue;
+                            }
+                            let actions = party_actions(runtime, list, member_index, swap_allowed);
+                            let Some(action) = actions.get(runtime.menu_state.detail_selection)
+                            else {
+                                continue;
+                            };
+                            if !action.enabled {
+                                continue;
+                            }
+                            match action.id {
+                                PartyActionId::MoveUp => {
+                                    if list == PartyList::Active && member_index > 0 {
+                                        runtime.party.active.swap(member_index, member_index - 1);
+                                        runtime.menu_state.detail_page = 0;
+                                        runtime.menu_state.detail_selection = member_index - 1;
+                                        runtime.menu_state.detail_slot = usize::MAX;
+                                    }
+                                }
+                                PartyActionId::MoveDown => {
+                                    if list == PartyList::Active
+                                        && member_index + 1 < runtime.party.active.len()
+                                    {
+                                        runtime.party.active.swap(member_index, member_index + 1);
+                                        runtime.menu_state.detail_page = 0;
+                                        runtime.menu_state.detail_selection = member_index + 1;
+                                        runtime.menu_state.detail_slot = usize::MAX;
+                                    }
+                                }
+                                PartyActionId::Swap => {
+                                    if swap_allowed {
+                                        runtime.menu_state.detail_page = 2;
+                                        runtime.menu_state.detail_selection = 0;
+                                    }
+                                }
+                                PartyActionId::ToggleRow => {
+                                    if let Some(actor_id) =
+                                        party_member_id(runtime, list, member_index)
+                                    {
+                                        if let Some(actor) = runtime.party.roster.get_mut(&actor_id)
+                                        {
+                                            engine::party::toggle_actor_row(actor);
+                                        }
+                                    }
+                                    runtime.menu_state.detail_page = 0;
+                                    runtime.menu_state.detail_selection = member_index;
+                                    runtime.menu_state.detail_slot = usize::MAX;
+                                }
+                            }
+                        } else if runtime.menu_state.detail_page == 2 {
                             if !swap_allowed {
                                 continue;
                             }
-                            let active_index = runtime.menu_state.detail_slot;
-                            if active_index == usize::MAX {
+                            let member_index = runtime.menu_state.detail_slot;
+                            if member_index == usize::MAX {
                                 continue;
                             }
-                            if active_index >= runtime.party.active.len()
-                                || runtime.menu_state.detail_selection
-                                    >= runtime.party.reserve.len()
-                            {
+                            let target_entries = party_list_entries(runtime, list.toggle());
+                            if target_entries.is_empty() {
                                 continue;
                             }
-                            let reserve_index = runtime.menu_state.detail_selection;
-                            let reserve_id = runtime.party.reserve[reserve_index].clone();
-                            let active_id = runtime.party.active[active_index].clone();
-                            runtime.party.active[active_index] = reserve_id;
-                            runtime.party.reserve[reserve_index] = active_id;
+                            let target_index = runtime
+                                .menu_state
+                                .detail_selection
+                                .min(target_entries.len().saturating_sub(1));
+                            match list {
+                                PartyList::Active => {
+                                    if member_index < runtime.party.active.len()
+                                        && target_index < runtime.party.reserve.len()
+                                    {
+                                        let reserve_id =
+                                            runtime.party.reserve[target_index].clone();
+                                        let active_id = runtime.party.active[member_index].clone();
+                                        runtime.party.active[member_index] = reserve_id;
+                                        runtime.party.reserve[target_index] = active_id;
+                                    }
+                                }
+                                PartyList::Reserve => {
+                                    if member_index < runtime.party.reserve.len()
+                                        && target_index < runtime.party.active.len()
+                                    {
+                                        let active_id = runtime.party.active[target_index].clone();
+                                        let reserve_id =
+                                            runtime.party.reserve[member_index].clone();
+                                        runtime.party.active[target_index] = reserve_id;
+                                        runtime.party.reserve[member_index] = active_id;
+                                    }
+                                }
+                            }
                             runtime.menu_state.detail_page = 0;
-                            runtime.menu_state.detail_selection =
-                                active_index.min(runtime.party.active.len().saturating_sub(1));
+                            runtime.menu_state.detail_selection = member_index
+                                .min(party_list_entries(runtime, list).len().saturating_sub(1));
                             runtime.menu_state.detail_slot = usize::MAX;
                         }
                     } else if submenu_action == "magic_equip" {
@@ -690,6 +799,9 @@ pub fn run_menu_loop(
                         } else if submenu_action == "items" && runtime.menu_state.detail_page == 1 {
                             runtime.menu_state.detail_page = 0;
                             runtime.menu_state.detail_target = 0;
+                        } else if submenu_action == "party" && runtime.menu_state.detail_page == 2 {
+                            runtime.menu_state.detail_page = 1;
+                            runtime.menu_state.detail_selection = 0;
                         } else if submenu_action == "party" && runtime.menu_state.detail_page == 1 {
                             runtime.menu_state.detail_page = 0;
                             if runtime.menu_state.detail_slot != usize::MAX {
@@ -758,24 +870,23 @@ pub fn run_menu_loop(
                             runtime.menu_state.detail_selection = 0;
                         }
                     } else if matches!(focus, MenuPane::Detail) && submenu_action == "party" {
-                        let direction = if matches!(action, Action::MoveRight) {
-                            1
-                        } else {
-                            -1
-                        };
-                        let target_page = if direction > 0 { 1 } else { 0 };
-                        if runtime.menu_state.detail_page != target_page {
-                            runtime.menu_state.detail_page = target_page;
-                            let (active, reserve) = party_menu_entries(runtime);
-                            let limit = if target_page == 0 {
-                                active.len()
+                        if runtime.menu_state.detail_page == 0 {
+                            runtime.menu_state.detail_target =
+                                if matches!(action, Action::MoveRight) {
+                                    1
+                                } else {
+                                    0
+                                };
+                            let list = if runtime.menu_state.detail_target == 0 {
+                                PartyList::Active
                             } else {
-                                reserve.len()
+                                PartyList::Reserve
                             };
-                            if limit == 0 {
+                            let entries = party_list_entries(runtime, list);
+                            if entries.is_empty() {
                                 runtime.menu_state.detail_selection = 0;
-                            } else if runtime.menu_state.detail_selection >= limit {
-                                runtime.menu_state.detail_selection = limit - 1;
+                            } else if runtime.menu_state.detail_selection >= entries.len() {
+                                runtime.menu_state.detail_selection = entries.len() - 1;
                             }
                         }
                     } else if matches!(focus, MenuPane::Detail) && submenu_action == "magic_equip" {
@@ -870,17 +981,6 @@ pub fn run_menu_loop(
                     {
                         runtime.menu_state.detail_sort =
                             toggle_sort_index(runtime.menu_state.detail_sort);
-                    } else if matches!(focus, MenuPane::Detail)
-                        && submenu_action == "party"
-                        && runtime.content.rules.battle.rows.enabled
-                        && runtime.menu_state.detail_page == 0
-                    {
-                        let (active, _) = party_menu_entries(runtime);
-                        if let Some(entry) = active.get(runtime.menu_state.detail_selection) {
-                            if let Some(actor) = runtime.party.roster.get_mut(&entry.id) {
-                                engine::party::toggle_actor_row(actor);
-                            }
-                        }
                     }
                 }
                 Action::Learn => {
@@ -997,7 +1097,12 @@ fn menu_detail_panel(
         return build_abilities_panel(runtime);
     }
     if action == "party" {
-        let pending_active = if runtime.menu_state.detail_slot == usize::MAX {
+        let list = if runtime.menu_state.detail_target == 0 {
+            PartyList::Active
+        } else {
+            PartyList::Reserve
+        };
+        let selected_member = if runtime.menu_state.detail_slot == usize::MAX {
             None
         } else {
             Some(runtime.menu_state.detail_slot)
@@ -1005,9 +1110,11 @@ fn menu_detail_panel(
         let swap_allowed = map_save_allowed(runtime, &runtime.world.map_id, runtime.world.position);
         return build_party_panel(
             runtime,
+            list,
             runtime.menu_state.detail_page,
             runtime.menu_state.detail_selection,
-            pending_active,
+            runtime.menu_state.detail_selection,
+            selected_member,
             swap_allowed,
         );
     }
@@ -1118,7 +1225,15 @@ fn menu_footer_text(focus: MenuPane, submenu: &str, page: usize) -> &'static str
                     "Left/Right: steps  Cancel: back"
                 }
             }
-            "party" => "Confirm: swap  Left/Right: list  Pause: row  Cancel: back",
+            "party" => {
+                if page == 0 {
+                    "Confirm: actions  Left/Right: list  Cancel: back"
+                } else if page == 1 {
+                    "Confirm: apply  Cancel: back"
+                } else {
+                    "Confirm: swap  Cancel: back"
+                }
+            }
             "jobs" => {
                 if page == 0 {
                     "Confirm: select  Left/Right: actor  Cancel: back"
