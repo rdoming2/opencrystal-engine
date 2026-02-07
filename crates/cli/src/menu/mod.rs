@@ -7,6 +7,7 @@ pub mod journal;
 pub mod magic;
 pub mod magic_equip;
 pub mod party;
+pub mod settings;
 pub mod status;
 
 use std::path::{Path, PathBuf};
@@ -54,6 +55,9 @@ use self::magic_equip::{
 };
 use self::party::{
     build_party_panel, party_actions, party_list_entries, party_member_id, PartyActionId, PartyList,
+};
+use self::settings::{
+    adjust_settings, apply_settings_confirm, build_settings_panel, settings_entry_count,
 };
 use self::status::build_status_panel;
 
@@ -204,6 +208,10 @@ pub fn run_menu_loop(
                                 runtime.menu_state.detail_target -= 1;
                             }
                         }
+                    } else if submenu_action == "settings" {
+                        if runtime.menu_state.detail_selection > 0 {
+                            runtime.menu_state.detail_selection -= 1;
+                        }
                     }
                 }
                 Action::MoveDown => {
@@ -346,6 +354,11 @@ pub fn run_menu_loop(
                                 runtime.menu_state.detail_target += 1;
                             }
                         }
+                    } else if submenu_action == "settings" {
+                        let limit = settings_entry_count(runtime);
+                        if runtime.menu_state.detail_selection + 1 < limit {
+                            runtime.menu_state.detail_selection += 1;
+                        }
                     }
                 }
                 Action::Confirm => {
@@ -425,6 +438,13 @@ pub fn run_menu_loop(
                                             first_selectable_save_slot(&slots).unwrap_or(0);
                                         save_message = None;
                                     }
+                                    "settings" => {
+                                        runtime.menu_state.focus = MenuFocus::Detail;
+                                        runtime.menu_state.active_submenu =
+                                            Some(entry.action.clone());
+                                        runtime.menu_state.detail_page = 0;
+                                        runtime.menu_state.detail_selection = 0;
+                                    }
                                     "jobs" => {
                                         runtime.menu_state.focus = MenuFocus::Detail;
                                         runtime.menu_state.active_submenu =
@@ -445,6 +465,8 @@ pub fn run_menu_loop(
                                 apply_secondary_change(runtime);
                             }
                         }
+                    } else if submenu_action == "settings" {
+                        apply_settings_confirm(runtime, runtime.menu_state.detail_selection);
                     } else if submenu_action == "save" {
                         let slots = build_save_slots(runtime, save_dir);
                         if let Some(slot) = slots.get(runtime.menu_state.detail_selection) {
@@ -863,6 +885,13 @@ pub fn run_menu_loop(
                         } else {
                             0
                         };
+                    } else if matches!(focus, MenuPane::Detail) && submenu_action == "settings" {
+                        let direction = if matches!(action, Action::MoveRight) {
+                            1
+                        } else {
+                            -1
+                        };
+                        adjust_settings(runtime, runtime.menu_state.detail_selection, direction);
                     } else if matches!(focus, MenuPane::Detail) && submenu_action == "items" {
                         if runtime.menu_state.detail_page == 0 {
                             runtime.menu_state.detail_filter =
@@ -1147,6 +1176,9 @@ fn menu_detail_panel(
             lines,
         };
     }
+    if action == "settings" {
+        return build_settings_panel(runtime, runtime.menu_state.detail_selection);
+    }
     if action == "save" {
         return build_save_panel(runtime, save_dir, save_message);
     }
@@ -1199,6 +1231,7 @@ fn menu_footer_text(focus: MenuPane, submenu: &str, page: usize) -> &'static str
                     "Left/Right: summary  Cancel: back"
                 }
             }
+            "settings" => "Confirm: toggle  Left/Right: adjust  Cancel: back",
             "items" => {
                 if page == 0 {
                     "Confirm: use  Left/Right: filter  Pause: sort  Cancel: back"
@@ -1365,7 +1398,7 @@ fn render_save_slot_line(
 
 fn build_save_slots(runtime: &GameRuntime, save_dir: &Path) -> Vec<SaveSlotEntry> {
     let mut slots = Vec::new();
-    if runtime.content.rules.save.autosave_enabled {
+    if runtime.effective_autosave_enabled() {
         slots.push(build_save_slot_entry(save_dir, 0, "Autosave", false));
     }
     let max_slots = runtime.content.rules.save.slots_max.max(1) as u8;

@@ -237,6 +237,8 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
   gated by save-allowed maps; row selection is shown when battle row rules are enabled.
 - Custom status/progress panels are handled via configurable menu panels in `ui/menu.json`.
 - Magic Equip is an optional submenu for equipping spell-granting items.
+- Settings submenu exposes user options (autosave, readiness speed, battle mode) that can
+  be hidden or locked via `rules.json` `settings` definitions.
 
 ### Journal system
 
@@ -365,8 +367,24 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
     "materia": false
   },
   "save": {
-    "slots_max": 10,
-    "autosave_enabled": false
+    "slots_max": 10
+  },
+  "settings": {
+    "autosave_enabled": {"value": true, "visible": true, "editable": true},
+    "readiness_speed": {
+      "value": 2.5,
+      "min": 0.5,
+      "max": 5.0,
+      "step": 0.5,
+      "visible": true,
+      "editable": true
+    },
+    "battle_mode": {
+      "value": "dynamic_wait",
+      "options": ["dynamic_wait", "dynamic"],
+      "visible": true,
+      "editable": true
+    }
   },
   "job_system": {
     "progression_mode": "job",

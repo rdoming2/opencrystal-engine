@@ -531,7 +531,7 @@ fn run_load_flow(
 
 fn build_load_slots(runtime: &GameRuntime, save_dir: &PathBuf) -> Vec<LoadSlotEntry> {
     let mut slots = Vec::new();
-    if runtime.content.rules.save.autosave_enabled {
+    if runtime.effective_autosave_enabled() {
         if let Some(entry) = build_load_slot_entry(runtime, save_dir, 0, "Autosave") {
             slots.push(entry);
         } else {

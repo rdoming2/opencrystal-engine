@@ -101,6 +101,27 @@ pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
         if rules.save.slots_max == 0 {
             errors.push("rules.json: save.slots_max must be > 0".to_string());
         }
+        if let Some(readiness) = rules.settings.readiness_speed.as_ref() {
+            if readiness.step <= 0.0 {
+                errors.push("rules.json: settings.readiness_speed.step must be > 0".to_string());
+            }
+            if readiness.min > readiness.max {
+                errors.push("rules.json: settings.readiness_speed.min must be <= max".to_string());
+            }
+            if readiness.value < readiness.min || readiness.value > readiness.max {
+                errors.push(
+                    "rules.json: settings.readiness_speed.value must be within min/max".to_string(),
+                );
+            }
+        }
+        if let Some(battle_mode) = rules.settings.battle_mode.as_ref() {
+            if !battle_mode.options.is_empty() && !battle_mode.options.contains(&battle_mode.value)
+            {
+                errors.push(
+                    "rules.json: settings.battle_mode.value must be listed in options".to_string(),
+                );
+            }
+        }
         if rules.game.magic_acquisition == crate::rules::MagicAcquisition::Jp
             && rules.job_system.progression_mode != crate::rules::JobProgressionMode::JobPoints
         {

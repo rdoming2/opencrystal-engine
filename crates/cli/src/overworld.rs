@@ -265,7 +265,7 @@ pub fn run_overworld_loop(
         }
 
         if transitioned {
-            if runtime.content.rules.save.autosave_enabled {
+            if runtime.effective_autosave_enabled() {
                 if let Err(err) = write_autosave(runtime, save_dir) {
                     eprintln!("Failed to autosave: {}", err);
                 }

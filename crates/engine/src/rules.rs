@@ -21,6 +21,8 @@ pub struct RulesFile {
     pub systems: HashMap<String, bool>,
     #[serde(default)]
     pub save: SaveRules,
+    #[serde(default)]
+    pub settings: SettingsRules,
     pub render: RenderRules,
     pub stats: StatsRules,
     pub job_system: JobSystemRules,
@@ -149,8 +151,51 @@ pub struct Ruleset {
 pub struct SaveRules {
     #[serde(default = "default_save_slots_max")]
     pub slots_max: u32,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct SettingsRules {
     #[serde(default)]
-    pub autosave_enabled: bool,
+    pub autosave_enabled: Option<ToggleSetting>,
+    #[serde(default)]
+    pub readiness_speed: Option<RangeSetting>,
+    #[serde(default)]
+    pub battle_mode: Option<ChoiceSetting<BattleMode>>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct ToggleSetting {
+    pub value: bool,
+    #[serde(default = "default_setting_visible")]
+    pub visible: bool,
+    #[serde(default = "default_setting_editable")]
+    pub editable: bool,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct RangeSetting {
+    pub value: f32,
+    #[serde(default = "default_readiness_speed_min")]
+    pub min: f32,
+    #[serde(default = "default_readiness_speed_max")]
+    pub max: f32,
+    #[serde(default = "default_readiness_speed_step")]
+    pub step: f32,
+    #[serde(default = "default_setting_visible")]
+    pub visible: bool,
+    #[serde(default = "default_setting_editable")]
+    pub editable: bool,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct ChoiceSetting<T> {
+    pub value: T,
+    #[serde(default)]
+    pub options: Vec<T>,
+    #[serde(default = "default_setting_visible")]
+    pub visible: bool,
+    #[serde(default = "default_setting_editable")]
+    pub editable: bool,
 }
 
 impl Ruleset {
@@ -216,12 +261,18 @@ impl RulesFile {
     }
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum BattleMode {
     Turn,
     DynamicWait,
     Dynamic,
+}
+
+impl Default for BattleMode {
+    fn default() -> Self {
+        BattleMode::Turn
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
@@ -294,7 +345,16 @@ impl Default for SaveRules {
     fn default() -> Self {
         Self {
             slots_max: default_save_slots_max(),
-            autosave_enabled: false,
+        }
+    }
+}
+
+impl Default for SettingsRules {
+    fn default() -> Self {
+        Self {
+            autosave_enabled: None,
+            readiness_speed: None,
+            battle_mode: None,
         }
     }
 }
@@ -390,6 +450,30 @@ fn default_inventory_stack() -> i32 {
 
 fn default_readiness_speed() -> f32 {
     2.0
+}
+
+pub const READINESS_SPEED_MIN: f32 = 0.5;
+pub const READINESS_SPEED_MAX: f32 = 5.0;
+pub const READINESS_SPEED_STEP: f32 = 0.5;
+
+fn default_setting_visible() -> bool {
+    true
+}
+
+fn default_setting_editable() -> bool {
+    true
+}
+
+fn default_readiness_speed_min() -> f32 {
+    READINESS_SPEED_MIN
+}
+
+fn default_readiness_speed_max() -> f32 {
+    READINESS_SPEED_MAX
+}
+
+fn default_readiness_speed_step() -> f32 {
+    READINESS_SPEED_STEP
 }
 
 fn default_battle_global_commands() -> Vec<String> {

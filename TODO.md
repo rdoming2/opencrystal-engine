@@ -97,7 +97,7 @@
 - [x] Define elemental affinities and trait interactions.
 - [x] Define skills/abilities schema (non-spell actions).
 - [x] Add ability costs (hp/mp/currency/item/death/random).
-- [ ] Add readiness speed setting to main menu.
+- [x] Add readiness speed setting to main menu.
 - [ ] Add localization support for UI strings and command labels.
 
 ## Magic System

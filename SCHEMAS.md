@@ -64,9 +64,13 @@ unless using a ranged weapon category and reduces incoming physical damage.
 `systems` toggles whether a gameplay system/menu is enabled at all. It should be
 used for global availability (e.g., disabling magic equip). Menu entries can still
 add `unlock_flag` gating for progression-driven unlocks.
+`settings` configures user-facing settings. Each setting can be hidden
+(`visible: false`), locked (`editable: false`), or provide allowed values. For
+`readiness_speed`, `min`, `max`, and `step` define the enforced range; for
+`battle_mode`, `options` lists the allowed choices (leave empty to lock to `value`).
 `game.description` and `game.author` are optional metadata used for content selection screens.
 Tier charges are defined within each job's `magic_slots`; `magic_system` `tier_charges` uses those definitions per actor.
-`save` configures slot count and autosave behavior. `slots_max` counts manual slots
+`save` configures slot count. `slots_max` counts manual slots
 only; autosave uses slot 0 and never reduces the manual slot total.
 
 ```json
@@ -143,8 +147,24 @@ only; autosave uses slot 0 and never reduces the manual slot total.
     "materia": false
   },
   "save": {
-    "slots_max": 10,
-    "autosave_enabled": false
+    "slots_max": 10
+  },
+  "settings": {
+    "autosave_enabled": {"value": true, "visible": true, "editable": true},
+    "readiness_speed": {
+      "value": 2.5,
+      "min": 0.5,
+      "max": 5.0,
+      "step": 0.5,
+      "visible": true,
+      "editable": true
+    },
+    "battle_mode": {
+      "value": "dynamic_wait",
+      "options": ["dynamic_wait", "dynamic"],
+      "visible": true,
+      "editable": true
+    }
   },
   "job_system": {
     "progression_mode": "job",
@@ -1517,6 +1537,9 @@ functions: `RAND(min,max)` (inclusive, float), `ROUND(value)` (nearest int), `FL
 Save data captures the full runtime state. This format is stored as JSON in phase 1.
 `timestamp_seconds` is a UNIX epoch timestamp (UTC) for the save creation time.
 
+`settings` stores user-configurable settings captured at save time. Rules overrides
+are still applied when loading.
+
 Vehicle fields:
 
 - `world.vehicle`: active vehicle id or null when on foot.
@@ -1590,6 +1613,11 @@ Vehicle fields:
     "currency": {"id": "gil", "amount": 250},
     "items": [{"id": "potion", "qty": 3}],
     "equipment": [{"id": "bronze_sword", "qty": 1}]
+  },
+  "settings": {
+    "autosave_enabled": true,
+    "readiness_speed": 2.5,
+    "battle_mode": "dynamic_wait"
   },
   "flags": {
     "world": {

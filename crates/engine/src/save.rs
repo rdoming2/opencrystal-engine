@@ -18,6 +18,8 @@ pub struct SaveFile {
     pub map_states: HashMap<String, MapState>,
     #[serde(default)]
     pub vehicles: HashMap<String, SaveVehicleState>,
+    #[serde(default)]
+    pub settings: Option<crate::runtime::SettingsState>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -126,6 +128,7 @@ impl SaveFile {
                     )
                 })
                 .collect(),
+            settings: Some(runtime.settings.clone()),
         }
     }
 
@@ -161,6 +164,10 @@ impl SaveFile {
         runtime.vehicle_slow_mode = false;
         runtime.party = self.party.to_party();
         runtime.inventory = self.inventory.to_inventory();
+        runtime.settings = self
+            .settings
+            .clone()
+            .unwrap_or_else(|| crate::runtime::SettingsState::from_rules(&runtime.content.rules));
         runtime.playtime = self.metadata.play_time_seconds;
         runtime.start_time = std::time::Instant::now();
     }

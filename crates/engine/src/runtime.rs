@@ -6,6 +6,7 @@ use crate::menu::{MenuFocus, MenuState};
 use crate::party::{reset_magic_tier_charges, PartyState};
 use crate::rules::Ruleset;
 use crate::world::WorldState;
+use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::time::Instant;
 
@@ -35,6 +36,7 @@ pub struct GameRuntime {
     pub active_vehicle: Option<String>,
     pub vehicle_positions: HashMap<String, VehiclePosition>,
     pub vehicle_slow_mode: bool,
+    pub settings: SettingsState,
     pub playtime: u64,
     pub start_time: Instant,
 }
@@ -52,10 +54,46 @@ pub struct LastOverworld {
     pub pos: (i32, i32),
 }
 
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct SettingsState {
+    pub autosave_enabled: bool,
+    pub readiness_speed: f32,
+    pub battle_mode: crate::rules::BattleMode,
+}
+
+impl SettingsState {
+    pub fn from_rules(rules: &crate::rules::RulesFile) -> Self {
+        let autosave = rules
+            .settings
+            .autosave_enabled
+            .as_ref()
+            .map(|setting| setting.value)
+            .unwrap_or(false);
+        let readiness = rules
+            .settings
+            .readiness_speed
+            .as_ref()
+            .map(|setting| setting.value)
+            .unwrap_or(rules.game.readiness_speed);
+        let battle_mode = rules
+            .settings
+            .battle_mode
+            .as_ref()
+            .map(|setting| setting.value.clone())
+            .unwrap_or(rules.game.battle_mode.clone());
+        Self {
+            autosave_enabled: autosave,
+            readiness_speed: readiness,
+            battle_mode,
+        }
+    }
+}
+
 impl GameRuntime {
     pub fn new(content: Content) -> Self {
         let start_location = content.rules.game.start_location.clone();
         let vehicle_positions = initial_vehicle_positions(&content);
+        let settings = SettingsState::from_rules(&content.rules);
         Self {
             content,
             state: GameState::Title,
@@ -76,6 +114,7 @@ impl GameRuntime {
             active_vehicle: None,
             vehicle_positions,
             vehicle_slow_mode: false,
+            settings,
             playtime: 0,
             start_time: Instant::now(),
         }
@@ -101,6 +140,88 @@ impl GameRuntime {
         self.menu_state.detail_actor = 0;
         self.menu_state.detail_slot = 0;
         self.menu_state.detail_target = 0;
+    }
+
+    pub fn effective_autosave_enabled(&self) -> bool {
+        let setting = self.autosave_setting();
+        if !setting.editable {
+            setting.value
+        } else {
+            self.settings.autosave_enabled
+        }
+    }
+
+    pub fn effective_readiness_speed(&self) -> f32 {
+        let setting = self.readiness_setting();
+        let mut value = if setting.editable {
+            self.settings.readiness_speed
+        } else {
+            setting.value
+        };
+        value = value.clamp(setting.min, setting.max);
+        if setting.step > 0.0 {
+            value = (value / setting.step).round() * setting.step;
+        }
+        value
+    }
+
+    pub fn effective_battle_mode(&self) -> crate::rules::BattleMode {
+        let setting = self.battle_mode_setting();
+        if !setting.editable || setting.options.len() <= 1 {
+            return setting.value;
+        }
+        if setting.options.is_empty() || setting.options.contains(&self.settings.battle_mode) {
+            self.settings.battle_mode.clone()
+        } else {
+            setting.value
+        }
+    }
+
+    pub fn autosave_setting(&self) -> crate::rules::ToggleSetting {
+        self.content
+            .rules
+            .settings
+            .autosave_enabled
+            .clone()
+            .unwrap_or(crate::rules::ToggleSetting {
+                value: false,
+                visible: true,
+                editable: true,
+            })
+    }
+
+    pub fn readiness_setting(&self) -> crate::rules::RangeSetting {
+        self.content
+            .rules
+            .settings
+            .readiness_speed
+            .clone()
+            .unwrap_or(crate::rules::RangeSetting {
+                value: self.content.rules.game.readiness_speed,
+                min: crate::rules::READINESS_SPEED_MIN,
+                max: crate::rules::READINESS_SPEED_MAX,
+                step: crate::rules::READINESS_SPEED_STEP,
+                visible: true,
+                editable: true,
+            })
+    }
+
+    pub fn battle_mode_setting(&self) -> crate::rules::ChoiceSetting<crate::rules::BattleMode> {
+        self.content
+            .rules
+            .settings
+            .battle_mode
+            .clone()
+            .unwrap_or(crate::rules::ChoiceSetting {
+                value: self.content.rules.game.battle_mode.clone(),
+                options: vec![
+                    crate::rules::BattleMode::Turn,
+                    crate::rules::BattleMode::Dynamic,
+                    crate::rules::BattleMode::DynamicWait,
+                ],
+                visible: true,
+                editable: true,
+            })
     }
 
     pub fn set_flag(&mut self, flag: &str) {

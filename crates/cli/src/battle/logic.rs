@@ -172,7 +172,7 @@ pub fn update_readiness(
     delta_seconds: f32,
 ) -> Vec<BattleTurnActor> {
     let mut ready_candidates = Vec::new();
-    let multiplier = runtime.content.rules.game.readiness_speed;
+    let multiplier = runtime.effective_readiness_speed();
 
     // Update Party
     for (index, id) in battle_state.party_order.iter().enumerate() {

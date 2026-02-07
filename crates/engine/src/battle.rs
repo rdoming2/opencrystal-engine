@@ -109,6 +109,7 @@ pub fn build_battle_state(
     content: &Content,
     party: &PartyState,
     formation: &[EncounterMember],
+    battle_mode: crate::rules::BattleMode,
 ) -> BattleState {
     let party_order = party.active.clone();
     let enemies = formation
@@ -123,7 +124,7 @@ pub fn build_battle_state(
         })
         .collect::<Vec<_>>();
 
-    let mode = match content.rules.game.battle_mode {
+    let mode = match battle_mode {
         crate::rules::BattleMode::Turn => BattleMode::Turn,
         crate::rules::BattleMode::Dynamic => BattleMode::Dynamic,
         crate::rules::BattleMode::DynamicWait => BattleMode::DynamicWait,

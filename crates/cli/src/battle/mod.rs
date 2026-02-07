@@ -54,7 +54,12 @@ pub fn run_battle(
     formation: &[engine::encounters::EncounterMember],
     rng: &mut impl Rng,
 ) -> std::io::Result<BattleOutcome> {
-    let mut battle_state = build_battle_state(&runtime.content, &runtime.party, formation);
+    let mut battle_state = build_battle_state(
+        &runtime.content,
+        &runtime.party,
+        formation,
+        runtime.effective_battle_mode(),
+    );
     let Some(start_index) = engine::battle::next_living_party_index(
         &runtime.party,
         &battle_state.party_order,
