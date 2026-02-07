@@ -32,6 +32,8 @@ pub struct BattleMenuState {
     pub paused: bool,
     pub command_id: Option<String>,
     pub defending: HashSet<String>,
+    pub target_side: TargetSide,
+    pub target_mode: TargetMode,
 }
 
 impl BattleMenuState {
@@ -48,6 +50,8 @@ impl BattleMenuState {
             paused: false,
             command_id: None,
             defending: HashSet::new(),
+            target_side: TargetSide::Party,
+            target_mode: TargetMode::Single,
         }
     }
 
@@ -55,11 +59,25 @@ impl BattleMenuState {
         self.phase = BattlePhase::Command;
         self.pending_action = None;
         self.command_id = None;
+        self.target_side = TargetSide::Party;
+        self.target_mode = TargetMode::Single;
     }
 
     pub fn toggle_pause(&mut self) {
         self.paused = !self.paused;
     }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum TargetSide {
+    Enemy,
+    Party,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum TargetMode {
+    Single,
+    Multi,
 }
 
 #[derive(Clone, Copy, Debug)]

@@ -128,6 +128,8 @@ pub fn build_spell_entries(runtime: &GameRuntime) -> Vec<SpellEntry> {
             cost_value: spell.cost.value,
             default_target: spell.default_target.clone(),
             allowed_targets: spell.allowed_targets.clone(),
+            target_mode: spell.target_mode.clone(),
+            multi_attenuation: spell.multi_attenuation,
             effect_type: spell.effect.r#type.clone(),
             effect_power: spell.effect.power,
             usable,
@@ -351,6 +353,8 @@ pub fn build_battle_spell_entries(runtime: &GameRuntime, actor_id: &str) -> Vec<
             cost_value: spell.cost.value,
             default_target: spell.default_target.clone(),
             allowed_targets: spell.allowed_targets.clone(),
+            target_mode: spell.target_mode.clone(),
+            multi_attenuation: spell.multi_attenuation,
             effect_type: spell.effect.r#type.clone(),
             effect_power: spell.effect.power,
             usable,
@@ -409,7 +413,7 @@ pub fn spell_effect_allows_field(effect: &str) -> bool {
 }
 
 pub fn spell_effect_allows_battle(effect: &str) -> bool {
-    matches!(effect, "heal" | "revive" | "damage" | "scan")
+    matches!(effect, "heal" | "revive" | "damage" | "scan" | "status")
 }
 
 fn magic_header_line(runtime: &GameRuntime, actor: &engine::party::Actor) -> MenuPanelLine {

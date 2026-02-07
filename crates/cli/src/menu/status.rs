@@ -26,6 +26,18 @@ pub fn build_status_panel(runtime: &GameRuntime, page: usize) -> Vec<MenuPanelLi
                 let exp_next = exp_for_level(&runtime.content.rules.exp_curve, actor.level + 1)
                     .unwrap_or(actor.exp);
                 let exp_remaining = exp_next.saturating_sub(actor.exp);
+                let status_labels = actor
+                    .statuses
+                    .iter()
+                    .filter_map(|status| {
+                        engine::battle::status_definition(&runtime.content, &status.id)
+                            .map(|definition| definition.label.clone())
+                    })
+                    .collect::<Vec<_>>();
+                let trait_labels = engine::party::actor_traits(&runtime.content, actor)
+                    .iter()
+                    .filter_map(|trait_id| engine::battle::trait_label(&runtime.content, trait_id))
+                    .collect::<Vec<_>>();
                 let status_line = if magic_system == MagicSystem::TierCharges {
                     let mut tiers = Vec::new();
                     for tier in actor_magic_tiers(&runtime.content, actor) {
@@ -60,6 +72,16 @@ pub fn build_status_panel(runtime: &GameRuntime, page: usize) -> Vec<MenuPanelLi
                     "EXP {} (next {})",
                     actor.exp, exp_remaining
                 )));
+                if status_labels.is_empty() {
+                    lines.push(panel_line("Status: None"));
+                } else {
+                    lines.push(panel_line(format!("Status: {}", status_labels.join(", "))));
+                }
+                if trait_labels.is_empty() {
+                    lines.push(panel_line("Traits: None"));
+                } else {
+                    lines.push(panel_line(format!("Traits: {}", trait_labels.join(", "))));
+                }
             } else {
                 lines.push(panel_line(format!("{}  Lv{}", actor.name, actor.level)));
                 lines.push(panel_line(format!("Job: {}", job_name)));

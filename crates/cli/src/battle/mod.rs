@@ -9,8 +9,8 @@ use std::time::{Duration, Instant};
 
 use self::logic::update_readiness;
 use engine::battle::{
-    build_battle_state, collect_rewards, is_enemies_defeated, is_party_defeated, BattleMode,
-    BattleResult, BattleState, LevelUpDiff,
+    apply_turn_start_statuses, build_battle_state, collect_rewards, is_enemies_defeated,
+    is_party_defeated, BattleMode, BattleResult, BattleState, LevelUpDiff,
 };
 use engine::party::gain_exp;
 use engine::rules::{JobProgressionMode, Ruleset};
@@ -30,7 +30,8 @@ use self::render::build_battle_render_state;
 use self::state::{
     enemy_target_indices, ensure_valid_index, party_target_indices, party_target_rule,
     set_initial_enemy_target, set_initial_party_target, step_target_index, BattleMenuState,
-    BattlePhase, BattleTurnActor, BattleTurnState, PendingBattleAction, TargetRule, VictoryState,
+    BattlePhase, BattleTurnActor, BattleTurnState, PendingBattleAction, TargetMode, TargetRule,
+    TargetSide, VictoryState,
 };
 use crate::menu::abilities::{ability_group_available, build_battle_ability_entries};
 use crate::menu::common::{AbilityEntry, InventoryEntry, SpellEntry};
@@ -250,6 +251,40 @@ pub fn run_battle(
                         if last_actor_id.as_deref() != Some(current_id.as_str()) {
                             menu_state.reset_for_actor();
                             last_actor_id = Some(current_id.clone());
+                            if let Some(actor) = runtime.party.roster.get_mut(&current_id) {
+                                let max_hp = actor.derived_stats.get("hp").copied().unwrap_or(0);
+                                let mut turn_result = apply_turn_start_statuses(
+                                    &runtime.content,
+                                    &actor.name,
+                                    max_hp,
+                                    &mut actor.current_hp,
+                                    &mut actor.statuses,
+                                    rng,
+                                );
+                                for message in turn_result.messages.drain(..) {
+                                    push_battle_log(&mut battle_state.log, message);
+                                }
+                                if actor.current_hp <= 0 {
+                                    push_battle_log(
+                                        &mut battle_state.log,
+                                        format!("{} falls!", actor.name),
+                                    );
+                                    advance_turn(
+                                        &mut menu_state,
+                                        &mut turn_state,
+                                        &mut battle_state,
+                                    );
+                                    continue;
+                                }
+                                if !turn_result.can_act {
+                                    advance_turn(
+                                        &mut menu_state,
+                                        &mut turn_state,
+                                        &mut battle_state,
+                                    );
+                                    continue;
+                                }
+                            }
                         }
                         actor_id = current_id;
                     }
@@ -401,9 +436,11 @@ pub fn run_battle(
                                 if !result.level_ups.is_empty() {
                                     victory_state = Some(VictoryState::LevelUp(0));
                                 } else {
+                                    cleanup_party_statuses_after_battle(runtime);
                                     return Ok(BattleOutcome::Victory);
                                 }
                             } else {
+                                cleanup_party_statuses_after_battle(runtime);
                                 return Ok(BattleOutcome::Victory);
                             }
                         }
@@ -412,18 +449,24 @@ pub fn run_battle(
                                 if index + 1 < result.level_ups.len() {
                                     victory_state = Some(VictoryState::LevelUp(index + 1));
                                 } else {
+                                    cleanup_party_statuses_after_battle(runtime);
                                     return Ok(BattleOutcome::Victory);
                                 }
                             } else {
+                                cleanup_party_statuses_after_battle(runtime);
                                 return Ok(BattleOutcome::Victory);
                             }
                         }
-                        None => return Ok(BattleOutcome::Victory),
+                        None => {
+                            cleanup_party_statuses_after_battle(runtime);
+                            return Ok(BattleOutcome::Victory);
+                        }
                     }
                 }
             }
             BattlePhase::Defeat => {
                 if matches!(action, Action::Confirm | Action::Cancel | Action::Menu) {
+                    cleanup_party_statuses_after_battle(runtime);
                     return Ok(BattleOutcome::Defeat);
                 }
             }
@@ -507,6 +550,7 @@ pub fn run_battle(
                         CommandKind::Run => {
                             if rng.r#gen::<f32>() < 0.5 {
                                 push_battle_log(&mut battle_state.log, "Escaped!");
+                                cleanup_party_statuses_after_battle(runtime);
                                 return Ok(BattleOutcome::Escaped);
                             }
                             push_battle_log(&mut battle_state.log, "Escape failed!");
@@ -600,64 +644,38 @@ pub fn run_battle(
                         push_battle_log(&mut battle_state.log, reason);
                         continue;
                     }
-                    match entry.default_target.as_str() {
-                        "enemy" => {
-                            menu_state.phase = BattlePhase::TargetEnemy;
-                            menu_state.pending_action =
-                                Some(PendingBattleAction::Magic(entry.clone()));
-                            if !set_initial_enemy_target(&mut menu_state, &battle_state) {
-                                push_battle_log(&mut battle_state.log, "No valid targets.");
-                                menu_state.reset_for_actor();
-                            }
+                    menu_state.pending_action = Some(PendingBattleAction::Magic(entry.clone()));
+                    let options = target_options_for_magic(entry);
+                    if options.is_empty() {
+                        push_battle_log(&mut battle_state.log, "No valid targets.");
+                        menu_state.reset_for_actor();
+                        continue;
+                    }
+                    let (target_side, target_mode) = select_initial_target_option(
+                        entry.default_target.as_str(),
+                        entry.target_mode.as_str(),
+                        &options,
+                    );
+                    menu_state.target_side = target_side;
+                    menu_state.target_mode = target_mode;
+                    menu_state.phase = match target_side {
+                        TargetSide::Enemy => BattlePhase::TargetEnemy,
+                        TargetSide::Party => BattlePhase::TargetParty,
+                    };
+                    if menu_state.phase == BattlePhase::TargetEnemy {
+                        if !set_initial_enemy_target(&mut menu_state, &battle_state) {
+                            push_battle_log(&mut battle_state.log, "No valid targets.");
+                            menu_state.reset_for_actor();
                         }
-                        "party" => {
-                            execute_magic_action(
-                                runtime,
-                                &mut battle_state,
-                                &actor_id,
-                                entry,
-                                None,
-                                rng,
-                            );
-                            let render_state = build_battle_render_state(
-                                runtime,
-                                &mut battle_state,
-                                &menu_state,
-                                battle_ui,
-                                &command_entries,
-                                &spell_entries,
-                                &ability_entries,
-                                &ability_entries_all,
-                                &item_entries,
-                                false,
-                            );
-                            pause_after_action(
-                                session,
-                                battle_ui,
-                                bindings,
-                                &render_state,
-                                Vec::new(),
-                                vec![battle_state.active_index],
-                                Vec::new(),
-                                (0..battle_state.party_order.len()).collect::<Vec<_>>(),
-                            )?;
-                            advance_turn(&mut menu_state, &mut turn_state, &mut battle_state);
-                        }
-                        _ => {
-                            menu_state.phase = BattlePhase::TargetParty;
-                            menu_state.pending_action =
-                                Some(PendingBattleAction::Magic(entry.clone()));
-                            if let Some(action) = menu_state.pending_action.clone() {
-                                if !set_initial_party_target(
-                                    &mut menu_state,
-                                    &battle_state,
-                                    runtime,
-                                    &action,
-                                ) {
-                                    push_battle_log(&mut battle_state.log, "No valid targets.");
-                                    menu_state.reset_for_actor();
-                                }
-                            }
+                    } else if let Some(action) = menu_state.pending_action.clone() {
+                        if !set_initial_party_target(
+                            &mut menu_state,
+                            &battle_state,
+                            runtime,
+                            &action,
+                        ) {
+                            push_battle_log(&mut battle_state.log, "No valid targets.");
+                            menu_state.reset_for_actor();
                         }
                     }
                 }
@@ -681,66 +699,38 @@ pub fn run_battle(
                     let Some(entry) = ability_entries.get(menu_state.ability_index) else {
                         continue;
                     };
-                    match entry.default_target.as_str() {
-                        "enemy" => {
-                            menu_state.phase = BattlePhase::TargetEnemy;
-                            menu_state.pending_action =
-                                Some(PendingBattleAction::Ability(entry.clone()));
-                            if !set_initial_enemy_target(&mut menu_state, &battle_state) {
-                                push_battle_log(&mut battle_state.log, "No valid targets.");
-                                menu_state.reset_for_actor();
-                            }
+                    menu_state.pending_action = Some(PendingBattleAction::Ability(entry.clone()));
+                    let options = target_options_for_ability(entry);
+                    if options.is_empty() {
+                        push_battle_log(&mut battle_state.log, "No valid targets.");
+                        menu_state.reset_for_actor();
+                        continue;
+                    }
+                    let (target_side, target_mode) = select_initial_target_option(
+                        entry.default_target.as_str(),
+                        entry.target_mode.as_str(),
+                        &options,
+                    );
+                    menu_state.target_side = target_side;
+                    menu_state.target_mode = target_mode;
+                    menu_state.phase = match target_side {
+                        TargetSide::Enemy => BattlePhase::TargetEnemy,
+                        TargetSide::Party => BattlePhase::TargetParty,
+                    };
+                    if menu_state.phase == BattlePhase::TargetEnemy {
+                        if !set_initial_enemy_target(&mut menu_state, &battle_state) {
+                            push_battle_log(&mut battle_state.log, "No valid targets.");
+                            menu_state.reset_for_actor();
                         }
-                        "party" => {
-                            execute_ability_action(
-                                runtime,
-                                &mut battle_state,
-                                &actor_id,
-                                entry,
-                                None,
-                                rng,
-                            );
-                            let render_state = build_battle_render_state(
-                                runtime,
-                                &mut battle_state,
-                                &menu_state,
-                                battle_ui,
-                                &command_entries,
-                                &spell_entries,
-                                &ability_entries,
-                                &ability_entries_all,
-                                &item_entries,
-                                false,
-                            );
-                            let party_indices =
-                                (0..battle_state.party_order.len()).collect::<Vec<_>>();
-                            pause_after_action(
-                                session,
-                                battle_ui,
-                                bindings,
-                                &render_state,
-                                Vec::new(),
-                                vec![battle_state.active_index],
-                                Vec::new(),
-                                party_indices,
-                            )?;
-                            advance_turn(&mut menu_state, &mut turn_state, &mut battle_state);
-                        }
-                        _ => {
-                            menu_state.phase = BattlePhase::TargetParty;
-                            menu_state.pending_action =
-                                Some(PendingBattleAction::Ability(entry.clone()));
-                            if let Some(action) = menu_state.pending_action.clone() {
-                                if !set_initial_party_target(
-                                    &mut menu_state,
-                                    &battle_state,
-                                    runtime,
-                                    &action,
-                                ) {
-                                    push_battle_log(&mut battle_state.log, "No valid targets.");
-                                    menu_state.reset_for_actor();
-                                }
-                            }
+                    } else if let Some(action) = menu_state.pending_action.clone() {
+                        if !set_initial_party_target(
+                            &mut menu_state,
+                            &battle_state,
+                            runtime,
+                            &action,
+                        ) {
+                            push_battle_log(&mut battle_state.log, "No valid targets.");
+                            menu_state.reset_for_actor();
                         }
                     }
                 }
@@ -811,6 +801,8 @@ pub fn run_battle(
                             menu_state.phase = BattlePhase::TargetEnemy;
                             menu_state.pending_action =
                                 Some(PendingBattleAction::Item(item.id.clone()));
+                            menu_state.target_side = TargetSide::Enemy;
+                            menu_state.target_mode = TargetMode::Single;
                             if !set_initial_enemy_target(&mut menu_state, &battle_state) {
                                 push_battle_log(&mut battle_state.log, "No valid targets.");
                                 menu_state.reset_for_actor();
@@ -820,6 +812,8 @@ pub fn run_battle(
                             menu_state.phase = BattlePhase::TargetParty;
                             menu_state.pending_action =
                                 Some(PendingBattleAction::Item(item.id.clone()));
+                            menu_state.target_side = TargetSide::Party;
+                            menu_state.target_mode = TargetMode::Single;
                             if let Some(action) = menu_state.pending_action.clone() {
                                 if !set_initial_party_target(
                                     &mut menu_state,
@@ -844,6 +838,38 @@ pub fn run_battle(
                 Action::MoveDown => {
                     let valid = enemy_target_indices(&battle_state);
                     menu_state.enemy_index = step_target_index(menu_state.enemy_index, &valid, 1);
+                }
+                Action::MoveLeft | Action::MoveRight => {
+                    let direction = if action == Action::MoveLeft { -1 } else { 1 };
+                    if let Some(action) = menu_state.pending_action.as_ref() {
+                        if let Some(option) = step_target_option(
+                            action,
+                            menu_state.target_side,
+                            menu_state.target_mode,
+                            direction,
+                        ) {
+                            menu_state.target_side = option.side;
+                            menu_state.target_mode = option.mode;
+                            menu_state.phase = match option.side {
+                                TargetSide::Enemy => BattlePhase::TargetEnemy,
+                                TargetSide::Party => BattlePhase::TargetParty,
+                            };
+                            if menu_state.phase == BattlePhase::TargetEnemy {
+                                if !set_initial_enemy_target(&mut menu_state, &battle_state) {
+                                    push_battle_log(&mut battle_state.log, "No valid targets.");
+                                }
+                            } else if let Some(action) = menu_state.pending_action.clone() {
+                                if !set_initial_party_target(
+                                    &mut menu_state,
+                                    &battle_state,
+                                    runtime,
+                                    &action,
+                                ) {
+                                    push_battle_log(&mut battle_state.log, "No valid targets.");
+                                }
+                            }
+                        }
+                    }
                 }
                 Action::Cancel | Action::Menu => {
                     menu_state.reset_for_actor();
@@ -896,12 +922,19 @@ pub fn run_battle(
                                 )?;
                             }
                             PendingBattleAction::Magic(entry) => {
+                                let target_index = if menu_state.target_mode == TargetMode::Single {
+                                    Some(menu_state.enemy_index)
+                                } else {
+                                    None
+                                };
                                 execute_magic_action(
                                     runtime,
                                     &mut battle_state,
                                     &actor_id,
                                     &entry,
-                                    Some(menu_state.enemy_index),
+                                    menu_state.target_side,
+                                    menu_state.target_mode,
+                                    target_index,
                                     rng,
                                 );
                                 let render_state = build_battle_render_state(
@@ -928,12 +961,19 @@ pub fn run_battle(
                                 )?;
                             }
                             PendingBattleAction::Ability(entry) => {
+                                let target_index = if menu_state.target_mode == TargetMode::Single {
+                                    Some(menu_state.enemy_index)
+                                } else {
+                                    None
+                                };
                                 execute_ability_action(
                                     runtime,
                                     &mut battle_state,
                                     &actor_id,
                                     &entry,
-                                    Some(menu_state.enemy_index),
+                                    menu_state.target_side,
+                                    menu_state.target_mode,
+                                    target_index,
                                     rng,
                                 );
                                 let render_state = build_battle_render_state(
@@ -1037,6 +1077,38 @@ pub fn run_battle(
                             step_target_index(menu_state.party_index, &valid, 1);
                     }
                 }
+                Action::MoveLeft | Action::MoveRight => {
+                    let direction = if action == Action::MoveLeft { -1 } else { 1 };
+                    if let Some(action) = menu_state.pending_action.as_ref() {
+                        if let Some(option) = step_target_option(
+                            action,
+                            menu_state.target_side,
+                            menu_state.target_mode,
+                            direction,
+                        ) {
+                            menu_state.target_side = option.side;
+                            menu_state.target_mode = option.mode;
+                            menu_state.phase = match option.side {
+                                TargetSide::Enemy => BattlePhase::TargetEnemy,
+                                TargetSide::Party => BattlePhase::TargetParty,
+                            };
+                            if menu_state.phase == BattlePhase::TargetEnemy {
+                                if !set_initial_enemy_target(&mut menu_state, &battle_state) {
+                                    push_battle_log(&mut battle_state.log, "No valid targets.");
+                                }
+                            } else if let Some(action) = menu_state.pending_action.clone() {
+                                if !set_initial_party_target(
+                                    &mut menu_state,
+                                    &battle_state,
+                                    runtime,
+                                    &action,
+                                ) {
+                                    push_battle_log(&mut battle_state.log, "No valid targets.");
+                                }
+                            }
+                        }
+                    }
+                }
                 Action::Cancel | Action::Menu => {
                     menu_state.reset_for_actor();
                 }
@@ -1059,12 +1131,19 @@ pub fn run_battle(
                     menu_state.party_index = target_index;
                     match action {
                         PendingBattleAction::Magic(entry) => {
+                            let target_index = if menu_state.target_mode == TargetMode::Single {
+                                Some(menu_state.party_index)
+                            } else {
+                                None
+                            };
                             execute_magic_action(
                                 runtime,
                                 &mut battle_state,
                                 &actor_id,
                                 &entry,
-                                Some(menu_state.party_index),
+                                menu_state.target_side,
+                                menu_state.target_mode,
+                                target_index,
                                 rng,
                             );
                             let render_state = build_battle_render_state(
@@ -1091,12 +1170,19 @@ pub fn run_battle(
                             )?;
                         }
                         PendingBattleAction::Ability(entry) => {
+                            let target_index = if menu_state.target_mode == TargetMode::Single {
+                                Some(menu_state.party_index)
+                            } else {
+                                None
+                            };
                             execute_ability_action(
                                 runtime,
                                 &mut battle_state,
                                 &actor_id,
                                 &entry,
-                                Some(menu_state.party_index),
+                                menu_state.target_side,
+                                menu_state.target_mode,
+                                target_index,
                                 rng,
                             );
                             let render_state = build_battle_render_state(
@@ -1170,6 +1256,148 @@ pub fn run_battle(
             },
         }
     }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct TargetOption {
+    side: TargetSide,
+    mode: TargetMode,
+}
+
+fn target_options_for_magic(entry: &SpellEntry) -> Vec<TargetOption> {
+    target_options(
+        entry.default_target.as_str(),
+        &entry.allowed_targets,
+        entry.target_mode.as_str(),
+    )
+}
+
+fn target_options_for_ability(entry: &AbilityEntry) -> Vec<TargetOption> {
+    target_options(
+        entry.default_target.as_str(),
+        &entry.allowed_targets,
+        entry.target_mode.as_str(),
+    )
+}
+
+fn target_options_for_action(action: &PendingBattleAction) -> Vec<TargetOption> {
+    match action {
+        PendingBattleAction::Magic(entry) => target_options_for_magic(entry),
+        PendingBattleAction::Ability(entry) => target_options_for_ability(entry),
+        _ => Vec::new(),
+    }
+}
+
+fn target_options(
+    default_target: &str,
+    allowed_targets: &[String],
+    target_mode: &str,
+) -> Vec<TargetOption> {
+    let modes = target_modes_for_value(target_mode);
+    let (allows_enemy, allows_party) = allowed_target_sides(default_target, allowed_targets);
+    let mut party_options = Vec::new();
+    let mut enemy_options = Vec::new();
+
+    if allows_party {
+        for mode in &modes {
+            party_options.push(TargetOption {
+                side: TargetSide::Party,
+                mode: *mode,
+            });
+        }
+    }
+    if allows_enemy {
+        for mode in &modes {
+            enemy_options.push(TargetOption {
+                side: TargetSide::Enemy,
+                mode: *mode,
+            });
+        }
+    }
+
+    if default_target == "enemy" {
+        enemy_options.extend(party_options);
+        enemy_options
+    } else {
+        party_options.extend(enemy_options);
+        party_options
+    }
+}
+
+fn allowed_target_sides(default_target: &str, allowed_targets: &[String]) -> (bool, bool) {
+    if allowed_targets.is_empty() {
+        let allows_enemy = default_target == "enemy";
+        let allows_party = matches!(default_target, "ally" | "party" | "self");
+        return (allows_enemy, allows_party);
+    }
+    let mut allows_enemy = false;
+    let mut allows_party = false;
+    for target in allowed_targets {
+        match target.as_str() {
+            "enemy" => allows_enemy = true,
+            "party" | "ally" | "self" => allows_party = true,
+            _ => {}
+        }
+    }
+    (allows_enemy, allows_party)
+}
+
+fn target_modes_for_value(target_mode: &str) -> Vec<TargetMode> {
+    match target_mode {
+        "multi" => vec![TargetMode::Multi],
+        "both" => vec![TargetMode::Single, TargetMode::Multi],
+        _ => vec![TargetMode::Single],
+    }
+}
+
+fn default_mode_for_value(target_mode: &str) -> TargetMode {
+    if target_mode == "multi" {
+        TargetMode::Multi
+    } else {
+        TargetMode::Single
+    }
+}
+
+fn select_initial_target_option(
+    default_target: &str,
+    target_mode: &str,
+    options: &[TargetOption],
+) -> (TargetSide, TargetMode) {
+    let preferred_side = if default_target == "enemy" {
+        TargetSide::Enemy
+    } else {
+        TargetSide::Party
+    };
+    let preferred_mode = default_mode_for_value(target_mode);
+    options
+        .iter()
+        .find(|option| option.side == preferred_side && option.mode == preferred_mode)
+        .or_else(|| options.first())
+        .map(|option| (option.side, option.mode))
+        .unwrap_or((TargetSide::Party, TargetMode::Single))
+}
+
+fn step_target_option(
+    action: &PendingBattleAction,
+    current_side: TargetSide,
+    current_mode: TargetMode,
+    direction: i32,
+) -> Option<TargetOption> {
+    let options = target_options_for_action(action);
+    if options.is_empty() {
+        return None;
+    }
+    let current_index = options
+        .iter()
+        .position(|option| option.side == current_side && option.mode == current_mode)
+        .unwrap_or(0);
+    let len = options.len();
+    let next_index = if direction >= 0 {
+        (current_index + 1) % len
+    } else {
+        (current_index + len - 1) % len
+    };
+    options.get(next_index).copied()
 }
 
 pub fn try_start_random_battle(
@@ -1380,6 +1608,12 @@ fn wait_for_battle_dialog(
         }
     }
     Ok(())
+}
+
+fn cleanup_party_statuses_after_battle(runtime: &mut GameRuntime) {
+    for actor in runtime.party.roster.values_mut() {
+        engine::battle::retain_statuses_after_battle(&runtime.content, &mut actor.statuses);
+    }
 }
 
 fn apply_battle_rewards(

@@ -1,4 +1,5 @@
-use engine::battle::BattleMode;
+use engine::battle::{apply_turn_start_statuses, damage_multiplier, BattleMode, DamageKind};
+use engine::party::actor_traits;
 use engine::runtime::GameRuntime;
 use rand::seq::SliceRandom;
 use rand::Rng;
@@ -82,6 +83,24 @@ pub fn enemy_take_turn(
     if !enemy.is_alive() {
         return None;
     }
+    let mut turn_result = apply_turn_start_statuses(
+        &runtime.content,
+        &enemy.name,
+        enemy.max_hp(),
+        &mut enemy.current_hp,
+        &mut enemy.statuses,
+        rng,
+    );
+    for message in turn_result.messages.drain(..) {
+        push_battle_log(&mut battle_state.log, message);
+    }
+    if !enemy.is_alive() {
+        push_battle_log(&mut battle_state.log, format!("{} falls!", enemy.name));
+        return None;
+    }
+    if !turn_result.can_act {
+        return None;
+    }
     let living_party = battle_state
         .party_order
         .iter()
@@ -113,6 +132,14 @@ pub fn enemy_take_turn(
             format!("{} braces for impact!", target.name),
         );
     }
+    let multiplier = damage_multiplier(
+        &runtime.content,
+        &target.statuses,
+        &actor_traits(&runtime.content, target),
+        DamageKind::Physical,
+        None,
+    );
+    damage = ((damage as f32) * multiplier).round().max(0.0) as i32;
     engine::battle::apply_damage_to_actor(target, damage);
     push_battle_log(
         &mut battle_state.log,

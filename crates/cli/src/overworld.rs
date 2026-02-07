@@ -299,6 +299,7 @@ pub fn run_overworld_loop(
                     }
                 }
             }
+            apply_overworld_poison(runtime);
             if let Some(outcome) = try_start_random_battle(
                 runtime,
                 battle_ui,
@@ -663,6 +664,15 @@ fn movement_speed(runtime: &GameRuntime) -> i32 {
         }
     }
     1
+}
+
+fn apply_overworld_poison(runtime: &mut GameRuntime) {
+    let active_ids = runtime.party.active.clone();
+    for actor_id in active_ids {
+        if let Some(actor) = runtime.party.roster.get_mut(&actor_id) {
+            engine::battle::apply_overworld_poison_tick(&runtime.content, actor);
+        }
+    }
 }
 
 fn update_vehicle_position(

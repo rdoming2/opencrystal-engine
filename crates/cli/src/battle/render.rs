@@ -6,7 +6,9 @@ use tui::battle::{
 };
 use tui::ui::BattleUiFile;
 
-use super::state::{BattleMenuState, BattlePhase};
+use super::state::{
+    party_target_indices, party_target_rule, BattleMenuState, BattlePhase, TargetMode,
+};
 use super::CommandEntry;
 use crate::menu::abilities::ability_cost_label;
 use crate::menu::abilities::ability_group_available;
@@ -81,7 +83,13 @@ pub fn build_battle_render_state(
                 max_mp: actor.derived_stats.get("mp").copied().unwrap_or(0),
                 show_mp,
                 readiness: battle_state.readiness_party.get(id).copied().unwrap_or(0.0),
-                status: Vec::new(),
+                status: actor
+                    .statuses
+                    .iter()
+                    .filter_map(|status| {
+                        engine::battle::status_short_label(&runtime.content, &status.id)
+                    })
+                    .collect(),
                 alive: actor.current_hp > 0,
                 active: index == battle_state.active_index,
                 glyph,
@@ -107,12 +115,40 @@ pub fn build_battle_render_state(
         item_entries,
         is_player_turn,
     );
+    let mut selected_enemies = Vec::new();
+    let mut selected_party_members = Vec::new();
+    if menu_state.phase == BattlePhase::TargetEnemy
+        && menu_state.target_mode == TargetMode::Multi
+        && matches!(
+            menu_state.pending_action,
+            Some(super::state::PendingBattleAction::Magic(_))
+                | Some(super::state::PendingBattleAction::Ability(_))
+        )
+    {
+        selected_enemies = super::state::enemy_target_indices(battle_state);
+    }
+    if menu_state.phase == BattlePhase::TargetParty
+        && menu_state.target_mode == TargetMode::Multi
+        && matches!(
+            menu_state.pending_action,
+            Some(super::state::PendingBattleAction::Magic(_))
+                | Some(super::state::PendingBattleAction::Ability(_))
+        )
+    {
+        if let Some(action) = menu_state.pending_action.as_ref() {
+            let rule = party_target_rule(action, runtime);
+            selected_party_members = party_target_indices(runtime, battle_state, rule);
+        }
+    }
+
     BattleRenderState {
         enemies,
         party,
         command_panel,
         selected_enemy: menu_state.enemy_index,
         selected_party: menu_state.party_index,
+        selected_enemies,
+        selected_party_members,
         focus: battle_focus(menu_state),
         log: battle_state.log.clone(),
         paused: menu_state.paused,

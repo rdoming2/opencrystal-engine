@@ -4,6 +4,71 @@ use std::path::Path;
 
 use crate::rules::{AbilityAcquisition, MagicAcquisition};
 
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct EffectsFile {
+    pub version: u32,
+    #[serde(default)]
+    pub elements: Vec<ElementDefinition>,
+    #[serde(default)]
+    pub effects: Vec<EffectDefinition>,
+    #[serde(default)]
+    pub statuses: Vec<StatusDefinition>,
+    #[serde(default)]
+    pub traits: Vec<TraitDefinition>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct ElementDefinition {
+    pub id: String,
+    pub label: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct EffectDefinition {
+    pub id: String,
+    pub label: String,
+    pub kind: String,
+    #[serde(default)]
+    pub status: Option<String>,
+    #[serde(default)]
+    pub element: Option<String>,
+    #[serde(default)]
+    pub damage_kind: Option<String>,
+    #[serde(default)]
+    pub power: Option<i32>,
+    #[serde(default)]
+    pub percent: Option<f32>,
+    #[serde(default)]
+    pub chance: Option<f32>,
+    #[serde(default)]
+    pub multiplier: Option<f32>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct StatusDefinition {
+    pub id: String,
+    pub label: String,
+    pub short: String,
+    #[serde(default)]
+    pub default_duration: i32,
+    #[serde(default)]
+    pub reapply: String,
+    #[serde(default)]
+    pub tick: String,
+    #[serde(default)]
+    pub clear_on_battle_end: bool,
+    #[serde(default)]
+    pub effects: Vec<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct TraitDefinition {
+    pub id: String,
+    pub label: String,
+    #[serde(default)]
+    pub effects: Vec<String>,
+}
+
 #[derive(Clone, Debug)]
 pub struct PartyMember {
     pub id: String,
@@ -189,6 +254,10 @@ pub struct SpellDefinition {
     pub cost: SpellCost,
     pub default_target: String,
     pub allowed_targets: Vec<String>,
+    #[serde(default = "default_target_mode")]
+    pub target_mode: String,
+    #[serde(default)]
+    pub multi_attenuation: Option<f32>,
     pub effect: SpellEffect,
 }
 
@@ -203,6 +272,8 @@ pub struct SpellEffect {
     pub r#type: String,
     pub power: i32,
     pub element: Option<String>,
+    #[serde(default)]
+    pub effects: Vec<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -215,6 +286,10 @@ pub struct AbilityDefinition {
     pub command_group: Option<String>,
     pub default_target: String,
     pub allowed_targets: Vec<String>,
+    #[serde(default = "default_target_mode")]
+    pub target_mode: String,
+    #[serde(default)]
+    pub multi_attenuation: Option<f32>,
     pub effect: AbilityEffect,
     #[serde(default)]
     pub cost: Option<AbilityCost>,
@@ -232,6 +307,8 @@ pub struct AbilityCost {
 pub struct AbilityEffect {
     pub r#type: String,
     pub power: i32,
+    #[serde(default)]
+    pub effects: Vec<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -257,6 +334,10 @@ pub struct ItemEffect {
     pub power: Option<i32>,
     pub target: Option<String>,
     pub destination: Option<ItemDestination>,
+    #[serde(default)]
+    pub effects: Vec<String>,
+    #[serde(default)]
+    pub statuses: Vec<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -287,6 +368,8 @@ pub struct EquipmentDefinition {
     pub stats: HashMap<String, i32>,
     #[serde(default)]
     pub spells: Vec<String>,
+    #[serde(default)]
+    pub traits: Vec<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -402,6 +485,12 @@ impl JobsFile {
     }
 }
 
+impl EffectsFile {
+    pub fn load(path: impl AsRef<Path>) -> Result<Self, String> {
+        crate::io::load_json(path)
+    }
+}
+
 impl SpellsFile {
     pub fn load(path: impl AsRef<Path>) -> Result<Self, String> {
         crate::io::load_json(path)
@@ -420,6 +509,10 @@ fn default_job_glyph() -> String {
 
 fn default_job_palette() -> String {
     "bright_cyan".to_string()
+}
+
+fn default_target_mode() -> String {
+    "single".to_string()
 }
 
 impl ItemsFile {

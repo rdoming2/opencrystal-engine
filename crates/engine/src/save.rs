@@ -247,6 +247,7 @@ impl SaveActor {
             secondary_job_id: self.secondary_job_id.clone(),
             job_progress,
             unlocked_abilities: self.unlocked_abilities.iter().cloned().collect(),
+            statuses: Vec::new(),
         }
     }
 }

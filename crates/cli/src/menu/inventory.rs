@@ -254,6 +254,13 @@ pub fn apply_item_to_actor(
                 actor.current_hp = amount.clamp(1, max_hp);
             }
         }
+        "cure_status" => {
+            if !item.effect.statuses.is_empty() {
+                actor
+                    .statuses
+                    .retain(|status| !item.effect.statuses.contains(&status.id));
+            }
+        }
         _ => {}
     }
 }
@@ -408,6 +415,23 @@ fn build_item_targets(
                     .map(|actor| actor.current_hp <= 0)
                     .unwrap_or(false)
             });
+        }
+        "cure_status" => {
+            if !item.effect.statuses.is_empty() {
+                targets.retain(|id| {
+                    runtime
+                        .party
+                        .roster
+                        .get(id)
+                        .map(|actor| {
+                            actor
+                                .statuses
+                                .iter()
+                                .any(|status| item.effect.statuses.contains(&status.id))
+                        })
+                        .unwrap_or(false)
+                });
+            }
         }
         "learn_spell" => {
             let spell_id = item.effect.target.as_deref().unwrap_or("");

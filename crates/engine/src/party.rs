@@ -10,6 +10,12 @@ use crate::rules::{
     PartyCreateRules, PartyMode, RulesFile, Ruleset,
 };
 
+#[derive(Clone, Debug, Default)]
+pub struct StatusInstance {
+    pub id: String,
+    pub remaining_turns: i32,
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct PartyFile {
     pub version: u32,
@@ -60,6 +66,7 @@ pub struct Actor {
     pub secondary_job_id: Option<String>,
     pub job_progress: HashMap<String, JobProgress>,
     pub unlocked_abilities: HashSet<String>,
+    pub statuses: Vec<StatusInstance>,
 }
 
 #[derive(Clone, Debug)]
@@ -329,11 +336,27 @@ fn build_actor(
             progress
         },
         unlocked_abilities: HashSet::new(),
+        statuses: Vec::new(),
     };
     update_equipped_spells(content, &mut built);
     learn_job_spells(content, &mut built);
     learn_job_abilities(content, &mut built);
     built
+}
+
+pub fn actor_traits(content: &Content, actor: &Actor) -> Vec<String> {
+    let equipment_lookup = build_equipment_lookup(content);
+    let mut traits = Vec::new();
+    for item_id in actor.equipment.values() {
+        if let Some(item) = equipment_lookup.get(item_id.as_str()) {
+            for trait_id in &item.traits {
+                if !traits.contains(trait_id) {
+                    traits.push(trait_id.clone());
+                }
+            }
+        }
+    }
+    traits
 }
 
 fn learn_job_spells(content: &Content, actor: &mut Actor) {

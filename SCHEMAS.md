@@ -216,6 +216,82 @@ starting gear.
 }
 ```
 
+## effects.json
+
+Defines effect, status, trait, and element definitions. This file is top-level (sibling to
+`rules.json`). Effects are hardcoded by `kind` in the engine, but parameters live here so
+content can reference them by ID.
+
+Effect kinds (initial):
+
+- `apply_status`: applies a status by id to the target.
+- `poison_tick`: deals damage at the start of the target's turn.
+- `skip_turn`: prevents action on the target's turn (chance-based).
+- `immobile`: prevents action on the target's turn.
+- `damage_multiplier`: multiplies incoming damage (`damage_kind`: `physical`, `magic`, `all`).
+- `element_multiplier`: multiplies damage for a specific element.
+- `healing_inversion`: converts healing into damage for the target.
+
+Status fields:
+
+- `default_duration`: turn count (<= 0 means infinite).
+- `reapply`: `refresh`, `stack`, or `ignore`.
+- `tick`: `turn_start` (default).
+- `clear_on_battle_end`: whether the status is removed after battle ends.
+- `effects`: list of effect IDs applied while the status is active.
+
+Trait fields:
+
+- `effects`: list of effect IDs applied while the trait is present.
+
+```json
+{
+  "version": 1,
+  "elements": [
+    {"id": "fire", "label": "Fire"},
+    {"id": "ice", "label": "Ice"},
+    {"id": "lightning", "label": "Lightning"}
+  ],
+  "effects": [
+    {
+      "id": "apply_poison",
+      "label": "Apply Poison",
+      "kind": "apply_status",
+      "status": "poison",
+      "chance": 1.0
+    },
+    {
+      "id": "poison_tick",
+      "label": "Poison Tick",
+      "kind": "poison_tick",
+      "percent": 0.1
+    },
+    {
+      "id": "resist_fire",
+      "label": "Resist Fire",
+      "kind": "element_multiplier",
+      "element": "fire",
+      "multiplier": 0.5
+    }
+  ],
+  "statuses": [
+    {
+      "id": "poison",
+      "label": "Poison",
+      "short": "PSN",
+      "default_duration": 4,
+      "reapply": "refresh",
+      "tick": "turn_start",
+      "clear_on_battle_end": false,
+      "effects": ["poison_tick"]
+    }
+  ],
+  "traits": [
+    {"id": "undead", "label": "Undead", "effects": ["undead_healing_inversion"]}
+  ]
+}
+```
+
 ## worlds.json
 
 Defines multiple worlds and inter-world travel.
@@ -657,6 +733,11 @@ Spell costs are flexible. Use `{"type": "mp"}` for MP-based casting or
 `magic_system` is `tier_charges`, spell cost types are interpreted as tier
 uses (one shared charge per tier per cast).
 
+Targeting fields:
+
+- `target_mode`: `single`, `multi`, or `both`.
+- `multi_attenuation`: optional multiplier applied per target when in multi mode.
+
 ```json
 {
   "version": 1,
@@ -673,6 +754,8 @@ uses (one shared charge per tier per cast).
       "cost": {"type": "mp", "value": 3},
       "default_target": "ally",
       "allowed_targets": ["ally", "enemy"],
+      "target_mode": "single",
+      "multi_attenuation": 0.6,
       "effect": {"type": "heal", "power": 20}
     }
   ]
@@ -693,6 +776,11 @@ Ability command grouping:
 
 - `command_group`: optional string used to route abilities to `abilities_group` commands.
 
+Targeting fields:
+
+- `target_mode`: `single`, `multi`, or `both`.
+- `multi_attenuation`: optional multiplier applied per target when in multi mode.
+
 ```json
 {
   "version": 1,
@@ -703,6 +791,8 @@ Ability command grouping:
       "description": "A heavy blow that hits harder than a basic attack.",
       "default_target": "enemy",
       "allowed_targets": ["enemy"],
+      "target_mode": "single",
+      "multi_attenuation": 0.6,
       "effect": {"type": "damage", "power": 6},
       "cost": {"type": "hp", "value": 4}
     }
@@ -716,8 +806,9 @@ Item usage defines where and how items can be used. `context` values: `field`,
 `battle`, or `both`. `target` values: `self`, `ally`, `party`, `enemy`.
 
 `description` is optional text displayed in item menus.
-Common effect types: `heal_hp`, `heal_mp`, `revive`, `warp`, `learn_spell`.
+Common effect types: `heal_hp`, `heal_mp`, `revive`, `warp`, `learn_spell`, `cure_status`.
 `learn_spell` uses `effect.target` to specify the spell ID to teach.
+`cure_status` uses `effect.statuses` to list status IDs to remove.
 
 ```json
 {
@@ -730,6 +821,13 @@ Common effect types: `heal_hp`, `heal_mp`, `revive`, `warp`, `learn_spell`.
       "description": "Restores a small amount of HP.",
       "usage": {"context": "field", "target": "ally"},
       "effect": {"type": "heal_hp", "power": 50}
+    },
+    {
+      "id": "antidote",
+      "name": "Antidote",
+      "type": "consumable",
+      "usage": {"context": "both", "target": "ally"},
+      "effect": {"type": "cure_status", "statuses": ["poison"]}
     },
     {
       "id": "warp_scroll",

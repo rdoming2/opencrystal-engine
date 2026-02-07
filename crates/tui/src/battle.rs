@@ -82,6 +82,8 @@ pub struct BattleRenderState {
     pub command_panel: BattleCommandPanelView,
     pub selected_enemy: usize,
     pub selected_party: usize,
+    pub selected_enemies: Vec<usize>,
+    pub selected_party_members: Vec<usize>,
     pub focus: BattleFocus,
     pub log: Vec<String>,
     pub paused: bool,
@@ -416,7 +418,8 @@ fn draw_enemy_panel(
     let mut lines = Vec::new();
     for (index, enemy) in state.enemies.iter().enumerate() {
         let focused = matches!(state.focus, BattleFocus::Enemies);
-        let is_selected = focused && index == state.selected_enemy;
+        let is_multi_selected = state.selected_enemies.contains(&index);
+        let is_selected = focused && (index == state.selected_enemy || is_multi_selected);
         let mut style = if enemy.alive {
             Style::default().fg(Color::White)
         } else {
@@ -566,7 +569,8 @@ fn draw_party_panel(
     let mut lines = Vec::new();
     for (index, member) in state.party.iter().enumerate() {
         let focused = matches!(state.focus, BattleFocus::Party);
-        let is_selected = focused && index == state.selected_party;
+        let is_multi_selected = state.selected_party_members.contains(&index);
+        let is_selected = focused && (index == state.selected_party || is_multi_selected);
         let mut style = if member.alive {
             Style::default().fg(Color::White)
         } else {

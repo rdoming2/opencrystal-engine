@@ -83,6 +83,7 @@ Default bindings (configurable via input.json):
 All runtime data is loaded from JSON. Files are organized into top-level categories:
 
 - `rules.json`: global rules and toggles.
+- `effects.json`: effect, status, trait, and element definitions used in battle resolution.
 - `worlds.json`: world list, world-to-world travel rules, zoom config.
 - `maps/*.json`: map tiles, entities, triggers, encounter zones, per-map encounter rate.
 - `party.json`: predefined party roster (optional in create mode).
@@ -207,6 +208,9 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
 - Battle commands come from `rules.json` `battle.commands` plus job/secondary-job additions.
 - The global command list defines the base menu; job commands augment it without duplicates.
 - Command ordering follows `sort_order`, and the command panel pages when the list overflows.
+- Status effects and traits are resolved via `effects.json` definitions (poison ticks, protect/shell, elemental multipliers).
+- Spells and abilities declare target modes (`single`/`multi`) with optional attenuation for group targeting.
+- Statuses can be configured to clear at battle end; poison also ticks on overworld movement steps.
 
 ### Progress tracking
 

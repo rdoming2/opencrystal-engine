@@ -5,8 +5,8 @@ use std::path::{Path, PathBuf};
 use crate::dialog::DialogFile;
 use crate::encounters::EncountersFile;
 use crate::entities::{
-    AbilitiesFile, EnemiesFile, EquipmentFile, ItemsFile, JobsFile, NpcsFile, ShopsFile,
-    SpellsFile, VehiclesFile,
+    AbilitiesFile, EffectsFile, EnemiesFile, EquipmentFile, ItemsFile, JobsFile, NpcsFile,
+    ShopsFile, SpellsFile, VehiclesFile,
 };
 use crate::events::EventFile;
 use crate::maps::MapFile;
@@ -18,6 +18,7 @@ use crate::world::WorldsFile;
 
 pub struct Content {
     pub rules: RulesFile,
+    pub effects: EffectsFile,
     pub worlds: WorldsFile,
     pub stats: StatsFile,
     pub encounters: EncountersFile,
@@ -119,6 +120,11 @@ impl Content {
         let mut errors = Vec::new();
 
         let rules = load_single(content_dir.join("rules.json"), RulesFile::load, &mut errors);
+        let effects = load_single(
+            content_dir.join("effects.json"),
+            EffectsFile::load,
+            &mut errors,
+        );
         let party = match rules.as_ref().map(|file| &file.party_mode) {
             Some(PartyMode::Preset) | Some(PartyMode::PresetRename) => {
                 load_single(content_dir.join("party.json"), PartyFile::load, &mut errors)
@@ -210,6 +216,7 @@ impl Content {
         }
 
         let rules = rules.unwrap();
+        let effects = effects.unwrap();
         let worlds = worlds.unwrap();
         let stats = stats.unwrap();
         let encounters = encounters.unwrap();
@@ -241,6 +248,7 @@ impl Content {
 
         Ok(Self {
             rules,
+            effects,
             worlds,
             stats,
             encounters,
