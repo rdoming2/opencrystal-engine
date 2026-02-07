@@ -141,7 +141,7 @@
 - [x] Add boss NPC flash/vanish and immediate dialog event trigger.
 - [x] Add job unlock narration in boss events.
 - [x] Extend validation for event step payloads.
-- [ ] Add content authoring guide.
+- [x] Add content authoring guide.
 - [x] Add `ui/menu.json` schema + validation.
 - [x] Add `party.json` schema + validation.
 - [x] Extend map schema for saving.
