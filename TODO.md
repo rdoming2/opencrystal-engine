@@ -18,31 +18,31 @@
   - [ ] Rename menu/action for story joins and preset_rename mode, plus a `party_join` flow that respects preset/preset_rename rename rules when new members join.
 
 - [x] Event state.
-- [ ] Implement event executor.
+- [x] Implement event executor.
   - [x] Dialog and narration.
-  - [ ] Flag setting/requirements.
-  - [ ] Item/equipment grants.
-  - [ ] Warp actions.
+  - [x] Flag setting/requirements.
+  - [x] Item/equipment grants.
+  - [x] Warp actions.
   - [x] Battle starts.
-  - [ ] NPC show/hide/move/sprite.
+  - [x] NPC show/hide/move/sprite.
 - [x] Add content registry.
   - [x] Load all content into indexed registries.
   - [x] Build cross-reference maps (ids to definitions).
-- [ ] Implement save/load for demo content.
+- [x] Implement save/load for demo content.
   - [x] Serialize world/party/inventory/flags.
-  - [ ] Load persistent NPC positions.
+  - [x] Load persistent NPC positions.
 - [x] Implement runtime map transitions.
   - [x] Step on transition triggers map load.
   - [x] Preserve player position on target map.
 - [ ] Implement NPC interaction runtime.
   - [ ] Dialog vs event selection.
   - [x] Shop opening via dialog actions.
-  - [ ] Shop purchase flow (currency, inventory updates).
+  - [x] Shop purchase flow (currency, inventory updates).
 - [x] Add map treasure chests (loot + opened flags).
-- [ ] Implement save/load system.
+- [x] Implement save/load system.
   - [x] Define save file schema + versioning.
   - [x] Serialize world/party/inventory/flags.
-  - [ ] Load persistent NPC positions.
+  - [x] Load persistent NPC positions.
   - [x] Add save slot management.
   - [x] Enforce save rules (map allow_save + save_points).
   - [x] Autosave slot after transitions.
@@ -119,16 +119,16 @@
 - [x] Implement overworld vehicle traversal (boarding, movement constraints, persistence).
 - [x] Define NPC schema (behavior, dialog, schedules).
 - [x] Move event execution logic to engine (apply_event_step).
-- [ ] Add EventExecutionResult enum for UI action communication.
-- [ ] Add world state to GameRuntime for warp support.
-- [ ] Implement on_enter trigger for map load events.
-- [ ] Implement on_step trigger with zone support.
+- [x] Add EventExecutionResult enum for UI action communication.
+- [x] Add world state to GameRuntime for warp support.
+- [x] Implement on_enter trigger for map load events.
+- [x] Implement on_step trigger with zone support.
 - [ ] Implement NPC script event triggers.
-- [ ] Move WorldState from CLI to GameRuntime.
+- [x] Move WorldState from CLI to GameRuntime.
 - [x] Implement quest resolver (flag-driven steps and journal updates).
 - [x] Add quest step reveal flags (show_flag) and acquisition gating.
 - [ ] Implement NPC roaming (persisted positions).
-- [ ] Implement event-driven NPC controls (show/hide/move/set_sprite).
+- [x] Implement event-driven NPC controls (show/hide/move/set_sprite).
 - [x] Implement inn rest feature (dialog action `rest_party`).
 - [x] Add configurable NPC interaction range (default 1 tile).
 - [x] Add event action to teach spells (learn_spell).
@@ -144,8 +144,8 @@
 - [ ] Add content authoring guide.
 - [x] Add `ui/menu.json` schema + validation.
 - [x] Add `party.json` schema + validation.
-- [ ] Extend map schema for saving.
-  - [ ] `allow_save` flag for main menu saving.
-  - [ ] `save_points` coordinates (always valid save spots).
+- [x] Extend map schema for saving.
+  - [x] `allow_save` flag for main menu saving.
+  - [x] `save_points` coordinates (always valid save spots).
 - [x] Add encounter_rate to maps schema.
 - [ ] Finalize save schema requirements and versioning rules.
