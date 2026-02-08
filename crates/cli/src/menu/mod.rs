@@ -115,6 +115,8 @@ pub fn run_menu_loop(
             .or_else(|| selected.map(|entry| entry.action.as_str()))
             .unwrap_or("menu")
             .to_string();
+        let stats_view = build_menu_stats_view(runtime);
+        let panel_size = menu_panel_size(session, menu_ui, Some(&stats_view));
         let right_panel = if matches!(focus, MenuPane::Detail) {
             menu_detail_panel(
                 label,
@@ -123,6 +125,7 @@ pub fn run_menu_loop(
                 runtime.menu_state.detail_page,
                 save_dir,
                 save_message.as_ref(),
+                panel_size,
             )
         } else {
             menu_default_panel(menu_ui, runtime)
@@ -133,7 +136,6 @@ pub fn run_menu_loop(
             submenu_action.as_str(),
             runtime.menu_state.detail_page,
         );
-        let stats_view = build_menu_stats_view(runtime);
         tui::menu::draw_menu(
             session,
             menu_ui,
@@ -193,7 +195,7 @@ pub fn run_menu_loop(
                             runtime.menu_state.detail_selection -= 1;
                         }
                     } else if submenu_action == "overworld_map" || submenu_action == "fast_travel" {
-                        let destinations = build_overworld_destinations(runtime);
+                        let destinations = overworld_destinations_for_runtime(runtime);
                         runtime.menu_state.detail_selection = move_overworld_selection(
                             runtime.menu_state.detail_selection,
                             destinations.len(),
@@ -336,7 +338,7 @@ pub fn run_menu_loop(
                             }
                         }
                     } else if submenu_action == "overworld_map" || submenu_action == "fast_travel" {
-                        let destinations = build_overworld_destinations(runtime);
+                        let destinations = overworld_destinations_for_runtime(runtime);
                         runtime.menu_state.detail_selection = move_overworld_selection(
                             runtime.menu_state.detail_selection,
                             destinations.len(),
@@ -519,7 +521,7 @@ pub fn run_menu_loop(
                             }
                         }
                     } else if submenu_action == "fast_travel" {
-                        let destinations = build_overworld_destinations(runtime);
+                        let destinations = overworld_destinations_for_runtime(runtime);
                         if destinations.is_empty() {
                             continue;
                         }
@@ -1175,6 +1177,7 @@ fn menu_detail_panel(
     page: usize,
     save_dir: &Path,
     save_message: Option<&SaveMessage>,
+    panel_size: PanelSize,
 ) -> MenuPanelView {
     if action == "status" {
         return MenuPanelView {
@@ -1240,10 +1243,10 @@ fn menu_detail_panel(
         };
     }
     if action == "overworld_map" {
-        return build_overworld_map_panel(runtime, "Overworld Map", false);
+        return build_overworld_map_panel(runtime, panel_size, "Overworld Map", false);
     }
     if action == "fast_travel" {
-        return build_overworld_map_panel(runtime, "Fast Travel", true);
+        return build_overworld_map_panel(runtime, panel_size, "Fast Travel", true);
     }
     if action == "settings" {
         return build_settings_panel(runtime, runtime.menu_state.detail_selection);
@@ -1286,6 +1289,24 @@ fn menu_default_panel(menu_ui: &MenuUiFile, runtime: &GameRuntime) -> MenuPanelV
             lines: vec![panel_line("Menu panel not configured.")],
         },
     }
+}
+
+fn menu_panel_size(
+    session: &TuiSession,
+    menu_ui: &MenuUiFile,
+    stats_view: Option<&MenuPanelView>,
+) -> PanelSize {
+    let size = session.terminal().size().ok();
+    let (width, height) = match size {
+        Some(size) => tui::menu::right_panel_inner_size(
+            menu_ui,
+            size.width,
+            size.height,
+            stats_view.map(|view| view.lines.len()),
+        ),
+        None => (40, 18),
+    };
+    PanelSize { width, height }
 }
 
 fn menu_footer_text(focus: MenuPane, submenu: &str, page: usize) -> &'static str {
@@ -1637,12 +1658,29 @@ struct OverworldDestination {
     cost: Option<engine::maps::MapCurrencyStack>,
 }
 
+struct OverworldMapView {
+    width: u32,
+    height: u32,
+    tiles: Vec<String>,
+}
+
+struct MapMarker {
+    glyph: char,
+    style: PanelSpanStyle,
+}
+
+struct PanelSize {
+    width: u16,
+    height: u16,
+}
+
 fn build_overworld_map_panel(
     runtime: &GameRuntime,
+    panel_size: PanelSize,
     title: &str,
     allow_travel: bool,
 ) -> MenuPanelView {
-    let Some(map) = overview_map(runtime) else {
+    let Some(map) = overworld_base_map(runtime) else {
         return MenuPanelView {
             title: title.to_string(),
             lines: vec![panel_line("Overworld map unavailable.")],
@@ -1657,29 +1695,43 @@ fn build_overworld_map_panel(
             ],
         };
     }
-    let destinations = build_overworld_destinations(runtime);
+    let destinations = build_overworld_destinations(runtime, map);
     let selection = runtime
         .menu_state
         .detail_selection
         .min(destinations.len().saturating_sub(1));
-    let mut lines = build_overworld_map_lines(map, &destinations, selection);
-    lines.push(panel_line(""));
-    lines.push(panel_line_spans(vec![panel_span(
-        "Destinations",
-        PanelSpanStyle::Accent,
-    )]));
-    if destinations.is_empty() {
-        lines.push(panel_line("No destinations available."));
+    let mut list_lines =
+        build_destination_list_lines(runtime, &destinations, selection, panel_size.width);
+    let mut overview_line = if allow_travel {
+        None
     } else {
-        for (index, destination) in destinations.iter().enumerate() {
-            lines.push(build_destination_line(
-                runtime,
-                destination,
-                index,
-                selection,
-                allow_travel,
-            ));
-        }
+        Some(panel_line_spans(vec![panel_span(
+            "Overview only.",
+            PanelSpanStyle::Muted,
+        )]))
+    };
+    let mut reserved_lines = list_lines.len();
+    if !list_lines.is_empty() {
+        reserved_lines += 1;
+    }
+    if overview_line.is_some() {
+        reserved_lines += 1;
+    }
+    let mut map_height = panel_size.height.saturating_sub(reserved_lines as u16);
+    if map_height == 0 {
+        map_height = panel_size.height;
+        list_lines.clear();
+        overview_line = None;
+    }
+    let map_view = build_overworld_map_view(map, panel_size.width, map_height);
+    let markers = build_overworld_markers(runtime, map, &map_view, &destinations, selection);
+    let mut lines = build_overworld_map_lines(&map_view, &markers);
+    if map_height < panel_size.height && !list_lines.is_empty() {
+        lines.push(panel_line(""));
+    }
+    lines.extend(list_lines);
+    if let Some(line) = overview_line {
+        lines.push(line);
     }
     MenuPanelView {
         title: title.to_string(),
@@ -1688,35 +1740,23 @@ fn build_overworld_map_panel(
 }
 
 fn build_overworld_map_lines(
-    map: &MapFile,
-    destinations: &[OverworldDestination],
-    selection: usize,
+    view: &OverworldMapView,
+    markers: &HashMap<(i32, i32), MapMarker>,
 ) -> Vec<MenuPanelLine> {
-    let mut dest_positions: HashMap<(i32, i32), usize> = HashMap::new();
-    for (index, destination) in destinations.iter().enumerate() {
-        dest_positions.insert(destination.map_pos, index);
-    }
     let mut lines = Vec::new();
-    for y in 0..map.height as i32 {
-        let row = map
+    for y in 0..view.height as i32 {
+        let row = view
             .tiles
             .get(y as usize)
             .map(|row| row.as_str())
             .unwrap_or("");
         let mut spans = Vec::new();
-        for x in 0..map.width as i32 {
+        for x in 0..view.width as i32 {
             let mut ch = row.chars().nth(x as usize).unwrap_or(' ');
             let mut style = PanelSpanStyle::Normal;
-            if let Some(index) = dest_positions.get(&(x, y)) {
-                let selected = *index == selection;
-                ch = if selected { 'X' } else { '*' };
-                style = if selected {
-                    PanelSpanStyle::Highlight
-                } else if destinations[*index].enabled {
-                    PanelSpanStyle::Accent
-                } else {
-                    PanelSpanStyle::Muted
-                };
+            if let Some(marker) = markers.get(&(x, y)) {
+                ch = marker.glyph;
+                style = marker.style;
             }
             spans.push(panel_span(ch.to_string(), style));
         }
@@ -1725,15 +1765,22 @@ fn build_overworld_map_lines(
     lines
 }
 
-fn build_destination_line(
+fn build_destination_list_lines(
     runtime: &GameRuntime,
-    destination: &OverworldDestination,
-    index: usize,
+    destinations: &[OverworldDestination],
     selection: usize,
-    allow_travel: bool,
-) -> MenuPanelLine {
-    let selected = index == selection;
-    let mut label = format!("{:>2}. {}", index + 1, destination.label);
+    width: u16,
+) -> Vec<MenuPanelLine> {
+    if destinations.is_empty() {
+        return vec![panel_line_spans(vec![panel_span(
+            "No destinations available.",
+            PanelSpanStyle::Muted,
+        )])];
+    }
+    let selected_index = selection.min(destinations.len().saturating_sub(1));
+    let destination = &destinations[selected_index];
+    let header = format!("Destination {}/{}", selected_index + 1, destinations.len());
+    let mut label = destination.label.clone();
     if let Some(cost) = destination.cost.as_ref() {
         label.push_str(" ");
         label.push_str(&format_currency_amount(&runtime.content.rules, cost));
@@ -1742,29 +1789,119 @@ fn build_destination_line(
         label.push_str(" (");
         label.push_str(reason);
         label.push_str(")");
-    } else if !allow_travel {
-        label.push_str(" (view)");
     }
-    let style = if selected {
+    let header_text = tui::utils::truncate_line(&header, width as usize);
+    let label_text = tui::utils::truncate_line(&label, width as usize);
+    let style = if destination.enabled {
         PanelSpanStyle::Highlight
-    } else if destination.enabled {
-        PanelSpanStyle::Normal
     } else {
         PanelSpanStyle::Muted
     };
-    panel_line_spans(vec![panel_span(label, style)])
+    vec![
+        panel_line_spans(vec![panel_span(header_text, PanelSpanStyle::Accent)]),
+        panel_line_spans(vec![panel_span(label_text, style)]),
+    ]
 }
 
-fn build_overworld_destinations(runtime: &GameRuntime) -> Vec<OverworldDestination> {
-    let Some(map) = overview_map(runtime) else {
-        return Vec::new();
-    };
+fn build_overworld_markers(
+    runtime: &GameRuntime,
+    map: &MapFile,
+    view: &OverworldMapView,
+    destinations: &[OverworldDestination],
+    selection: usize,
+) -> HashMap<(i32, i32), MapMarker> {
+    let mut markers = HashMap::new();
+    for (index, destination) in destinations.iter().enumerate() {
+        let view_pos = map_pos_to_view_pos(map, view, destination.map_pos);
+        let selected = index == selection;
+        let glyph = if selected { 'X' } else { '*' };
+        let style = if selected {
+            PanelSpanStyle::Highlight
+        } else if destination.enabled {
+            PanelSpanStyle::Accent
+        } else {
+            PanelSpanStyle::Muted
+        };
+        markers.insert(view_pos, MapMarker { glyph, style });
+    }
+
+    for vehicle in &map.vehicles {
+        if let Some(flags) = vehicle.requires_flags.as_ref() {
+            if !flags.iter().all(|flag| runtime.has_flag(flag)) {
+                continue;
+            }
+        }
+        let vehicle_def = match runtime
+            .content
+            .vehicles
+            .vehicles
+            .iter()
+            .find(|entry| entry.id == vehicle.vehicle_id)
+        {
+            Some(vehicle_def) => vehicle_def,
+            None => continue,
+        };
+        if !vehicle_def.unlock_flag.trim().is_empty() && !runtime.has_flag(&vehicle_def.unlock_flag)
+        {
+            continue;
+        }
+        let vehicle_position = runtime
+            .vehicle_positions
+            .get(&vehicle.vehicle_id)
+            .map(|entry| (entry.map_id.clone(), entry.pos));
+        let map_pos = if let Some((map_id, pos)) = vehicle_position {
+            if map_id != map.id {
+                continue;
+            }
+            (pos.0, pos.1)
+        } else {
+            (vehicle.pos[0], vehicle.pos[1])
+        };
+        let glyph = vehicle_def
+            .glyph
+            .as_ref()
+            .and_then(|glyph| glyph.chars().next())
+            .unwrap_or('V');
+        let view_pos = map_pos_to_view_pos(map, view, map_pos);
+        markers.entry(view_pos).or_insert(MapMarker {
+            glyph,
+            style: PanelSpanStyle::Accent,
+        });
+    }
+
+    if let Some(player_pos) = player_marker_pos(runtime, map) {
+        let view_pos = map_pos_to_view_pos(map, view, player_pos);
+        markers.insert(
+            view_pos,
+            MapMarker {
+                glyph: '@',
+                style: PanelSpanStyle::Accent,
+            },
+        );
+    }
+    markers
+}
+
+fn player_marker_pos(runtime: &GameRuntime, map: &MapFile) -> Option<(i32, i32)> {
+    if runtime.is_overworld_map(&runtime.world.map_id) && runtime.world.map_id == map.id {
+        return Some(runtime.world.position);
+    }
+    map.transitions
+        .iter()
+        .find(|transition| transition.target_map == runtime.world.map_id)
+        .map(|transition| (transition.pos[0], transition.pos[1]))
+}
+
+fn build_overworld_destinations(runtime: &GameRuntime, map: &MapFile) -> Vec<OverworldDestination> {
     let mut destinations = Vec::new();
     for transition in &map.transitions {
         let target_index = match runtime.content.map_index.get(&transition.target_map) {
             Some(index) => *index,
             None => continue,
         };
+        if !map_visited(runtime, &transition.target_map) {
+            continue;
+        }
         let target_map = match runtime.content.maps.get(target_index) {
             Some(map) => map,
             None => continue,
@@ -1816,6 +1953,13 @@ fn build_overworld_destinations(runtime: &GameRuntime) -> Vec<OverworldDestinati
     destinations
 }
 
+fn overworld_destinations_for_runtime(runtime: &GameRuntime) -> Vec<OverworldDestination> {
+    let Some(map) = overworld_base_map(runtime) else {
+        return Vec::new();
+    };
+    build_overworld_destinations(runtime, map)
+}
+
 fn move_overworld_selection(current: usize, count: usize, direction: i32) -> usize {
     if count == 0 {
         return 0;
@@ -1827,22 +1971,92 @@ fn move_overworld_selection(current: usize, count: usize, direction: i32) -> usi
     }
 }
 
-fn overview_map(runtime: &GameRuntime) -> Option<&MapFile> {
+fn overworld_base_map(runtime: &GameRuntime) -> Option<&MapFile> {
     let world = runtime
         .content
         .worlds
         .worlds
         .iter()
         .find(|world| world.id == runtime.world.world_id)?;
-    if !world.overview.enabled {
-        return None;
-    }
-    let map_index = runtime.content.map_index.get(&world.overview.map_id)?;
+    let map_index = runtime.content.map_index.get(&world.overworld_map_id)?;
     runtime.content.maps.get(*map_index)
 }
 
 fn overworld_map_available(runtime: &GameRuntime) -> bool {
-    overview_map(runtime).is_some()
+    overworld_base_map(runtime).is_some()
+}
+
+fn build_overworld_map_view(
+    map: &MapFile,
+    target_width: u16,
+    target_height: u16,
+) -> OverworldMapView {
+    let width = map.width.max(1);
+    let height = map.height.max(1);
+    let target_width = target_width.max(1).min(width as u16) as u32;
+    let target_height = target_height.max(1).min(height as u16) as u32;
+    let mut tiles = Vec::new();
+    if width == target_width && height == target_height {
+        for y in 0..target_height {
+            let row = map
+                .tiles
+                .get(y as usize)
+                .map(|row| row.as_str())
+                .unwrap_or("");
+            let mut line = String::new();
+            for x in 0..target_width {
+                let ch = row.chars().nth(x as usize).unwrap_or(' ');
+                line.push(ch);
+            }
+            tiles.push(line);
+        }
+    } else {
+        for y in 0..target_height {
+            let map_y = (y * height) / target_height;
+            let mut line = String::new();
+            for x in 0..target_width {
+                let map_x = (x * width) / target_width;
+                line.push(map_tile_at(map, map_x as i32, map_y as i32));
+            }
+            tiles.push(line);
+        }
+    }
+    OverworldMapView {
+        width: target_width,
+        height: target_height,
+        tiles,
+    }
+}
+
+fn map_tile_at(map: &MapFile, x: i32, y: i32) -> char {
+    if x < 0 || y < 0 {
+        return ' ';
+    }
+    let row = match map.tiles.get(y as usize) {
+        Some(row) => row,
+        None => return ' ',
+    };
+    row.chars().nth(x as usize).unwrap_or(' ')
+}
+
+fn map_pos_to_view_pos(map: &MapFile, view: &OverworldMapView, pos: (i32, i32)) -> (i32, i32) {
+    if map.width == 0 || map.height == 0 || view.width == 0 || view.height == 0 {
+        return (0, 0);
+    }
+    let view_x = (pos.0.max(0) as i64 * view.width as i64 / map.width as i64) as i32;
+    let view_y = (pos.1.max(0) as i64 * view.height as i64 / map.height as i64) as i32;
+    (
+        view_x.clamp(0, view.width.saturating_sub(1) as i32),
+        view_y.clamp(0, view.height.saturating_sub(1) as i32),
+    )
+}
+
+fn map_visited(runtime: &GameRuntime, map_id: &str) -> bool {
+    runtime
+        .map_states
+        .get(map_id)
+        .map(|state| state.flags.contains("visited"))
+        .unwrap_or(false)
 }
 
 fn fast_travel_enabled(runtime: &GameRuntime) -> bool {

@@ -340,6 +340,8 @@ Defines multiple worlds and inter-world travel.
 
 - `overworld_map_id` identifies the world map used for overworld travel, warp returns, and fast
   travel. It should reference a map in `maps/*.json`.
+- The menu map view defaults to a downsampled `overworld_map_id` view; `overview` is optional
+  and reserved for custom art if/when needed.
 
 ```json
 {
@@ -495,6 +497,7 @@ Saving rules:
 - `label` is optional display text for fast-travel/overview menus.
 - `requires_flag` gates access to the transition until a flag is set.
 - `cost` is an optional currency stack charged on fast travel.
+- Fast travel destinations are only shown after the target map has been visited in-game.
 
 Rendering notes:
 

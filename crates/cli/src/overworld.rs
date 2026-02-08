@@ -46,6 +46,8 @@ pub fn run_overworld_loop(
             }
         };
 
+        mark_map_visited(runtime, &current_map_id);
+
         if current_map_id != last_map_id {
             area_name_active = !map.hide_name && !map.name.is_empty();
             last_map_id = current_map_id.clone();
@@ -527,6 +529,11 @@ pub fn build_map_view(runtime: &GameRuntime, map_id: &str) -> Option<MapView> {
         save_points,
         use_color,
     })
+}
+
+fn mark_map_visited(runtime: &mut GameRuntime, map_id: &str) {
+    let state = runtime.map_states.entry(map_id.to_string()).or_default();
+    state.flags.insert("visited".to_string());
 }
 
 pub fn is_passable(runtime: &GameRuntime, map_id: &str, pos: (i32, i32)) -> bool {

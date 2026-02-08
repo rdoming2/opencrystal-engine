@@ -545,6 +545,26 @@ pub fn panel_span_style(style: PanelSpanStyle) -> Style {
     }
 }
 
+pub fn right_panel_inner_size(
+    menu_ui: &MenuUiFile,
+    terminal_width: u16,
+    terminal_height: u16,
+    stats_lines: Option<usize>,
+) -> (u16, u16) {
+    let (_left_percent, right_percent) = menu_layout_percentages(&menu_ui.layout);
+    let right_width = terminal_width
+        .saturating_mul(right_percent)
+        .saturating_div(100)
+        .max(1);
+    let mut right_height = terminal_height.saturating_sub(1).max(1);
+    if let Some(lines) = stats_lines {
+        right_height = right_height.saturating_sub(lines as u16 + 2).max(1);
+    }
+    let inner_width = right_width.saturating_sub(2).max(1);
+    let inner_height = right_height.saturating_sub(2).max(1);
+    (inner_width, inner_height)
+}
+
 fn first_enabled_content(entries: &[ContentMenuEntry]) -> Option<usize> {
     entries.iter().position(|entry| entry.enabled)
 }

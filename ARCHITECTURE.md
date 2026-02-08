@@ -114,8 +114,10 @@ All runtime data is loaded from JSON. Files are organized into top-level categor
   - Item-based travel (warp/escape).
   - Overworld fast travel (unlockable).
   - Vehicle travel with unlock flags.
-- The overworld map menu renders the world's overview map; fast travel reuses the
-  overview transitions as destinations with optional costs.
+- The overworld map menu uses a downsampled view of the base overworld map by
+  default and reuses overworld transitions as destinations with optional costs.
+- Destinations remain hidden until the party has visited the target map; the
+  map view highlights the party location and unlocked vehicles.
 - Warp items return to the last recorded overworld entry unless a specific destination is provided.
 
 ### Event triggers
