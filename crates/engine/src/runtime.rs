@@ -37,6 +37,7 @@ pub struct GameRuntime {
     pub vehicle_positions: HashMap<String, VehiclePosition>,
     pub vehicle_slow_mode: bool,
     pub settings: SettingsState,
+    pub stats: HashMap<String, i32>,
     pub playtime: u64,
     pub start_time: Instant,
 }
@@ -94,6 +95,7 @@ impl GameRuntime {
         let start_location = content.rules.game.start_location.clone();
         let vehicle_positions = initial_vehicle_positions(&content);
         let settings = SettingsState::from_rules(&content.rules);
+        let stats = initialize_stats(&content.rules.stats.track);
         Self {
             content,
             state: GameState::Title,
@@ -115,6 +117,7 @@ impl GameRuntime {
             vehicle_positions,
             vehicle_slow_mode: false,
             settings,
+            stats,
             playtime: 0,
             start_time: Instant::now(),
         }
@@ -140,6 +143,56 @@ impl GameRuntime {
         self.menu_state.detail_actor = 0;
         self.menu_state.detail_slot = 0;
         self.menu_state.detail_target = 0;
+    }
+
+    pub fn stat_value(&self, stat_id: &str) -> i32 {
+        if stat_id == "time_played" {
+            let current_session = self.start_time.elapsed().as_secs();
+            return (self.playtime + current_session) as i32;
+        }
+        self.stats.get(stat_id).copied().unwrap_or(0)
+    }
+
+    pub fn set_stat(&mut self, stat_id: &str, value: i32) {
+        if stat_id == "time_played" {
+            self.playtime = value.max(0) as u64;
+            self.start_time = Instant::now();
+            return;
+        }
+        self.stats.insert(stat_id.to_string(), value);
+    }
+
+    pub fn add_stat(&mut self, stat_id: &str, delta: i32) {
+        if delta == 0 {
+            return;
+        }
+        let value = self.stat_value(stat_id).saturating_add(delta);
+        self.set_stat(stat_id, value);
+    }
+
+    pub fn track_max_stat(&mut self, stat_id: &str, value: i32) {
+        if value <= 0 {
+            return;
+        }
+        let current = self.stat_value(stat_id);
+        if value > current {
+            self.set_stat(stat_id, value);
+        }
+    }
+
+    pub fn stats_for_save(&self) -> HashMap<String, i32> {
+        let mut stats = self.stats.clone();
+        stats.insert("time_played".to_string(), self.stat_value("time_played"));
+        stats
+    }
+
+    pub fn ensure_tracked_stats(&mut self) {
+        for stat in &self.content.rules.stats.track {
+            if stat == "time_played" {
+                continue;
+            }
+            self.stats.entry(stat.clone()).or_insert(0);
+        }
     }
 
     pub fn effective_autosave_enabled(&self) -> bool {
@@ -307,6 +360,7 @@ impl GameRuntime {
                     .add_equipment(&item.id, item.qty, rules.inventory.max_stack);
             }
         }
+        self.stats = initialize_stats(&self.content.rules.stats.track);
         self.playtime = 0;
         self.start_time = Instant::now();
         self.world.world_id = rules.start_location.world.clone();
@@ -444,6 +498,17 @@ impl GameRuntime {
     ) -> EventExecutionResult {
         crate::dialog::apply_dialog_action(self, action)
     }
+}
+
+fn initialize_stats(stats: &[String]) -> HashMap<String, i32> {
+    let mut map = HashMap::new();
+    for stat in stats {
+        if stat == "time_played" {
+            continue;
+        }
+        map.entry(stat.clone()).or_insert(0);
+    }
+    map
 }
 
 fn initial_vehicle_positions(content: &Content) -> HashMap<String, VehiclePosition> {

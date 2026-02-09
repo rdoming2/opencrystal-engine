@@ -1736,6 +1736,15 @@ fn apply_battle_rewards(
         }
     }
 
+    let defeated = battle_state
+        .enemies
+        .iter()
+        .filter(|enemy| enemy.current_hp <= 0)
+        .count();
+    if defeated > 0 {
+        runtime.add_stat("enemies_defeated", defeated as i32);
+    }
+
     result
 }
 

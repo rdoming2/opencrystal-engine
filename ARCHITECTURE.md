@@ -230,6 +230,9 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
 - Configurable summary panel in the menu.
 - Tracks crystal progress, cleared dungeons, and other stats.
 - All tracked items are event/flag driven.
+- Progress panel is shown via the Progress menu entry.
+- Stat updates can be emitted via event steps (`stat_set`, `stat_add`, `stat_max`).
+- Progress stats are persisted in saves; `time_played` is derived from playtime.
 
 ### Main menu
 

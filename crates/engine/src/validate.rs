@@ -18,7 +18,7 @@ use crate::world::WorldsFile;
 
 const BATTLE_POS_MAX_X: i32 = 9;
 const BATTLE_POS_MAX_Y: i32 = 5;
-const EVENT_TYPES: [&str; 15] = [
+const EVENT_TYPES: [&str; 18] = [
     "dialog",
     "narration",
     "set_flag",
@@ -34,6 +34,9 @@ const EVENT_TYPES: [&str; 15] = [
     "npc_move",
     "npc_set_sprite",
     "wait",
+    "stat_set",
+    "stat_add",
+    "stat_max",
 ];
 
 pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
@@ -654,6 +657,25 @@ pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
                             ));
                         }
                     }
+                }
+            }
+            if step.r#type == "stat_set" || step.r#type == "stat_max" {
+                if step.stat.as_deref().unwrap_or("").is_empty() {
+                    errors.push(format!(
+                        "events/{}: {} step missing stat",
+                        event.id, step.r#type
+                    ));
+                }
+                if step.value.is_none() {
+                    errors.push(format!(
+                        "events/{}: {} step missing value",
+                        event.id, step.r#type
+                    ));
+                }
+            }
+            if step.r#type == "stat_add" {
+                if step.stat.as_deref().unwrap_or("").is_empty() {
+                    errors.push(format!("events/{}: stat_add step missing stat", event.id));
                 }
             }
         }

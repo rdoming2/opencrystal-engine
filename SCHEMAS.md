@@ -68,8 +68,8 @@ merged, duplicates removed). Command labels come from the catalog so UI text can
 `battle.rows` enables optional front/back row rules; when enabled, back row reduces physical attack
 unless using a ranged weapon category and reduces incoming physical damage.
 `systems` toggles whether a gameplay system/menu is enabled at all. It should be
-used for global availability (e.g., disabling magic equip). Menu entries can still
-add `unlock_flag` gating for progression-driven unlocks.
+used for global availability (e.g., disabling magic equip or progress). Menu entries
+can still add `unlock_flag` gating for progression-driven unlocks.
 `settings` configures user-facing settings. Each setting can be hidden
 (`visible: false`), locked (`editable: false`), or provide allowed values. For
 `readiness_speed`, `min`, `max`, and `step` define the enforced range; for
@@ -142,6 +142,7 @@ only; autosave uses slot 0 and never reduces the manual slot total.
     "equipment": true,
     "status": true,
     "party": true,
+    "progress": true,
     "jobs": true,
     "journal": true,
     "fast_travel": true,
@@ -193,7 +194,8 @@ only; autosave uses slot 0 and never reduces the manual slot total.
       "enemies_defeated",
       "max_damage",
       "jobs_unlocked",
-      "crystals_collected"
+      "crystals_collected",
+      "dungeons_cleared"
     ]
   }
 }
@@ -1053,6 +1055,9 @@ Supported event step types:
 - `npc_show`, `npc_hide`, `npc_move`, `npc_set_sprite` (fields: `npc`, `pos`, `sprite`)
 - `start_dialog` (fields: `dialog`)
 - `wait` (fields: `ms`)
+- `stat_set` (fields: `stat`, `value`)
+- `stat_add` (fields: `stat`, `value`, default 1)
+- `stat_max` (fields: `stat`, `value`)
 
 Event trigger types (for `maps/*/json` `events` entries):
 
@@ -1101,6 +1106,14 @@ Example steps:
 {
   "type": "start_dialog",
   "dialog": "sky_tinker"
+}
+```
+
+```json
+{
+  "type": "stat_add",
+  "stat": "crystals_collected",
+  "value": 1
 }
 ```
 

@@ -26,6 +26,8 @@ pub struct EventStep {
     pub item: Option<String>,
     pub qty: Option<i32>,
     pub shop: Option<String>,
+    pub stat: Option<String>,
+    pub value: Option<i32>,
     pub target: Option<EventTarget>,
     pub encounter: Option<String>,
     pub formation: Option<Vec<FormationMember>>,
@@ -211,6 +213,25 @@ pub fn apply_event_step(runtime: &mut GameRuntime, step: &EventStep) -> EventExe
         "learn_spell" => {
             if let (Some(member), Some(spell)) = (&step.member, &step.spell) {
                 crate::party::learn_spell_event(&mut runtime.party, member, spell);
+            }
+            EventExecutionResult::Continue
+        }
+        "stat_set" => {
+            if let (Some(stat), Some(value)) = (&step.stat, step.value) {
+                runtime.set_stat(stat, value);
+            }
+            EventExecutionResult::Continue
+        }
+        "stat_add" => {
+            if let Some(stat) = &step.stat {
+                let value = step.value.unwrap_or(1);
+                runtime.add_stat(stat, value);
+            }
+            EventExecutionResult::Continue
+        }
+        "stat_max" => {
+            if let (Some(stat), Some(value)) = (&step.stat, step.value) {
+                runtime.track_max_stat(stat, value);
             }
             EventExecutionResult::Continue
         }

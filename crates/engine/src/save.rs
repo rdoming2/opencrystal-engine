@@ -17,6 +17,8 @@ pub struct SaveFile {
     pub flags: HashSet<String>,
     pub map_states: HashMap<String, MapState>,
     #[serde(default)]
+    pub stats: HashMap<String, i32>,
+    #[serde(default)]
     pub vehicles: HashMap<String, SaveVehicleState>,
     #[serde(default)]
     pub settings: Option<crate::runtime::SettingsState>,
@@ -115,6 +117,7 @@ impl SaveFile {
             inventory: SaveInventory::from_inventory(&runtime.inventory),
             flags: runtime.flags.clone(),
             map_states: runtime.map_states.clone(),
+            stats: runtime.stats_for_save(),
             vehicles: runtime
                 .vehicle_positions
                 .iter()
@@ -164,6 +167,10 @@ impl SaveFile {
         runtime.vehicle_slow_mode = false;
         runtime.party = self.party.to_party();
         runtime.inventory = self.inventory.to_inventory();
+        let mut stats = self.stats.clone();
+        stats.remove("time_played");
+        runtime.stats = stats;
+        runtime.ensure_tracked_stats();
         runtime.settings = self
             .settings
             .clone()

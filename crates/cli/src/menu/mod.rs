@@ -22,7 +22,7 @@ use engine::save::SaveFile;
 use tui::input::{Action, InputBindings};
 use tui::menu::{MenuEntryView, MenuPane, MenuPanelLine, MenuPanelView, PanelSpanStyle};
 use tui::session::TuiSession;
-use tui::ui::{DialogUiFile, MenuUiFile};
+use tui::ui::{DialogUiFile, MenuUiFile, ProgressUiFile};
 
 use crate::utils::read_action;
 
@@ -67,6 +67,7 @@ pub fn run_menu_loop(
     session: &mut TuiSession,
     runtime: &mut GameRuntime,
     menu_ui: &MenuUiFile,
+    progress_ui: &ProgressUiFile,
     dialog_ui: &DialogUiFile,
     bindings: &InputBindings,
     map_id: &str,
@@ -122,13 +123,14 @@ pub fn run_menu_loop(
                 label,
                 submenu_action.as_str(),
                 runtime,
+                progress_ui,
                 runtime.menu_state.detail_page,
                 save_dir,
                 save_message.as_ref(),
                 panel_size,
             )
         } else {
-            menu_default_panel(menu_ui, runtime)
+            menu_default_panel(menu_ui, progress_ui, runtime)
         };
 
         let footer_text = menu_footer_text(
@@ -1174,6 +1176,7 @@ fn menu_detail_panel(
     label: &str,
     action: &str,
     runtime: &GameRuntime,
+    progress_ui: &ProgressUiFile,
     page: usize,
     save_dir: &Path,
     save_message: Option<&SaveMessage>,
@@ -1254,6 +1257,9 @@ fn menu_detail_panel(
     if action == "save" {
         return build_save_panel(runtime, save_dir, save_message);
     }
+    if action == "progress" {
+        return build_progress_panel(label.to_string(), progress_ui, runtime);
+    }
     MenuPanelView {
         title: label.to_string(),
         lines: vec![
@@ -1263,7 +1269,11 @@ fn menu_detail_panel(
     }
 }
 
-fn menu_default_panel(menu_ui: &MenuUiFile, runtime: &GameRuntime) -> MenuPanelView {
+fn menu_default_panel(
+    menu_ui: &MenuUiFile,
+    progress_ui: &ProgressUiFile,
+    runtime: &GameRuntime,
+) -> MenuPanelView {
     let panel = menu_ui
         .panels
         .iter()
@@ -1277,18 +1287,62 @@ fn menu_default_panel(menu_ui: &MenuUiFile, runtime: &GameRuntime) -> MenuPanelV
             title,
             lines: build_party_summary(runtime),
         },
-        "progress" => MenuPanelView {
-            title,
-            lines: vec![
-                panel_line("Progress panel (stub)."),
-                panel_line("TODO: render ui/progress.json."),
-            ],
-        },
+        "progress" => build_progress_panel(title, progress_ui, runtime),
         _ => MenuPanelView {
             title,
             lines: vec![panel_line("Menu panel not configured.")],
         },
     }
+}
+
+fn build_progress_panel(
+    title: String,
+    progress_ui: &ProgressUiFile,
+    runtime: &GameRuntime,
+) -> MenuPanelView {
+    if progress_ui.panels.is_empty() {
+        return MenuPanelView {
+            title,
+            lines: vec![panel_line("Progress panel not configured.")],
+        };
+    }
+
+    let mut lines = Vec::new();
+    let multiple_panels = progress_ui.panels.len() > 1;
+    for (index, panel) in progress_ui.panels.iter().enumerate() {
+        if multiple_panels {
+            lines.push(panel_line_spans(vec![panel_span(
+                panel.title.clone(),
+                PanelSpanStyle::Accent,
+            )]));
+        }
+        for item in &panel.items {
+            let value = runtime.stat_value(item.value.as_str());
+            let formatted_value = format_stat_value(item.value.as_str(), value);
+            let text = if let Some(max) = item.max {
+                format!("{}: {}/{}", item.label, formatted_value, max)
+            } else {
+                format!("{}: {}", item.label, formatted_value)
+            };
+            lines.push(panel_line(text));
+        }
+        if multiple_panels && index + 1 < progress_ui.panels.len() {
+            lines.push(panel_line(""));
+        }
+    }
+
+    MenuPanelView { title, lines }
+}
+
+fn format_stat_value(stat_id: &str, value: i32) -> String {
+    if stat_id == "time_played" {
+        let total_seconds = value.max(0) as u64;
+        let hours = total_seconds / 3600;
+        let minutes = (total_seconds % 3600) / 60;
+        let seconds = total_seconds % 60;
+        return format!("{:02}:{:02}:{:02}", hours, minutes, seconds);
+    }
+    value.to_string()
 }
 
 fn menu_panel_size(

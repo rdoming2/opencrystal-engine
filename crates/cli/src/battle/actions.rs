@@ -11,7 +11,7 @@ use super::state::{enemy_target_indices, TargetMode, TargetSide};
 use crate::menu::common::{AbilityEntry, SpellEntry};
 
 pub fn execute_attack_action(
-    runtime: &GameRuntime,
+    runtime: &mut GameRuntime,
     battle_state: &mut engine::battle::BattleState,
     actor_id: &str,
     enemy_index: usize,
@@ -20,6 +20,7 @@ pub fn execute_attack_action(
     let Some(actor) = runtime.party.roster.get(actor_id) else {
         return;
     };
+    let actor_name = actor.name.clone();
     let Some(enemy) = battle_state.enemies.get_mut(enemy_index) else {
         return;
     };
@@ -40,9 +41,10 @@ pub fn execute_attack_action(
     );
     damage = ((damage as f32) * multiplier).round().max(0.0) as i32;
     apply_damage_to_enemy(enemy, damage);
+    runtime.track_max_stat("max_damage", damage);
     super::logic::push_battle_log(
         &mut battle_state.log,
-        format!("{} attacks {} for {} HP.", actor.name, enemy.name, damage),
+        format!("{} attacks {} for {} HP.", actor_name, enemy.name, damage),
     );
 }
 
@@ -97,17 +99,22 @@ pub fn execute_magic_action(
     }
 
     let magic_system = runtime.content.rules.game.magic_system.clone();
-    let spell_definition = runtime
-        .content
-        .spells
-        .spells
-        .iter()
-        .find(|spell| spell.id == entry.id);
-    let effect_ids = spell_definition
-        .map(|spell| &spell.effect.effects)
-        .cloned()
-        .unwrap_or_default();
-    let element = spell_definition.and_then(|spell| spell.effect.element.as_deref());
+    let (effect_ids, element) = {
+        let spell_definition = runtime
+            .content
+            .spells
+            .spells
+            .iter()
+            .find(|spell| spell.id == entry.id);
+        let effect_ids = spell_definition
+            .map(|spell| &spell.effect.effects)
+            .cloned()
+            .unwrap_or_default();
+        let element = spell_definition
+            .and_then(|spell| spell.effect.element.as_deref())
+            .map(|element| element.to_string());
+        (effect_ids, element)
+    };
     let (actor_name, matk) = {
         let Some(actor) = runtime.party.roster.get_mut(actor_id) else {
             return;
@@ -167,12 +174,13 @@ pub fn execute_magic_action(
                                 &enemy.statuses,
                                 &enemy.traits,
                                 DamageKind::Magic,
-                                element,
+                                element.as_deref(),
                             );
                             damage = ((damage as f32) * multiplier * attenuation)
                                 .round()
                                 .max(1.0) as i32;
                             apply_damage_to_enemy(enemy, damage);
+                            runtime.track_max_stat("max_damage", damage);
                             super::logic::push_battle_log(
                                 &mut battle_state.log,
                                 format!(
@@ -186,6 +194,7 @@ pub fn execute_magic_action(
                             let amount = apply_attenuation(entry.effect_power.max(1), attenuation);
                             if healing_inverted(&runtime.content, &enemy.traits) {
                                 apply_damage_to_enemy(enemy, amount);
+                                runtime.track_max_stat("max_damage", amount);
                                 super::logic::push_battle_log(
                                     &mut battle_state.log,
                                     format!(
@@ -416,6 +425,7 @@ pub fn execute_ability_action(
                                 .round()
                                 .max(1.0) as i32;
                             apply_damage_to_enemy(enemy, damage);
+                            runtime.track_max_stat("max_damage", damage);
                             super::logic::push_battle_log(
                                 &mut battle_state.log,
                                 format!(

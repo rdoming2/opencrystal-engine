@@ -62,8 +62,8 @@
   - [x] Command row (enemy list, commands, party list).
   - [x] Selection highlights.
   - [x] Battle dialog overlay.
-- [ ] Menu + progress UI.
-  - [ ] Status menu panels from `ui/progress.json`.
+- [x] Menu + progress UI.
+  - [x] Status menu panels from `ui/progress.json`.
   - [x] Journal/quest display.
   - [x] Party management UI.
 - [x] Main menu UI.

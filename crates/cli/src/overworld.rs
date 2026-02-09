@@ -8,7 +8,7 @@ use tui::overworld::{
     TileRender, TransitionView, VehicleView,
 };
 use tui::session::TuiSession;
-use tui::ui::{BattleUiFile, DialogUiFile, MenuUiFile};
+use tui::ui::{BattleUiFile, DialogUiFile, MenuUiFile, ProgressUiFile};
 
 use crate::battle::{try_start_random_battle, BattleOutcome};
 use crate::dialog::run_dialog_on_map;
@@ -23,6 +23,7 @@ pub fn run_overworld_loop(
     dialog_ui: &DialogUiFile,
     battle_ui: &BattleUiFile,
     menu_ui: &MenuUiFile,
+    progress_ui: &ProgressUiFile,
     bindings: &InputBindings,
     map_id: &str,
     start_pos: (i32, i32),
@@ -164,6 +165,7 @@ pub fn run_overworld_loop(
                             session,
                             runtime,
                             menu_ui,
+                            progress_ui,
                             dialog_ui,
                             bindings,
                             &current_map_id,
@@ -228,6 +230,7 @@ pub fn run_overworld_loop(
                         session,
                         runtime,
                         menu_ui,
+                        progress_ui,
                         dialog_ui,
                         bindings,
                         &current_map_id,

@@ -162,9 +162,16 @@ fn run_play(args: Vec<String>) {
         }
     };
 
-    if let Err(err) = ProgressUiFile::load(&progress_ui_path) {
-        eprintln!("Failed to load progress UI: {}", err);
-    }
+    let progress_ui = match ProgressUiFile::load(&progress_ui_path) {
+        Ok(progress_ui) => progress_ui,
+        Err(err) => {
+            eprintln!("Failed to load progress UI: {}", err);
+            ProgressUiFile {
+                version: 1,
+                panels: Vec::new(),
+            }
+        }
+    };
 
     let _engine = Engine::new(rules.clone(), world.clone());
     let mut runtime = GameRuntime::new(content);
@@ -245,6 +252,7 @@ fn run_play(args: Vec<String>) {
                     &dialog_ui,
                     &battle_ui,
                     &menu_ui,
+                    &progress_ui,
                     &input_bindings,
                     &world.map_id,
                     spawn,
@@ -283,6 +291,7 @@ fn run_play(args: Vec<String>) {
                             &dialog_ui,
                             &battle_ui,
                             &menu_ui,
+                            &progress_ui,
                             &input_bindings,
                             &map_id,
                             spawn,
