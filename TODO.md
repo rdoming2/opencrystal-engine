@@ -45,6 +45,7 @@
   - [x] Serialize world/party/inventory/flags.
   - [x] Load persistent NPC positions.
   - [x] Add save slot management.
+  - [ ] Default save selection to last used slot.
   - [x] Enforce save rules (map allow_save + save_points).
   - [x] Autosave slot after transitions.
 
@@ -63,6 +64,7 @@
   - [x] Command row (enemy list, commands, party list).
   - [x] Selection highlights.
   - [x] Battle dialog overlay.
+  - [ ] Add enemy HP color indication by health thresholds.
 - [x] Menu + gameplay stats UI.
   - [x] Status menu panels from `ui/gameplay_stats.json`.
   - [x] Journal/quest display.
@@ -80,6 +82,7 @@
 - [x] Inventory + equipment UI.
   - [x] Inventory filters + sorting.
   - [x] Item field use (heal/revive).
+  - [ ] Keep item menu panels visible when no items exist (empty categories).
 - [x] Equipment swap flow with stat preview.
 - [x] Add startup content chooser when `--content` is omitted.
 
@@ -87,11 +90,15 @@
 - [x] Turn-based flow (command selection, targeting, resolve action).
 - [x] Readiness timers (wait + active modes).
 - [x] Battle pause toggle (freeze progression).
-- [ ] Status effects and damage formulas (derived stats).
 - [x] Optional front/back row rules (battle + menu toggles).
 - [x] Status persistence rules and overworld poison ticks.
-- [ ] Implement command-specific behaviors (steal, throw, pray, parry, cover).
+- [ ] Status effects and damage formulas (derived stats).
+  - [ ] Implement critical hit calculations and messaging.
+- [ ] Implement command-specific behaviors (steal, throw, counter, pray, parry, cover).
+- [ ] Add Defend command behavior.
+- [ ] Add optional boss scaling rules.
 - [x] Victory/defeat flow (spoils, level-ups, modals).
+  - [ ] Update defeat messaging and return to main menu on loss.
 - [x] Scan reveals enemy HP.
 - [x] Define battle rules schema (damage, hit, crit, Readiness speed).
 - [x] Define status effects schema (buffs/debuffs, durations).
@@ -115,6 +122,10 @@
 - [ ] Apply job growth formulas/tables on level-up.
 - [x] Recompute derived stats with `lvl` variable.
 
+## Items + Equipment
+- [ ] Fix equipment quantity tracking and shared equip counts.
+- [ ] Unequip incompatible equipment on job change.
+
 ## World + Events
 - [x] Map transitions (enter/exit dungeons, overworld zoom).
 - [x] NPC interactions with flag gating.
@@ -136,6 +147,10 @@
 - [x] Add configurable NPC interaction range (default 1 tile).
 - [x] Add event action to teach spells (learn_spell).
 - [x] Add fast travel menu (free and paid variants).
+- [ ] Add locked door support.
+- [ ] Add puzzle interactions.
+- [ ] Add party talk interactions.
+- [ ] Add cooking system.
 
 ## Content + Validation
 - [x] Add missing demo content (town map, shop UI, basic quests).
@@ -145,12 +160,15 @@
 - [x] Add boss NPC flash/vanish and immediate dialog event trigger.
 - [x] Add job unlock narration in boss events.
 - [x] Extend validation for event step payloads.
+- [ ] Validate content before gameplay starts and surface louder errors.
 - [x] Add content authoring guide.
-- [x] Add build tool for schema stubs, upgrades, and project scaffolding.
+- [x] Add game builder tool for schema stubs, upgrades, and project scaffolding.
 - [x] Add `ui/menu.json` schema + validation.
 - [x] Add `party.json` schema + validation.
 - [x] Extend map schema for saving.
   - [x] `allow_save` flag for main menu saving.
   - [x] `save_points` coordinates (always valid save spots).
 - [x] Add encounter_rate to maps schema.
+- [ ] Remove shop references from map schema.
+- [ ] Tie system map to `maps.json` instead of `rules.json`.
 - [ ] Finalize save schema requirements and versioning rules.
