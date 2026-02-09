@@ -23,7 +23,7 @@ Content packs live under `content/<pack_name>/` and typically include:
 - `maps/`: overworlds, towns, dungeons, and their event triggers.
 - `events/`: event scripts and cutscenes.
 - `dialog/`: dialog trees for NPC conversations.
-- `ui/`: menu, title, battle, dialog, and progress layouts.
+- `ui/`: menu, title, battle, dialog, and gameplay stats layouts.
 
 ## Authoring workflow
 

@@ -52,6 +52,7 @@
 - [x] Title screen renderer.
   - [x] Layout from `ui/title.json`.
   - [x] ASCII logo rendering and menu highlight.
+  - [x] Logo line palettes via `ui/title.json`.
 - [x] Overworld renderer.
   - [x] Tile map rendering.
   - [x] NPC rendering + gating.
@@ -62,8 +63,8 @@
   - [x] Command row (enemy list, commands, party list).
   - [x] Selection highlights.
   - [x] Battle dialog overlay.
-- [x] Menu + progress UI.
-  - [x] Status menu panels from `ui/progress.json`.
+- [x] Menu + gameplay stats UI.
+  - [x] Status menu panels from `ui/gameplay_stats.json`.
   - [x] Journal/quest display.
   - [x] Party management UI.
 - [x] Main menu UI.

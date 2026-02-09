@@ -10,7 +10,8 @@ use ratatui::Frame;
 use crate::dialog::confirm_quit;
 use crate::input::{Action, InputBindings};
 use crate::session::TuiSession;
-use crate::ui::TitleUiFile;
+use crate::ui::{TitleLogo, TitleUiFile};
+use crate::utils::{centered_rect, palette_style};
 
 pub enum TitleAction {
     NewGame,
@@ -130,17 +131,26 @@ pub fn draw_title_frame(frame: &mut Frame, title_ui: &TitleUiFile, selected: usi
         .logo
         .lines
         .iter()
-        .map(|line| Line::from(line.as_str()))
+        .enumerate()
+        .map(|(index, line)| {
+            let style = logo_line_style(&title_ui.logo, index);
+            Line::from(Span::styled(line.as_str(), style))
+        })
         .collect();
+    let logo_width = logo_block_width(&title_ui.logo);
+    let logo_height = title_ui.logo.lines.len().max(1) as u16;
+    let logo_area = centered_rect(layout[0], logo_width, logo_height);
     let logo = Paragraph::new(logo_lines)
-        .alignment(Alignment::Center)
+        .alignment(Alignment::Left)
         .block(Block::default().borders(Borders::NONE));
-    frame.render_widget(logo, layout[0]);
+    frame.render_widget(logo, logo_area);
 
+    let title_width = line_width(title_ui.title.as_str());
+    let title_area = centered_rect(layout[1], title_width, 1);
     let title = Paragraph::new(title_ui.title.as_str())
-        .alignment(Alignment::Center)
+        .alignment(Alignment::Left)
         .block(Block::default().borders(Borders::NONE));
-    frame.render_widget(title, layout[1]);
+    frame.render_widget(title, title_area);
 
     let menu_items: Vec<Line> = title_ui
         .menu
@@ -195,22 +205,34 @@ fn draw_load_frame(
         .logo
         .lines
         .iter()
-        .map(|line| Line::from(line.as_str()))
+        .enumerate()
+        .map(|(index, line)| {
+            let style = logo_line_style(&title_ui.logo, index);
+            Line::from(Span::styled(line.as_str(), style))
+        })
         .collect();
+    let logo_width = logo_block_width(&title_ui.logo);
+    let logo_height = title_ui.logo.lines.len().max(1) as u16;
+    let logo_area = centered_rect(layout[0], logo_width, logo_height);
     let logo = Paragraph::new(logo_lines)
-        .alignment(Alignment::Center)
+        .alignment(Alignment::Left)
         .block(Block::default().borders(Borders::NONE));
-    frame.render_widget(logo, layout[0]);
+    frame.render_widget(logo, logo_area);
 
+    let title_width = line_width(title_ui.title.as_str());
+    let title_area = centered_rect(layout[1], title_width, 1);
     let title = Paragraph::new(title_ui.title.as_str())
-        .alignment(Alignment::Center)
+        .alignment(Alignment::Left)
         .block(Block::default().borders(Borders::NONE));
-    frame.render_widget(title, layout[1]);
+    frame.render_widget(title, title_area);
 
-    let header = Paragraph::new("Load Game")
-        .alignment(Alignment::Center)
+    let header_text = "Load Game";
+    let header_width = line_width(header_text);
+    let header_area = centered_rect(layout[2], header_width, 1);
+    let header = Paragraph::new(header_text)
+        .alignment(Alignment::Left)
         .block(Block::default().borders(Borders::NONE));
-    frame.render_widget(header, layout[2]);
+    frame.render_widget(header, header_area);
 
     let menu_items: Vec<Line> = slots
         .iter()
@@ -277,4 +299,27 @@ fn move_slot_selection(current: usize, slots: &[LoadSlotEntry], direction: i32) 
         remaining -= 1;
     }
     current
+}
+
+fn logo_line_style(logo: &TitleLogo, index: usize) -> Style {
+    let line_palette = logo
+        .line_palettes
+        .as_ref()
+        .and_then(|palettes| palettes.get(index))
+        .map(|palette| palette.as_str());
+    let palette = line_palette.or(logo.palette.as_deref());
+    palette_style(true, palette)
+}
+
+fn logo_block_width(logo: &TitleLogo) -> u16 {
+    logo.lines
+        .iter()
+        .map(|line| line_width(line))
+        .max()
+        .unwrap_or(1)
+}
+
+fn line_width(line: &str) -> u16 {
+    let width = line.chars().count();
+    u16::try_from(width).unwrap_or(u16::MAX).max(1)
 }

@@ -97,7 +97,7 @@ fn run_play(args: Vec<String>) {
     let menu_ui_path = content_dir.join("ui").join("menu.json");
     let battle_ui_path = content_dir.join("ui").join("battle.json");
     let dialog_ui_path = content_dir.join("ui").join("dialog.json");
-    let progress_ui_path = content_dir.join("ui").join("progress.json");
+    let progress_ui_path = content_dir.join("ui").join("gameplay_stats.json");
 
     let content = match Content::load(&content_dir) {
         Ok(content) => content,
@@ -165,7 +165,7 @@ fn run_play(args: Vec<String>) {
     let progress_ui = match ProgressUiFile::load(&progress_ui_path) {
         Ok(progress_ui) => progress_ui,
         Err(err) => {
-            eprintln!("Failed to load progress UI: {}", err);
+            eprintln!("Failed to load gameplay stats UI: {}", err);
             ProgressUiFile {
                 version: 1,
                 panels: Vec::new(),
@@ -326,7 +326,7 @@ fn run_validate() {
     let menu_ui_path = content_dir.join("ui").join("menu.json");
     let battle_ui_path = content_dir.join("ui").join("battle.json");
     let dialog_ui_path = content_dir.join("ui").join("dialog.json");
-    let progress_ui_path = content_dir.join("ui").join("progress.json");
+    let progress_ui_path = content_dir.join("ui").join("gameplay_stats.json");
 
     if let Err(err) = InputFile::load(&input_path) {
         errors.push(format!("input.json: {}", err));
@@ -344,7 +344,7 @@ fn run_validate() {
         errors.push(format!("ui/dialog.json: {}", err));
     }
     if let Err(err) = ProgressUiFile::load(&progress_ui_path) {
-        errors.push(format!("ui/progress.json: {}", err));
+        errors.push(format!("ui/gameplay_stats.json: {}", err));
     }
 
     if errors.is_empty() {

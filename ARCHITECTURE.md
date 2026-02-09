@@ -95,9 +95,9 @@ All runtime data is loaded from JSON. Files are organized into top-level categor
 - `entities/*.json`: jobs (including battle sprites, starting gear, and optional magic tier charge tables), spells, abilities (optional costs), items, equipment, enemies, vehicles, shops, encounters, npcs.
 - `events/*.json`: scripted events and cutscenes.
 - `dialog/*.json`: NPC dialog trees.
-- `ui/*.json`: menu panels, progress tracking config.
+- `ui/*.json`: menu panels, gameplay stats config.
 - `ui/battle.json`: battle layout and panel configuration.
-- `ui/title.json`: title screen layout and menu.
+- `ui/title.json`: title screen layout, menu, and optional logo palettes.
 - `ui/menu.json`: main menu layout, optional entries, and panel templates.
 - `ui/dialog.json`: dialog box layout and behavior.
 - `input.json`: key bindings.
@@ -230,7 +230,7 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
 - Configurable summary panel in the menu.
 - Tracks crystal progress, cleared dungeons, and other stats.
 - All tracked items are event/flag driven.
-- Progress panel is shown via the Progress menu entry.
+- Gameplay stats panel is shown via the Gameplay Stats menu entry.
 - Stat updates can be emitted via event steps (`stat_set`, `stat_add`, `stat_max`).
 - Progress stats are persisted in saves; `time_played` is derived from playtime.
 
@@ -244,7 +244,7 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
   unlock flags (e.g., Summons, Materia, Job Change, Journal, Save).
 - Party submenu exposes actions per member (reorder, swap with reserve, switch row). Swap actions are
   gated by save-allowed maps; row selection is shown when battle row rules are enabled.
-- Custom status/progress panels are handled via configurable menu panels in `ui/menu.json`.
+- Custom status/gameplay stats panels are handled via configurable menu panels in `ui/menu.json`.
 - Magic Equip is an optional submenu for equipping spell-granting items.
 - Settings submenu exposes user options (autosave, readiness speed, battle mode) that can
   be hidden or locked via `rules.json` `settings` definitions.

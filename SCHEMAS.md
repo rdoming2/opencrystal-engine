@@ -68,7 +68,7 @@ merged, duplicates removed). Command labels come from the catalog so UI text can
 `battle.rows` enables optional front/back row rules; when enabled, back row reduces physical attack
 unless using a ranged weapon category and reduces incoming physical damage.
 `systems` toggles whether a gameplay system/menu is enabled at all. It should be
-used for global availability (e.g., disabling magic equip or progress). Menu entries
+used for global availability (e.g., disabling magic equip or gameplay stats). Menu entries
 can still add `unlock_flag` gating for progression-driven unlocks.
 `settings` configures user-facing settings. Each setting can be hidden
 (`visible: false`), locked (`editable: false`), or provide allowed values. For
@@ -142,7 +142,7 @@ only; autosave uses slot 0 and never reduces the manual slot total.
     "equipment": true,
     "status": true,
     "party": true,
-    "progress": true,
+    "gameplay_stats": true,
     "jobs": true,
     "journal": true,
     "fast_travel": true,
@@ -1238,9 +1238,9 @@ Quest visibility and completion rules:
 - Substeps follow the same visibility/completion rules as parent steps.
 - History entries are derived from completed steps in the order they appear in the quest definition.
 
-## ui/progress.json
+## ui/gameplay_stats.json
 
-Configurable menu panels for progress stats.
+Configurable menu panels for gameplay stats.
 
 ```json
 {
@@ -1326,10 +1326,10 @@ Menu entries can be gated by a rules `systems` toggle and an optional
       "type": "party_summary"
     },
     {
-      "id": "progress",
-      "title": "Progress",
+      "id": "gameplay_stats",
+      "title": "Gameplay Stats",
       "type": "progress",
-      "source": "ui/progress.json"
+      "source": "ui/gameplay_stats.json"
     }
   ]
 }
@@ -1353,6 +1353,13 @@ Runtime notes:
 Defines the title screen layout and content. This is a lightweight, templatable
 configuration intended to support ASCII logos, attribution, and menu items.
 
+Logo fields:
+
+- `lines`: array of ASCII logo rows.
+- `palette`: optional palette name applied to every logo row.
+- `line_palettes`: optional array of palette names applied per row (falls back to
+  `palette` if an entry is missing).
+
 ```json
 {
   "version": 1,
@@ -1365,6 +1372,15 @@ configuration intended to support ASCII logos, attribution, and menu items.
       "| |_| | |_) |  __/ | | || |___| | | (__| || (_| | |",
       " \\___/| .__/ \\___|_| |_| \\____|_|  \\___|\\__\\__,_|_|",
       "      |_|                                            "
+    ],
+    "palette": "bright_cyan",
+    "line_palettes": [
+      "bright_cyan",
+      "bright_cyan",
+      "bright_cyan",
+      "bright_cyan",
+      "bright_cyan",
+      "bright_cyan"
     ]
   },
   "menu": [

@@ -75,6 +75,10 @@ pub struct ProgressItem {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct TitleLogo {
     pub lines: Vec<String>,
+    #[serde(default)]
+    pub palette: Option<String>,
+    #[serde(default)]
+    pub line_palettes: Option<Vec<String>>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

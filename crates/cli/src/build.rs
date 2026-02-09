@@ -424,6 +424,8 @@ fn create_project_structure(target_dir: &Path, title: &str) -> Result<(), String
         title: title.to_string(),
         logo: TitleLogo {
             lines: vec!["OpenCrystal".to_string()],
+            palette: None,
+            line_palettes: None,
         },
         menu: vec![
             MenuItem {
@@ -476,6 +478,15 @@ fn create_project_structure(target_dir: &Path, title: &str) -> Result<(), String
                 locked_behavior: None,
             },
             MenuEntry {
+                id: "gameplay_stats".to_string(),
+                label: "Gameplay Stats".to_string(),
+                action: "gameplay_stats".to_string(),
+                enabled: true,
+                system: Some("gameplay_stats".to_string()),
+                unlock_flag: None,
+                locked_behavior: None,
+            },
+            MenuEntry {
                 id: "party".to_string(),
                 label: "Party".to_string(),
                 action: "party".to_string(),
@@ -520,10 +531,10 @@ fn create_project_structure(target_dir: &Path, title: &str) -> Result<(), String
                 source: None,
             },
             MenuPanel {
-                id: "progress".to_string(),
-                title: "Progress".to_string(),
+                id: "gameplay_stats".to_string(),
+                title: "Gameplay Stats".to_string(),
                 panel_type: "progress".to_string(),
-                source: Some("ui/progress.json".to_string()),
+                source: Some("ui/gameplay_stats.json".to_string()),
             },
         ],
     };
@@ -668,8 +679,8 @@ fn create_project_structure(target_dir: &Path, title: &str) -> Result<(), String
     let progress_ui = ProgressUiFile {
         version: 1,
         panels: vec![ProgressPanel {
-            id: "progress".to_string(),
-            title: "Progress".to_string(),
+            id: "gameplay_stats".to_string(),
+            title: "Gameplay Stats".to_string(),
             items: vec![ProgressItem {
                 label: "Steps".to_string(),
                 value: "time_played".to_string(),
@@ -701,7 +712,7 @@ fn create_project_structure(target_dir: &Path, title: &str) -> Result<(), String
     write_json_pretty(target_dir.join("ui/menu.json"), &menu_ui)?;
     write_json_pretty(target_dir.join("ui/battle.json"), &battle_ui)?;
     write_json_pretty(target_dir.join("ui/dialog.json"), &dialog_ui)?;
-    write_json_pretty(target_dir.join("ui/progress.json"), &progress_ui)?;
+    write_json_pretty(target_dir.join("ui/gameplay_stats.json"), &progress_ui)?;
 
     Ok(())
 }
@@ -1210,6 +1221,7 @@ fn default_systems() -> HashMap<String, bool> {
         ("equipment".to_string(), true),
         ("status".to_string(), true),
         ("party".to_string(), true),
+        ("gameplay_stats".to_string(), true),
         ("jobs".to_string(), true),
         ("journal".to_string(), false),
         ("fast_travel".to_string(), false),
@@ -1519,7 +1531,7 @@ fn base_upgrade_targets(content_dir: &Path) -> Vec<UpgradeTarget> {
             kind: UpgradeKind::DialogUi,
         },
         UpgradeTarget {
-            path: content_dir.join("ui").join("progress.json"),
+            path: content_dir.join("ui").join("gameplay_stats.json"),
             kind: UpgradeKind::ProgressUi,
         },
     ]

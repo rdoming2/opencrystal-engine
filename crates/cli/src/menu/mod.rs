@@ -1257,7 +1257,7 @@ fn menu_detail_panel(
     if action == "save" {
         return build_save_panel(runtime, save_dir, save_message);
     }
-    if action == "progress" {
+    if action == "gameplay_stats" {
         return build_progress_panel(label.to_string(), progress_ui, runtime);
     }
     MenuPanelView {
