@@ -35,8 +35,10 @@ cargo run -- play --content content/demo
 
 - `cryst play [--render=auto|wide|modern] [--content path]`
 - `cryst validate`
-- `cryst new-project`
-- `cryst build`
+- `cryst new-project <name> [--path path]`
+- `cryst build new <kind> <id> [--content path] [--name label] [--force]`
+- `cryst build upgrade [--content path] [--dry-run]`
+- `cryst build new-project <name> [--path path]`
 
 ## Content packs
 

@@ -145,6 +145,7 @@
 - [x] Add job unlock narration in boss events.
 - [x] Extend validation for event step payloads.
 - [x] Add content authoring guide.
+- [x] Add build tool for schema stubs, upgrades, and project scaffolding.
 - [x] Add `ui/menu.json` schema + validation.
 - [x] Add `party.json` schema + validation.
 - [x] Extend map schema for saving.

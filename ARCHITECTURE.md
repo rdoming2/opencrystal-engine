@@ -15,8 +15,10 @@ It is a design reference meant to guide initial implementation.
 
 - `cryst play [--render=auto|wide|modern]`
 - `cryst validate`
-- `cryst new-project`
-- `cryst build`
+- `cryst new-project <name> [--path path]`
+- `cryst build new <kind> <id> [--content path] [--name label] [--force]`
+- `cryst build upgrade [--content path] [--dry-run]`
+- `cryst build new-project <name> [--path path]`
 
 `cryst play` opens a content chooser when `--content` is omitted, listing subfolders under
 `content/` and showing `rules.json` metadata (title, optional description/author).

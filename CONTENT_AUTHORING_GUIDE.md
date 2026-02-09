@@ -28,6 +28,7 @@ Content packs live under `content/<pack_name>/` and typically include:
 ## Authoring workflow
 
 1. Start from a known-good base (copy `content/demo` or an existing pack).
+   - Or scaffold a minimal pack with `cryst build new-project <name>`.
 2. Define game metadata in `rules.json` (title, description, author).
 3. Build your world graph in `worlds.json` and decide starting location.
 4. Create map layouts and encounter zones in `maps/*.json`.
@@ -36,6 +37,11 @@ Content packs live under `content/<pack_name>/` and typically include:
 7. Configure UI layouts in `ui/` only when you need changes from defaults.
 8. Run `cryst validate` frequently and fix all schema warnings/errors.
 9. Playtest with `cryst play --content <pack_path>` and iterate.
+
+## Builder commands
+
+- `cryst build new <kind> <id> --content <pack_path>` adds a schema stub (spells, items, jobs, etc.).
+- `cryst build upgrade --content <pack_path>` fills in missing defaults and reports extra fields.
 
 ## Core conventions
 

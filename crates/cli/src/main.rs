@@ -1,4 +1,5 @@
 mod battle;
+mod build;
 mod dialog;
 mod events;
 mod menu;
@@ -67,8 +68,8 @@ fn main() {
     match command.as_deref() {
         Some("play") => run_play(args.collect()),
         Some("validate") => run_validate(),
-        Some("new-project") => run_new_project(),
-        Some("build") => run_build(),
+        Some("new-project") => run_new_project(args.collect()),
+        Some("build") => run_build(args.collect()),
         _ => print_usage(),
     }
 }
@@ -347,12 +348,14 @@ fn run_validate() {
     }
 }
 
-fn run_new_project() {
-    println!("Creating new OpenCrystal project...");
+fn run_new_project(args: Vec<String>) {
+    let mut forwarded = vec!["new-project".to_string()];
+    forwarded.extend(args);
+    build::run_build(forwarded);
 }
 
-fn run_build() {
-    println!("Building OpenCrystal content...");
+fn run_build(args: Vec<String>) {
+    build::run_build(args);
 }
 
 fn choose_content_dir(
@@ -621,6 +624,6 @@ fn slugify(value: &str) -> String {
 
 fn print_usage() {
     println!(
-        "OpenCrystal\n\nUsage:\n  cryst play [--render=auto|wide|modern] [--content path]\n  cryst validate\n  cryst new-project\n  cryst build"
+        "OpenCrystal\n\nUsage:\n  cryst play [--render=auto|wide|modern] [--content path]\n  cryst validate\n  cryst new-project <name> [--path path]\n  cryst build new <kind> <id> [--content path] [--name label] [--force]\n  cryst build upgrade [--content path] [--dry-run]\n  cryst build new-project <name> [--path path]"
     );
 }

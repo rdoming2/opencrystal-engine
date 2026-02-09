@@ -14,6 +14,12 @@ compatibility.
 - Palette values use terminal color names (`red`, `green`, `blue`, etc.) plus bright variants
   (`bright_red`, `bright_green`, etc.). These map to the user's terminal theme.
 
+## Builder tooling
+
+`cryst build new` can stub schema entries (spells, items, jobs, etc.) under an existing content
+pack. It does not invent missing required context; for example, spell creation requires at least
+one magic school in `entities/spells.json`.
+
 ## input.json
 
 Configurable input bindings.
