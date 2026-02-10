@@ -1,7 +1,7 @@
 use engine::entities::JobDefinition;
 use engine::party::{
-    job_jp, job_level, set_primary_job, set_secondary_job, spend_job_jp, unlock_ability,
-    unlock_spell,
+    job_jp, job_level, set_primary_job, set_secondary_job, spend_job_jp,
+    unequip_incompatible_equipment, unlock_ability, unlock_spell,
 };
 use engine::rules::{AbilityAcquisition, JobProgressionMode, JpMode, MagicAcquisition};
 use engine::runtime::GameRuntime;
@@ -378,6 +378,7 @@ pub fn apply_primary_change(runtime: &mut GameRuntime) {
     };
     if let Some(actor) = runtime.party.roster.get_mut(&actor_id) {
         set_primary_job(actor, &job_id, &runtime.content);
+        unequip_incompatible_equipment(&runtime.content, actor, &mut runtime.inventory);
     }
 }
 

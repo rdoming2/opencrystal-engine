@@ -29,6 +29,23 @@ impl InventoryState {
         *entry = (*entry + qty).min(max_stack);
     }
 
+    pub fn remove_equipment(&mut self, item_id: &str, qty: i32) -> bool {
+        if qty <= 0 {
+            return true;
+        }
+        let Some(entry) = self.equipment.get_mut(item_id) else {
+            return false;
+        };
+        if *entry < qty {
+            return false;
+        }
+        *entry -= qty;
+        if *entry == 0 {
+            self.equipment.remove(item_id);
+        }
+        true
+    }
+
     pub fn add_currency(&mut self, currency_id: &str, amount: i32) {
         let entry = self.currency.entry(currency_id.to_string()).or_insert(0);
         if amount >= 0 {

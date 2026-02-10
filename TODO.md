@@ -123,8 +123,8 @@
 - [x] Recompute derived stats with `lvl` variable.
 
 ## Items + Equipment
-- [ ] Fix equipment quantity tracking and shared equip counts.
-- [ ] Unequip incompatible equipment on job change.
+- [x] Fix equipment quantity tracking and shared equip counts.
+- [x] Unequip incompatible equipment on job change.
 
 ## World + Events
 - [x] Map transitions (enter/exit dungeons, overworld zoom).

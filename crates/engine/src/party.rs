@@ -5,6 +5,7 @@ use std::path::Path;
 use crate::content::Content;
 use crate::entities::{EquipmentDefinition, JobDefinition, MagicAcquisitionOverride};
 use crate::expr::eval_expression;
+use crate::inventory::InventoryState;
 use crate::rules::{
     AbilityAcquisition, ExpCurveRules, JobProgressionMode, JpMode, MagicAcquisition, MagicSystem,
     PartyCreateRules, PartyMode, RulesFile, Ruleset,
@@ -477,6 +478,44 @@ fn job_slots(job: &JobDefinition) -> Vec<String> {
     slots
 }
 
+fn job_magic_slots(job: &JobDefinition, level: u32) -> Vec<String> {
+    let Some(progression) = &job.magic_equip_progression else {
+        return Vec::new();
+    };
+    let mut max_slots = 0;
+    for (req_level, slots) in &progression.slots {
+        if level >= *req_level {
+            max_slots = max_slots.max(*slots);
+        }
+    }
+    (1..=max_slots)
+        .map(|index| format!("magic_{index}"))
+        .collect()
+}
+
+fn equipment_slot_matches(slot: &str, equipment_slot: &str) -> bool {
+    if slot.starts_with("accessory") {
+        equipment_slot == "accessory"
+    } else if slot.starts_with("magic") {
+        equipment_slot == "magic"
+    } else {
+        slot == equipment_slot
+    }
+}
+
+fn equipment_allowed(job: &JobDefinition, equipment: &EquipmentDefinition) -> bool {
+    if let Some(allowed) = &equipment.allowed_jobs {
+        if !allowed.contains(&job.id) {
+            return false;
+        }
+    }
+    match equipment.slot.as_str() {
+        "weapon" => job.equipment.weapons.contains(&equipment.category),
+        "armor" => job.equipment.armor.contains(&equipment.category),
+        _ => true,
+    }
+}
+
 pub fn actor_slots(content: &Content, actor: &Actor) -> Vec<String> {
     content
         .jobs
@@ -485,6 +524,49 @@ pub fn actor_slots(content: &Content, actor: &Actor) -> Vec<String> {
         .find(|job| job.id == actor.job_id)
         .map(job_slots)
         .unwrap_or_default()
+}
+
+pub fn unequip_incompatible_equipment(
+    content: &Content,
+    actor: &mut Actor,
+    inventory: &mut InventoryState,
+) {
+    let Some(job) = content.jobs.jobs.iter().find(|job| job.id == actor.job_id) else {
+        return;
+    };
+    let mut allowed_slots = job_slots(job);
+    allowed_slots.extend(job_magic_slots(job, actor.level));
+    let equipment_lookup = build_equipment_lookup(content);
+    let max_stack = content.rules.inventory.max_stack;
+
+    let mut to_remove = Vec::new();
+    for (slot, item_id) in &actor.equipment {
+        if !allowed_slots.contains(slot) {
+            to_remove.push((slot.clone(), item_id.clone()));
+            continue;
+        }
+        let Some(equipment) = equipment_lookup.get(item_id.as_str()) else {
+            to_remove.push((slot.clone(), item_id.clone()));
+            continue;
+        };
+        if !equipment_slot_matches(slot, equipment.slot.as_str()) {
+            to_remove.push((slot.clone(), item_id.clone()));
+            continue;
+        }
+        if !equipment_allowed(job, equipment) {
+            to_remove.push((slot.clone(), item_id.clone()));
+        }
+    }
+
+    if to_remove.is_empty() {
+        return;
+    }
+
+    for (slot, item_id) in to_remove {
+        actor.equipment.remove(&slot);
+        inventory.add_equipment(&item_id, 1, max_stack);
+    }
+    recompute_derived_stats(content, actor);
 }
 
 fn apply_job_modifiers(

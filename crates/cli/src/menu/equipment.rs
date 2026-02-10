@@ -163,32 +163,58 @@ pub fn build_equipped_map(runtime: &GameRuntime) -> HashMap<String, Vec<String>>
 
 pub fn equip_item(runtime: &mut GameRuntime, actor_id: &str, slot: &str, entry: &InventoryEntry) {
     let target_id = actor_id.to_string();
+    let max_stack = runtime.content.rules.inventory.max_stack;
     if entry.id.is_empty() {
         if let Some(actor) = runtime.party.roster.get_mut(&target_id) {
-            actor.equipment.remove(slot);
-            recompute_derived_stats(&runtime.content, actor);
+            if let Some(removed) = actor.equipment.remove(slot) {
+                runtime.inventory.add_equipment(&removed, 1, max_stack);
+                recompute_derived_stats(&runtime.content, actor);
+            }
         }
         return;
     }
+
+    let current_item = runtime
+        .party
+        .roster
+        .get(&target_id)
+        .and_then(|actor| actor.equipment.get(slot))
+        .cloned();
+    if current_item.as_deref() == Some(entry.id.as_str()) {
+        return;
+    }
+
     let mut owner_to_clear = None;
-    for (id, actor) in &runtime.party.roster {
-        for (equip_slot, item_id) in &actor.equipment {
-            if item_id == &entry.id && id != &target_id {
-                owner_to_clear = Some((id.clone(), equip_slot.clone()));
+    if runtime.inventory.equipment_qty(&entry.id) <= 0 {
+        for (id, actor) in &runtime.party.roster {
+            for (equip_slot, item_id) in &actor.equipment {
+                if item_id == &entry.id && id != &target_id {
+                    owner_to_clear = Some((id.clone(), equip_slot.clone()));
+                    break;
+                }
+            }
+            if owner_to_clear.is_some() {
                 break;
             }
         }
-        if owner_to_clear.is_some() {
-            break;
+        if owner_to_clear.is_none() {
+            return;
         }
     }
+
     if let Some((owner_id, equip_slot)) = owner_to_clear {
         if let Some(owner) = runtime.party.roster.get_mut(&owner_id) {
             owner.equipment.remove(&equip_slot);
             recompute_derived_stats(&runtime.content, owner);
         }
+    } else if !runtime.inventory.remove_equipment(&entry.id, 1) {
+        return;
     }
+
     if let Some(actor) = runtime.party.roster.get_mut(&target_id) {
+        if let Some(removed) = actor.equipment.remove(slot) {
+            runtime.inventory.add_equipment(&removed, 1, max_stack);
+        }
         actor.equipment.insert(slot.to_string(), entry.id.clone());
         recompute_derived_stats(&runtime.content, actor);
     }
@@ -287,15 +313,16 @@ fn build_equipment_entries(
         let equipped_by = equipped_map.get(&equipment.id).cloned().unwrap_or_default();
         let already_equipped = actor
             .equipment
-            .values()
-            .any(|item_id| item_id == &equipment.id);
+            .get(slot)
+            .map(|item_id| item_id == &equipment.id)
+            .unwrap_or(false);
         if already_equipped {
             available += 1;
         }
         if available <= 0 && equipped_by.is_empty() {
             continue;
         }
-        let usable = available > 0 || already_equipped;
+        let usable = available > 0 || !equipped_by.is_empty();
         entries.push(InventoryEntry {
             id: equipment.id.clone(),
             label: equipment.name.clone(),

@@ -207,6 +207,10 @@ pub fn run_menu_loop(
                         if runtime.menu_state.detail_selection > 0 {
                             runtime.menu_state.detail_selection -= 1;
                         }
+                    } else if submenu_action == "equipment" {
+                        if runtime.menu_state.detail_selection > 0 {
+                            runtime.menu_state.detail_selection -= 1;
+                        }
                     } else if submenu_action == "jobs" {
                         if runtime.menu_state.detail_page == 0 {
                             if runtime.menu_state.detail_slot > 0 {

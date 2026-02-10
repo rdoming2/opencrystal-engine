@@ -187,15 +187,16 @@ pub fn magic_equip_entries_for_menu(runtime: &GameRuntime) -> Vec<InventoryEntry
         let equipped_by = equipped_map.get(&equipment.id).cloned().unwrap_or_default();
         let already_equipped = actor
             .equipment
-            .values()
-            .any(|item_id| item_id == &equipment.id);
+            .get(&slot)
+            .map(|item_id| item_id == &equipment.id)
+            .unwrap_or(false);
         if already_equipped {
             available += 1;
         }
         if available <= 0 && equipped_by.is_empty() {
             continue;
         }
-        let usable = available > 0 || already_equipped;
+        let usable = available > 0 || !equipped_by.is_empty();
         entries.push(InventoryEntry {
             id: equipment.id.clone(),
             label: equipment.name.clone(),
