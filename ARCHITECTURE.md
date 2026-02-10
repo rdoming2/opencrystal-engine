@@ -45,6 +45,7 @@ It is a design reference meant to guide initial implementation.
 - NPCs render with per-definition palette overrides (theme-driven colors).
 - Signs render as map objects with a glyph override (default `⚑`), block movement, and open a centered dialog on confirm.
 - Chests render with closed/open glyphs, block movement, and display loot in a centered dialog.
+- Doors, puzzles, and campfires render as map objects, block movement, and trigger interactions on confirm.
 
 ### Area name popup
 
@@ -95,6 +96,7 @@ All runtime data is loaded from JSON. Files are organized into top-level categor
 - `entities/*.json`: jobs (including battle sprites, starting gear, and optional magic tier charge tables), spells, abilities (optional costs), items, equipment, enemies, vehicles, shops, encounters, npcs.
 - `events/*.json`: scripted events and cutscenes.
 - `dialog/*.json`: NPC dialog trees.
+- `cooking.json`: campfire recipe sets and cooking outputs.
 - `ui/*.json`: menu panels, gameplay stats config.
 - `ui/battle.json`: battle layout and panel configuration.
 - `ui/title.json`: title screen layout, menu, and optional logo palettes.
@@ -126,9 +128,10 @@ All runtime data is loaded from JSON. Files are organized into top-level categor
 
 - Map triggers (`on_enter`, `trigger: "on_enter"`, `on_step` with zone support).
 - NPC interactions (map NPC `script` event, dialog tree actions).
-- Dialog actions (`start_event`, `open_shop`, `rest_party`).
-- Item effects (warp, start battle).
+- Dialog actions (`start_event`, `open_shop`, `rest_party`, `learn_recipe`).
+- Item effects (warp, start battle, learn_recipe).
 - Spell learn events (direct grants).
+- Recipe unlock events (direct grants).
 - Battle results (victory/defeat hooks).
 
 Event execution is handled by `GameRuntime.apply_event_step`, which:

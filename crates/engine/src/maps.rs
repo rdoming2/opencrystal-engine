@@ -34,6 +34,12 @@ pub struct MapFile {
     pub transitions: Vec<MapTransition>,
     #[serde(default)]
     pub vehicles: Vec<MapVehicle>,
+    #[serde(default)]
+    pub doors: Vec<MapDoor>,
+    #[serde(default)]
+    pub puzzles: Vec<MapPuzzle>,
+    #[serde(default)]
+    pub campfires: Vec<MapCampfire>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -145,6 +151,59 @@ pub struct MapVehicle {
     pub pos: [i32; 2],
     #[serde(default)]
     pub requires_flags: Option<Vec<String>>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct MapDoor {
+    pub id: String,
+    pub pos: [i32; 2],
+    #[serde(default)]
+    pub requires_flag: Option<String>,
+    #[serde(default)]
+    pub locked_text: Option<String>,
+    #[serde(default)]
+    pub locked_event: Option<String>,
+    #[serde(default)]
+    pub target_map: Option<String>,
+    #[serde(default)]
+    pub target_pos: Option<[i32; 2]>,
+    #[serde(default)]
+    pub return_to_last: bool,
+    #[serde(default)]
+    pub glyph: Option<String>,
+    #[serde(default)]
+    pub palette: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct MapPuzzle {
+    pub id: String,
+    pub pos: [i32; 2],
+    #[serde(default)]
+    pub requires_flags: Option<Vec<String>>,
+    #[serde(default)]
+    pub text: Option<String>,
+    #[serde(default)]
+    pub event: Option<String>,
+    #[serde(default)]
+    pub set_flag: Option<String>,
+    #[serde(default)]
+    pub glyph: Option<String>,
+    #[serde(default)]
+    pub palette: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct MapCampfire {
+    pub id: String,
+    pub pos: [i32; 2],
+    pub campfire_id: String,
+    #[serde(default)]
+    pub requires_flags: Option<Vec<String>>,
+    #[serde(default)]
+    pub glyph: Option<String>,
+    #[serde(default)]
+    pub palette: Option<String>,
 }
 
 impl MapFile {

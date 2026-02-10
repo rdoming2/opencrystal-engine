@@ -151,6 +151,17 @@ pub fn apply_item_to_targets(
             warp_message: None,
         };
     }
+    if item.effect.r#type == "learn_recipe" {
+        if let Some(recipe_id) = item.effect.target.as_deref() {
+            if let Some(flag) = recipe_unlock_flag(runtime, recipe_id) {
+                runtime.set_flag(&flag);
+            }
+            return ItemUseResult {
+                consumed: true,
+                warp_message: None,
+            };
+        }
+    }
     if item.effect.r#type == "warp" {
         if let Some(destination) = &item.effect.destination {
             runtime.warp_to_map(&destination.map, (destination.pos[0], destination.pos[1]));
@@ -299,6 +310,16 @@ pub fn apply_item_to_actor(
         }
         _ => {}
     }
+}
+
+fn recipe_unlock_flag(runtime: &GameRuntime, recipe_id: &str) -> Option<String> {
+    let cooking = runtime.content.cooking.as_ref()?;
+    cooking
+        .recipes
+        .iter()
+        .find(|recipe| recipe.id == recipe_id)
+        .and_then(|recipe| recipe.unlock_flag.clone())
+        .filter(|flag| !flag.trim().is_empty())
 }
 
 fn matches_filter_equipment(

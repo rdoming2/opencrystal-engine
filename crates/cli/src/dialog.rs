@@ -31,7 +31,13 @@ pub fn run_dialog(
         };
 
         let speaker = node.speaker.as_deref().unwrap_or("");
-        let choice_views = node.choices.as_ref().map(|choices| {
+        let filtered_choices = node.choices.as_ref().map(|choices| {
+            choices
+                .iter()
+                .filter(|choice| dialog_choice_visible(runtime, choice))
+                .collect::<Vec<_>>()
+        });
+        let choice_views = filtered_choices.as_ref().map(|choices| {
             choices
                 .iter()
                 .map(|choice| ChoiceView {
@@ -42,6 +48,10 @@ pub fn run_dialog(
         });
 
         let selection = if let Some(choices) = &choice_views {
+            if choices.is_empty() {
+                tui::dialog::show_dialog(session, dialog_ui, bindings, speaker, &node.text)?;
+                return Ok(());
+            }
             tui::dialog::show_dialog_with_choices(
                 session, dialog_ui, bindings, speaker, &node.text, choices,
             )?
@@ -58,7 +68,7 @@ pub fn run_dialog(
             }
         }
 
-        if let (Some(selection), Some(choices)) = (selection, node.choices.as_ref()) {
+        if let (Some(selection), Some(choices)) = (selection, filtered_choices.as_ref()) {
             let next = choices
                 .get(selection)
                 .map(|choice| choice.next.clone())
@@ -100,7 +110,13 @@ pub fn run_dialog_on_map(
         };
 
         let speaker = node.speaker.as_deref().unwrap_or("");
-        let choice_views = node.choices.as_ref().map(|choices| {
+        let filtered_choices = node.choices.as_ref().map(|choices| {
+            choices
+                .iter()
+                .filter(|choice| dialog_choice_visible(runtime, choice))
+                .collect::<Vec<_>>()
+        });
+        let choice_views = filtered_choices.as_ref().map(|choices| {
             choices
                 .iter()
                 .map(|choice| ChoiceView {
@@ -111,6 +127,12 @@ pub fn run_dialog_on_map(
         });
 
         let selection = if let Some(choices) = &choice_views {
+            if choices.is_empty() {
+                show_dialog_on_map(
+                    session, map, player_pos, dialog_ui, bindings, speaker, &node.text,
+                )?;
+                return Ok(());
+            }
             show_dialog_with_choices_on_map(
                 session, map, player_pos, dialog_ui, bindings, speaker, &node.text, choices,
             )?
@@ -129,7 +151,7 @@ pub fn run_dialog_on_map(
             }
         }
 
-        if let (Some(selection), Some(choices)) = (selection, node.choices.as_ref()) {
+        if let (Some(selection), Some(choices)) = (selection, filtered_choices.as_ref()) {
             let next = choices
                 .get(selection)
                 .map(|choice| choice.next.clone())
@@ -170,11 +192,18 @@ pub fn run_dialog_console(runtime: &mut GameRuntime, dialog_ui: &DialogUiFile, d
         }
 
         if let Some(choices) = &node.choices {
-            for (index, choice) in choices.iter().enumerate() {
+            let filtered_choices = choices
+                .iter()
+                .filter(|choice| dialog_choice_visible(runtime, choice))
+                .collect::<Vec<_>>();
+            if filtered_choices.is_empty() {
+                break;
+            }
+            for (index, choice) in filtered_choices.iter().enumerate() {
                 println!("  {}. {}", index + 1, choice.label);
             }
-            let selection = read_choice_console(choices.len());
-            let next = choices
+            let selection = read_choice_console(filtered_choices.len());
+            let next = filtered_choices
                 .get(selection.saturating_sub(1))
                 .map(|choice| choice.next.clone())
                 .unwrap_or_else(|| "end".to_string());
@@ -186,6 +215,12 @@ pub fn run_dialog_console(runtime: &mut GameRuntime, dialog_ui: &DialogUiFile, d
             break;
         }
     }
+}
+
+fn dialog_choice_visible(runtime: &GameRuntime, choice: &engine::dialog::DialogChoice) -> bool {
+    choice.requires_flags.as_ref().map_or(true, |flags| {
+        flags.iter().all(|flag| runtime.has_flag(flag))
+    })
 }
 
 pub fn show_dialog_console(dialog_ui: &DialogUiFile, speaker: &str, text: &str) {

@@ -465,6 +465,9 @@ impl GameRuntime {
     }
 
     pub fn abort_event(&mut self) {
+        if !self.event_queue.is_empty() {
+            self.event_queue.remove(0);
+        }
         self.active_event = None;
         self.event_step = 0;
         self.state = GameState::Overworld;

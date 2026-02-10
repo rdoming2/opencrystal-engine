@@ -1,7 +1,9 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use engine::menu::MenuFocus;
 use engine::runtime::{GameRuntime, GameState};
+use rand::Rng;
+use tui::dialog::ChoiceView;
 use tui::input::{Action, InputBindings};
 use tui::overworld::{
     draw_overworld, draw_overworld_with_tooltip, show_centered_dialog_on_map, MapView, NpcView,
@@ -76,6 +78,52 @@ pub fn run_overworld_loop(
                     let speed = movement_speed(runtime);
                     for _ in 0..speed {
                         let next_pos = (player_pos.0 + dx, player_pos.1 + dy);
+                        if runtime.active_vehicle.is_none() {
+                            if let Some(door) = door_at(runtime, &current_map_id, next_pos) {
+                                if door_locked(runtime, &door) {
+                                    break;
+                                }
+                                if let Some(target_map) = door.target_map.as_ref() {
+                                    let target_pos = door
+                                        .target_pos
+                                        .map(|pos| (pos[0], pos[1]))
+                                        .unwrap_or(player_pos);
+                                    let (next_map, next_pos) = if door.return_to_last {
+                                        return_positions
+                                            .get(&current_map_id)
+                                            .cloned()
+                                            .unwrap_or((target_map.clone(), target_pos))
+                                    } else {
+                                        (target_map.clone(), target_pos)
+                                    };
+
+                                    if runtime.is_overworld_map(&current_map_id)
+                                        && !runtime.is_overworld_map(&next_map)
+                                    {
+                                        runtime.record_last_overworld(&current_map_id, player_pos);
+                                    }
+
+                                    if !door.return_to_last
+                                        && !is_returning_from_child(
+                                            &return_positions,
+                                            &current_map_id,
+                                            &next_map,
+                                        )
+                                    {
+                                        return_positions.insert(
+                                            next_map.clone(),
+                                            (current_map_id.clone(), player_pos),
+                                        );
+                                    }
+                                    current_map_id = next_map;
+                                    player_pos = next_pos;
+                                    runtime.world.map_id = current_map_id.clone();
+                                    runtime.world.position = player_pos;
+                                    transitioned = true;
+                                    break;
+                                }
+                            }
+                        }
                         if !can_move_to(runtime, &current_map_id, next_pos) {
                             break;
                         }
@@ -191,28 +239,106 @@ pub fn run_overworld_loop(
                         show_centered_dialog_on_map(
                             session, &map, player_pos, dialog_ui, bindings, &text,
                         )?;
-                    } else if let Some(dialog_id) =
-                        find_npc_dialog(runtime, &current_map_id, player_pos)
+                    } else if let Some(door) =
+                        find_adjacent_door(runtime, &current_map_id, player_pos)
                     {
-                        run_dialog_on_map(
-                            runtime, dialog_ui, bindings, session, &dialog_id, &map, player_pos,
-                        )?;
-                        if !runtime.event_queue.is_empty() {
-                            runtime.state = GameState::Event;
-                            runtime.start_next_event();
-                            if let Err(err) = run_event_loop(
+                        if door_locked(runtime, &door) {
+                            if let Some(event_id) = door.locked_event.as_ref() {
+                                runtime.queue_event(event_id);
+                                run_pending_events(
+                                    runtime,
+                                    dialog_ui,
+                                    battle_ui,
+                                    bindings,
+                                    session,
+                                    Some(map.clone()),
+                                )?;
+                            } else {
+                                let text =
+                                    door.locked_text.as_deref().unwrap_or("The door is locked.");
+                                show_centered_dialog_on_map(
+                                    session, &map, player_pos, dialog_ui, bindings, text,
+                                )?;
+                            }
+                        } else if let Some(target_map) = door.target_map.as_ref() {
+                            let target_pos = door
+                                .target_pos
+                                .map(|pos| (pos[0], pos[1]))
+                                .unwrap_or(player_pos);
+                            let (next_map, next_pos) = if door.return_to_last {
+                                return_positions
+                                    .get(&current_map_id)
+                                    .cloned()
+                                    .unwrap_or((target_map.clone(), target_pos))
+                            } else {
+                                (target_map.clone(), target_pos)
+                            };
+
+                            if runtime.is_overworld_map(&current_map_id)
+                                && !runtime.is_overworld_map(&next_map)
+                            {
+                                runtime.record_last_overworld(&current_map_id, player_pos);
+                            }
+
+                            if !door.return_to_last
+                                && !is_returning_from_child(
+                                    &return_positions,
+                                    &current_map_id,
+                                    &next_map,
+                                )
+                            {
+                                return_positions
+                                    .insert(next_map.clone(), (current_map_id.clone(), player_pos));
+                            }
+                            current_map_id = next_map;
+                            player_pos = next_pos;
+                            runtime.world.map_id = current_map_id.clone();
+                            runtime.world.position = player_pos;
+                            transitioned = true;
+                            moved = true;
+                            area_name_active = false;
+                        }
+                    } else if let Some(puzzle) =
+                        find_adjacent_puzzle(runtime, &current_map_id, player_pos)
+                    {
+                        if let Some(flag) = puzzle.set_flag.as_ref() {
+                            runtime.set_flag(flag);
+                        }
+                        if let Some(event_id) = puzzle.event.as_ref() {
+                            runtime.queue_event(event_id);
+                            run_pending_events(
                                 runtime,
                                 dialog_ui,
                                 battle_ui,
                                 bindings,
                                 session,
                                 Some(map.clone()),
-                            ) {
-                                if err.kind() == std::io::ErrorKind::Interrupted {
-                                    return Err(err);
-                                }
-                            }
+                            )?;
+                        } else if let Some(text) = puzzle.text.as_ref() {
+                            show_centered_dialog_on_map(
+                                session, &map, player_pos, dialog_ui, bindings, text,
+                            )?;
                         }
+                    } else if let Some(campfire) =
+                        find_adjacent_campfire(runtime, &current_map_id, player_pos)
+                    {
+                        open_campfire(
+                            runtime, dialog_ui, bindings, session, &map, player_pos, &campfire,
+                        )?;
+                    } else if let Some(dialog_id) =
+                        find_npc_dialog(runtime, &current_map_id, player_pos)
+                    {
+                        run_dialog_on_map(
+                            runtime, dialog_ui, bindings, session, &dialog_id, &map, player_pos,
+                        )?;
+                        run_pending_events(
+                            runtime,
+                            dialog_ui,
+                            battle_ui,
+                            bindings,
+                            session,
+                            Some(map.clone()),
+                        )?;
                     } else if let Some((vehicle_id, vehicle_pos)) =
                         find_adjacent_vehicle(runtime, &current_map_id, player_pos)
                     {
@@ -324,6 +450,7 @@ pub fn run_overworld_loop(
                 }
             }
             apply_overworld_poison(runtime);
+            update_roaming_npcs(runtime, &current_map_id, player_pos, &mut rng);
             if let Some(outcome) = try_start_random_battle(
                 runtime,
                 battle_ui,
@@ -420,6 +547,55 @@ pub fn build_map_view(runtime: &GameRuntime, map_id: &str) -> Option<MapView> {
                 .unwrap_or('▢'),
             palette: chest.palette.clone(),
             opened: runtime.has_flag(&chest.opened_flag),
+        })
+        .collect();
+    let doors = map
+        .doors
+        .iter()
+        .map(|door| tui::overworld::DoorView {
+            id: door.id.clone(),
+            pos: (door.pos[0], door.pos[1]),
+            glyph: door
+                .glyph
+                .as_ref()
+                .and_then(|glyph| glyph.chars().next())
+                .unwrap_or('+'),
+            palette: door.palette.clone(),
+            locked: door
+                .requires_flag
+                .as_ref()
+                .map(|flag| !runtime.has_flag(flag))
+                .unwrap_or(false),
+        })
+        .collect();
+    let puzzles = map
+        .puzzles
+        .iter()
+        .filter(|puzzle| puzzle_visible(runtime, puzzle))
+        .map(|puzzle| tui::overworld::PuzzleView {
+            id: puzzle.id.clone(),
+            pos: (puzzle.pos[0], puzzle.pos[1]),
+            glyph: puzzle
+                .glyph
+                .as_ref()
+                .and_then(|glyph| glyph.chars().next())
+                .unwrap_or('?'),
+            palette: puzzle.palette.clone(),
+        })
+        .collect();
+    let campfires = map
+        .campfires
+        .iter()
+        .filter(|campfire| requires_flags_met(runtime, &campfire.requires_flags))
+        .map(|campfire| tui::overworld::CampfireView {
+            id: campfire.id.clone(),
+            pos: (campfire.pos[0], campfire.pos[1]),
+            glyph: campfire
+                .glyph
+                .as_ref()
+                .and_then(|glyph| glyph.chars().next())
+                .unwrap_or('C'),
+            palette: campfire.palette.clone(),
         })
         .collect();
     let save_points = map.save_points.iter().map(|pos| (pos[0], pos[1])).collect();
@@ -529,6 +705,9 @@ pub fn build_map_view(runtime: &GameRuntime, map_id: &str) -> Option<MapView> {
         npcs,
         signs,
         chests,
+        doors,
+        puzzles,
+        campfires,
         save_points,
         use_color,
     })
@@ -872,6 +1051,51 @@ fn sign_at(runtime: &GameRuntime, map_id: &str, pos: (i32, i32)) -> bool {
         .any(|sign| (sign.pos[0], sign.pos[1]) == pos)
 }
 
+fn door_at(runtime: &GameRuntime, map_id: &str, pos: (i32, i32)) -> Option<engine::maps::MapDoor> {
+    let index = runtime.content.map_index.get(map_id)?;
+    let map = runtime.content.maps.get(*index)?;
+    map.doors
+        .iter()
+        .find(|door| (door.pos[0], door.pos[1]) == pos)
+        .cloned()
+}
+
+fn door_locked(runtime: &GameRuntime, door: &engine::maps::MapDoor) -> bool {
+    door.requires_flag
+        .as_ref()
+        .map(|flag| !runtime.has_flag(flag))
+        .unwrap_or(false)
+}
+
+fn puzzle_at(runtime: &GameRuntime, map_id: &str, pos: (i32, i32)) -> bool {
+    let index = match runtime.content.map_index.get(map_id) {
+        Some(index) => *index,
+        None => return false,
+    };
+    let map = match runtime.content.maps.get(index) {
+        Some(map) => map,
+        None => return false,
+    };
+    map.puzzles
+        .iter()
+        .any(|puzzle| puzzle_visible(runtime, puzzle) && (puzzle.pos[0], puzzle.pos[1]) == pos)
+}
+
+fn campfire_at(runtime: &GameRuntime, map_id: &str, pos: (i32, i32)) -> bool {
+    let index = match runtime.content.map_index.get(map_id) {
+        Some(index) => *index,
+        None => return false,
+    };
+    let map = match runtime.content.maps.get(index) {
+        Some(map) => map,
+        None => return false,
+    };
+    map.campfires.iter().any(|campfire| {
+        requires_flags_met(runtime, &campfire.requires_flags)
+            && (campfire.pos[0], campfire.pos[1]) == pos
+    })
+}
+
 fn find_npc_dialog(runtime: &GameRuntime, map_id: &str, pos: (i32, i32)) -> Option<String> {
     let index = runtime.content.map_index.get(map_id)?;
     let map = runtime.content.maps.get(*index)?;
@@ -940,6 +1164,311 @@ fn find_sign_text(runtime: &GameRuntime, map_id: &str, pos: (i32, i32)) -> Optio
         (dx == 1 && dy == 0) || (dx == 0 && dy == 1)
     })?;
     Some(sign.text.clone())
+}
+
+fn find_adjacent_door(
+    runtime: &GameRuntime,
+    map_id: &str,
+    pos: (i32, i32),
+) -> Option<engine::maps::MapDoor> {
+    let index = runtime.content.map_index.get(map_id)?;
+    let map = runtime.content.maps.get(*index)?;
+    let door = map.doors.iter().find(|door| {
+        let dx = (door.pos[0] - pos.0).abs();
+        let dy = (door.pos[1] - pos.1).abs();
+        (dx == 1 && dy == 0) || (dx == 0 && dy == 1)
+    })?;
+    Some(door.clone())
+}
+
+fn find_adjacent_puzzle(
+    runtime: &GameRuntime,
+    map_id: &str,
+    pos: (i32, i32),
+) -> Option<engine::maps::MapPuzzle> {
+    let index = runtime.content.map_index.get(map_id)?;
+    let map = runtime.content.maps.get(*index)?;
+    let puzzle = map.puzzles.iter().find(|puzzle| {
+        if !puzzle_visible(runtime, puzzle) {
+            return false;
+        }
+        let dx = (puzzle.pos[0] - pos.0).abs();
+        let dy = (puzzle.pos[1] - pos.1).abs();
+        (dx == 1 && dy == 0) || (dx == 0 && dy == 1)
+    })?;
+    Some(puzzle.clone())
+}
+
+fn puzzle_visible(runtime: &GameRuntime, puzzle: &engine::maps::MapPuzzle) -> bool {
+    if !requires_flags_met(runtime, &puzzle.requires_flags) {
+        return false;
+    }
+    if let Some(flag) = puzzle.set_flag.as_ref() {
+        return !runtime.has_flag(flag);
+    }
+    true
+}
+
+fn find_adjacent_campfire(
+    runtime: &GameRuntime,
+    map_id: &str,
+    pos: (i32, i32),
+) -> Option<engine::maps::MapCampfire> {
+    let index = runtime.content.map_index.get(map_id)?;
+    let map = runtime.content.maps.get(*index)?;
+    let campfire = map.campfires.iter().find(|campfire| {
+        if !requires_flags_met(runtime, &campfire.requires_flags) {
+            return false;
+        }
+        let dx = (campfire.pos[0] - pos.0).abs();
+        let dy = (campfire.pos[1] - pos.1).abs();
+        (dx == 1 && dy == 0) || (dx == 0 && dy == 1)
+    })?;
+    Some(campfire.clone())
+}
+
+fn open_campfire(
+    runtime: &mut GameRuntime,
+    dialog_ui: &DialogUiFile,
+    bindings: &InputBindings,
+    session: &mut TuiSession,
+    map: &tui::overworld::MapView,
+    player_pos: (i32, i32),
+    campfire: &engine::maps::MapCampfire,
+) -> std::io::Result<()> {
+    let cooking_enabled = runtime
+        .content
+        .rules
+        .systems
+        .get("cooking")
+        .copied()
+        .unwrap_or(false);
+    if !cooking_enabled {
+        show_centered_dialog_on_map(
+            session,
+            map,
+            player_pos,
+            dialog_ui,
+            bindings,
+            "Cooking is unavailable.",
+        )?;
+        return Ok(());
+    }
+
+    let recipe = {
+        let Some(cooking) = runtime.content.cooking.as_ref() else {
+            show_centered_dialog_on_map(
+                session,
+                map,
+                player_pos,
+                dialog_ui,
+                bindings,
+                "No recipes are available.",
+            )?;
+            return Ok(());
+        };
+
+        let Some(campfire_def) = cooking
+            .campfires
+            .iter()
+            .find(|entry| entry.id == campfire.campfire_id)
+        else {
+            show_centered_dialog_on_map(
+                session,
+                map,
+                player_pos,
+                dialog_ui,
+                bindings,
+                "No recipes are available.",
+            )?;
+            return Ok(());
+        };
+
+        let recipes = campfire_def
+            .recipes
+            .iter()
+            .filter_map(|recipe_id| {
+                cooking
+                    .recipes
+                    .iter()
+                    .find(|recipe| recipe.id == *recipe_id)
+            })
+            .filter(|recipe| recipe_unlocked(runtime, recipe))
+            .collect::<Vec<_>>();
+
+        if recipes.is_empty() {
+            show_centered_dialog_on_map(
+                session,
+                map,
+                player_pos,
+                dialog_ui,
+                bindings,
+                "No recipes are available.",
+            )?;
+            return Ok(());
+        }
+
+        let choices = recipes
+            .iter()
+            .map(|recipe| ChoiceView {
+                label: recipe.name.clone(),
+                show_next: false,
+            })
+            .collect::<Vec<_>>();
+
+        let selection = tui::overworld::show_dialog_with_choices_on_map(
+            session,
+            map,
+            player_pos,
+            dialog_ui,
+            bindings,
+            "Campfire",
+            &format!("{} Recipes", campfire_def.label),
+            &choices,
+        )?;
+
+        let Some(selection) = selection else {
+            return Ok(());
+        };
+
+        match recipes.get(selection) {
+            Some(recipe) => (*recipe).clone(),
+            None => return Ok(()),
+        }
+    };
+
+    if !can_cook_recipe(runtime, &recipe) {
+        show_centered_dialog_on_map(
+            session,
+            map,
+            player_pos,
+            dialog_ui,
+            bindings,
+            "You lack the ingredients.",
+        )?;
+        return Ok(());
+    }
+
+    apply_cooking_recipe(runtime, &recipe);
+    let result_text = format_cooking_results(runtime, &recipe);
+    show_centered_dialog_on_map(session, map, player_pos, dialog_ui, bindings, &result_text)?;
+    Ok(())
+}
+
+fn can_cook_recipe(runtime: &GameRuntime, recipe: &engine::content::CookingRecipe) -> bool {
+    recipe
+        .ingredients
+        .iter()
+        .all(|ingredient| runtime.inventory.item_qty(&ingredient.id) >= ingredient.qty)
+}
+
+fn apply_cooking_recipe(runtime: &mut GameRuntime, recipe: &engine::content::CookingRecipe) {
+    for ingredient in &recipe.ingredients {
+        runtime
+            .inventory
+            .remove_item(&ingredient.id, ingredient.qty);
+    }
+
+    let max_stack = runtime.content.rules.inventory.max_stack;
+    for item in &recipe.results.items {
+        runtime.inventory.add_item(&item.id, item.qty, max_stack);
+    }
+    for item in &recipe.results.equipment {
+        runtime
+            .inventory
+            .add_equipment(&item.id, item.qty, max_stack);
+    }
+    for currency in &recipe.results.currency {
+        runtime
+            .inventory
+            .add_currency(&currency.id, currency.amount);
+    }
+}
+
+fn format_cooking_results(
+    runtime: &GameRuntime,
+    recipe: &engine::content::CookingRecipe,
+) -> String {
+    let cost = recipe
+        .ingredients
+        .iter()
+        .filter(|ingredient| ingredient.qty > 0)
+        .map(|ingredient| {
+            format!(
+                "{} x{}",
+                lookup_item_name(runtime, &ingredient.id),
+                ingredient.qty
+            )
+        })
+        .collect::<Vec<_>>();
+    let mut found = Vec::new();
+    for item in &recipe.results.items {
+        if item.qty <= 0 {
+            continue;
+        }
+        found.push(format!(
+            "{} x{}",
+            lookup_item_name(runtime, &item.id),
+            item.qty
+        ));
+    }
+    for item in &recipe.results.equipment {
+        if item.qty <= 0 {
+            continue;
+        }
+        found.push(format!(
+            "{} x{}",
+            lookup_item_name(runtime, &item.id),
+            item.qty
+        ));
+    }
+    for currency in &recipe.results.currency {
+        if currency.amount <= 0 {
+            continue;
+        }
+        found.push(format_currency_stack(&runtime.content.rules, currency));
+    }
+
+    let cost_text = if cost.is_empty() {
+        "Cost: None.".to_string()
+    } else {
+        format!("Cost: {}.", cost.join(", "))
+    };
+    let result_text = if found.is_empty() {
+        format!("Cooked: {}.", recipe.name)
+    } else {
+        format!("Cooked: {}.", found.join(", "))
+    };
+    format!("{}\n{}", cost_text, result_text)
+}
+
+fn recipe_unlocked(runtime: &GameRuntime, recipe: &engine::content::CookingRecipe) -> bool {
+    recipe
+        .unlock_flag
+        .as_ref()
+        .map(|flag| runtime.has_flag(flag))
+        .unwrap_or(true)
+}
+
+fn run_pending_events(
+    runtime: &mut GameRuntime,
+    dialog_ui: &DialogUiFile,
+    battle_ui: &BattleUiFile,
+    bindings: &InputBindings,
+    session: &mut TuiSession,
+    map_view: Option<MapView>,
+) -> std::io::Result<()> {
+    if runtime.event_queue.is_empty() {
+        return Ok(());
+    }
+    runtime.state = GameState::Event;
+    runtime.start_next_event();
+    if let Err(err) = run_event_loop(runtime, dialog_ui, battle_ui, bindings, session, map_view) {
+        if err.kind() == std::io::ErrorKind::Interrupted {
+            return Err(err);
+        }
+    }
+    Ok(())
 }
 
 fn is_on_save_point(runtime: &GameRuntime, map_id: &str, pos: (i32, i32)) -> bool {
@@ -1037,6 +1566,200 @@ fn npc_glyph(runtime: &GameRuntime, npc_id: &str) -> char {
         .and_then(|npc| npc.name.chars().next())
         .unwrap_or('N')
         .to_ascii_uppercase()
+}
+
+fn update_roaming_npcs(
+    runtime: &mut GameRuntime,
+    map_id: &str,
+    player_pos: (i32, i32),
+    rng: &mut impl Rng,
+) {
+    let mut map_states = std::mem::take(&mut runtime.map_states);
+    let map_index = match runtime.content.map_index.get(map_id) {
+        Some(index) => *index,
+        None => {
+            runtime.map_states = map_states;
+            return;
+        }
+    };
+    let map = match runtime.content.maps.get(map_index) {
+        Some(map) => map,
+        None => {
+            runtime.map_states = map_states;
+            return;
+        }
+    };
+    let map_state = map_states.entry(map_id.to_string()).or_default();
+    let mut occupied: HashSet<(i32, i32)> = HashSet::new();
+
+    for npc in &map.npcs {
+        if !requires_flags_met(runtime, &npc.requires_flags) {
+            continue;
+        }
+        let (pos, visible) = npc_position_and_visibility(map_state, npc);
+        if visible {
+            occupied.insert(pos);
+        }
+    }
+
+    for npc in &map.npcs {
+        if !requires_flags_met(runtime, &npc.requires_flags) {
+            continue;
+        }
+        let Some(definition) = runtime
+            .content
+            .npcs
+            .npcs
+            .iter()
+            .find(|entry| entry.id == npc.id)
+        else {
+            continue;
+        };
+        let behavior_type = definition.behavior.r#type.as_str();
+        if behavior_type == "static" {
+            continue;
+        }
+        let (pos, visible) = npc_position_and_visibility(map_state, npc);
+        if !visible {
+            continue;
+        }
+
+        let state = map_state
+            .entities
+            .entry(npc.id.clone())
+            .or_insert(engine::maps::EntityState {
+                pos: None,
+                state: None,
+                visible: None,
+                sprite: None,
+            });
+
+        let mut next_pos = pos;
+        let mut next_state = None;
+
+        match behavior_type {
+            "roam" => {
+                let radius = definition.behavior.radius.unwrap_or(2).max(1);
+                let origin = (npc.pos[0], npc.pos[1]);
+                let mut directions = vec![(0, -1), (0, 1), (-1, 0), (1, 0)];
+                for _ in 0..directions.len() {
+                    let index = rng.gen_range(0..directions.len());
+                    let (dx, dy) = directions.swap_remove(index);
+                    let candidate = (pos.0 + dx, pos.1 + dy);
+                    let manhattan = (candidate.0 - origin.0).abs() + (candidate.1 - origin.1).abs();
+                    if manhattan > radius {
+                        continue;
+                    }
+                    if npc_can_move_to(runtime, map_id, candidate, &occupied, player_pos) {
+                        next_pos = candidate;
+                        next_state = Some("roam".to_string());
+                        break;
+                    }
+                }
+            }
+            "patrol" => {
+                if let Some(path) = definition.behavior.path.as_ref() {
+                    if !path.is_empty() {
+                        let mut index = patrol_index(state.state.as_deref());
+                        if index >= path.len() {
+                            index = 0;
+                        }
+                        let mut target = (path[index][0], path[index][1]);
+                        if pos == target {
+                            index = (index + 1) % path.len();
+                            target = (path[index][0], path[index][1]);
+                        }
+                        let dx = (target.0 - pos.0).signum();
+                        let dy = (target.1 - pos.1).signum();
+                        let step = if dx != 0 {
+                            (pos.0 + dx, pos.1)
+                        } else {
+                            (pos.0, pos.1 + dy)
+                        };
+                        if npc_can_move_to(runtime, map_id, step, &occupied, player_pos) {
+                            next_pos = step;
+                        }
+                        next_state = Some(format!("patrol:{}", index));
+                    }
+                }
+            }
+            _ => {}
+        }
+
+        occupied.remove(&pos);
+        occupied.insert(next_pos);
+
+        if next_pos != pos {
+            state.pos = Some(next_pos);
+        }
+        if let Some(state_value) = next_state {
+            state.state = Some(state_value);
+        }
+    }
+
+    runtime.map_states = map_states;
+}
+
+fn npc_position_and_visibility(
+    map_state: &engine::maps::MapState,
+    npc: &engine::maps::MapNpc,
+) -> ((i32, i32), bool) {
+    let mut pos = (npc.pos[0], npc.pos[1]);
+    let mut visible = true;
+    if let Some(state) = map_state.entities.get(&npc.id) {
+        if let Some(state_pos) = state.pos {
+            pos = state_pos;
+        }
+        if let Some(state_visible) = state.visible {
+            visible = state_visible;
+        }
+    }
+    (pos, visible)
+}
+
+fn npc_can_move_to(
+    runtime: &GameRuntime,
+    map_id: &str,
+    pos: (i32, i32),
+    occupied: &HashSet<(i32, i32)>,
+    player_pos: (i32, i32),
+) -> bool {
+    if pos == player_pos {
+        return false;
+    }
+    if occupied.contains(&pos) {
+        return false;
+    }
+    if !is_passable(runtime, map_id, pos) {
+        return false;
+    }
+    if sign_at(runtime, map_id, pos)
+        || chest_at(runtime, map_id, pos)
+        || puzzle_at(runtime, map_id, pos)
+        || campfire_at(runtime, map_id, pos)
+    {
+        return false;
+    }
+    if door_at(runtime, map_id, pos).is_some() {
+        return false;
+    }
+    if find_transition(runtime, map_id, pos).is_some() {
+        return false;
+    }
+    if vehicle_at(runtime, map_id, pos, runtime.active_vehicle.as_deref()) {
+        return false;
+    }
+    true
+}
+
+fn patrol_index(state: Option<&str>) -> usize {
+    let Some(state) = state else {
+        return 0;
+    };
+    let Some(value) = state.strip_prefix("patrol:") else {
+        return 0;
+    };
+    value.parse::<usize>().unwrap_or(0)
 }
 
 fn is_returning_from_child(

@@ -18,7 +18,7 @@ use crate::world::WorldsFile;
 
 const BATTLE_POS_MAX_X: i32 = 9;
 const BATTLE_POS_MAX_Y: i32 = 5;
-const EVENT_TYPES: [&str; 18] = [
+const EVENT_TYPES: [&str; 19] = [
     "dialog",
     "narration",
     "set_flag",
@@ -33,6 +33,7 @@ const EVENT_TYPES: [&str; 18] = [
     "npc_hide",
     "npc_move",
     "npc_set_sprite",
+    "learn_recipe",
     "wait",
     "stat_set",
     "stat_add",
@@ -57,6 +58,7 @@ pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
     let enemies_path = content_dir.join("entities").join("enemies.json");
     let vehicles_path = content_dir.join("entities").join("vehicles.json");
     let shops_path = content_dir.join("entities").join("shops.json");
+    let cooking_path = content_dir.join("cooking.json");
 
     let rules = load_single(&rules_path, |path| RulesFile::load(path), &mut errors);
     let effects = load_single(&effects_path, |path| EffectsFile::load(path), &mut errors);
@@ -96,6 +98,9 @@ pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
     let vehicles = load_single(&vehicles_path, |path| VehiclesFile::load(path), &mut errors);
     let shops = load_single(&shops_path, |path| ShopsFile::load(path), &mut errors);
     let npcs = load_single(&npcs_path, |path| NpcsFile::load(path), &mut errors);
+    let cooking = load_optional(&cooking_path, |path| {
+        crate::content::CookingFile::load(path)
+    });
 
     if let Some(rules) = &rules {
         if rules.game.party_size > 4 {
@@ -269,6 +274,9 @@ pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
             if rules.battle.rows.battle_shift < 0 {
                 errors.push("rules.json: battle.rows.battle_shift must be >= 0".to_string());
             }
+        }
+        if rules.systems.get("cooking").copied().unwrap_or(false) && cooking.is_none() {
+            errors.push("cooking.json: cooking system enabled but file not found".to_string());
         }
     }
 
@@ -529,6 +537,139 @@ pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
                 ));
             }
         }
+        for door in &map.doors {
+            if door.pos[0] < 0 || door.pos[1] < 0 {
+                errors.push(format!(
+                    "maps/{}: door '{}' has negative position",
+                    map.id, door.id
+                ));
+                continue;
+            }
+            if door.pos[0] >= map.width as i32 || door.pos[1] >= map.height as i32 {
+                errors.push(format!(
+                    "maps/{}: door '{}' position {:?} out of bounds",
+                    map.id, door.id, door.pos
+                ));
+            }
+            if let Some(flag) = door.requires_flag.as_ref() {
+                if flag.trim().is_empty() {
+                    errors.push(format!(
+                        "maps/{}: door '{}' has empty requires_flag",
+                        map.id, door.id
+                    ));
+                }
+            }
+            if let Some(event) = door.locked_event.as_ref() {
+                if !event_ids.contains(event) {
+                    errors.push(format!(
+                        "maps/{}: door '{}' locked_event '{}' not found",
+                        map.id, door.id, event
+                    ));
+                }
+            }
+            if door.target_map.is_some() ^ door.target_pos.is_some() {
+                errors.push(format!(
+                    "maps/{}: door '{}' requires both target_map and target_pos",
+                    map.id, door.id
+                ));
+            }
+            if let Some(target_map) = door.target_map.as_ref() {
+                if !map_ids.contains(target_map) {
+                    errors.push(format!(
+                        "maps/{}: door '{}' target '{}' not found",
+                        map.id, door.id, target_map
+                    ));
+                }
+                if let Some(target_pos) = door.target_pos.as_ref() {
+                    if let Some((width, height)) = map_dims.get(target_map.as_str()) {
+                        if target_pos[0] < 0
+                            || target_pos[1] < 0
+                            || target_pos[0] >= *width as i32
+                            || target_pos[1] >= *height as i32
+                        {
+                            errors.push(format!(
+                                "maps/{}: door '{}' target_pos {:?} out of bounds",
+                                map.id, door.id, target_pos
+                            ));
+                        }
+                    }
+                }
+            }
+        }
+        for puzzle in &map.puzzles {
+            if puzzle.pos[0] < 0 || puzzle.pos[1] < 0 {
+                errors.push(format!(
+                    "maps/{}: puzzle '{}' has negative position",
+                    map.id, puzzle.id
+                ));
+                continue;
+            }
+            if puzzle.pos[0] >= map.width as i32 || puzzle.pos[1] >= map.height as i32 {
+                errors.push(format!(
+                    "maps/{}: puzzle '{}' position {:?} out of bounds",
+                    map.id, puzzle.id, puzzle.pos
+                ));
+            }
+            if let Some(flags) = puzzle.requires_flags.as_ref() {
+                if flags.iter().any(|flag| flag.trim().is_empty()) {
+                    errors.push(format!(
+                        "maps/{}: puzzle '{}' has empty requires_flags entry",
+                        map.id, puzzle.id
+                    ));
+                }
+            }
+            if let Some(event) = puzzle.event.as_ref() {
+                if !event_ids.contains(event) {
+                    errors.push(format!(
+                        "maps/{}: puzzle '{}' event '{}' not found",
+                        map.id, puzzle.id, event
+                    ));
+                }
+            }
+            if puzzle.text.as_deref().unwrap_or("").trim().is_empty() && puzzle.event.is_none() {
+                errors.push(format!(
+                    "maps/{}: puzzle '{}' requires text or event",
+                    map.id, puzzle.id
+                ));
+            }
+            if let Some(flag) = puzzle.set_flag.as_ref() {
+                if flag.trim().is_empty() {
+                    errors.push(format!(
+                        "maps/{}: puzzle '{}' has empty set_flag",
+                        map.id, puzzle.id
+                    ));
+                }
+            }
+        }
+        for campfire in &map.campfires {
+            if campfire.pos[0] < 0 || campfire.pos[1] < 0 {
+                errors.push(format!(
+                    "maps/{}: campfire '{}' has negative position",
+                    map.id, campfire.id
+                ));
+                continue;
+            }
+            if campfire.pos[0] >= map.width as i32 || campfire.pos[1] >= map.height as i32 {
+                errors.push(format!(
+                    "maps/{}: campfire '{}' position {:?} out of bounds",
+                    map.id, campfire.id, campfire.pos
+                ));
+            }
+            if campfire.campfire_id.trim().is_empty() {
+                errors.push(format!(
+                    "maps/{}: campfire '{}' has empty campfire_id",
+                    map.id, campfire.id
+                ));
+            }
+            if let Some(flags) = campfire.requires_flags.as_ref() {
+                if flags.iter().any(|flag| flag.trim().is_empty()) {
+                    errors.push(format!(
+                        "maps/{}: campfire '{}' has empty requires_flags entry",
+                        map.id, campfire.id
+                    ));
+                }
+            }
+        }
         for sign in &map.signs {
             if sign.pos[0] < 0 || sign.pos[1] < 0 {
                 errors.push(format!(
@@ -676,6 +817,41 @@ pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
             if step.r#type == "stat_add" {
                 if step.stat.as_deref().unwrap_or("").is_empty() {
                     errors.push(format!("events/{}: stat_add step missing stat", event.id));
+                }
+            }
+            if step.r#type == "learn_recipe" {
+                let Some(recipe_id) = step.recipe.as_deref() else {
+                    errors.push(format!(
+                        "events/{}: learn_recipe step missing recipe",
+                        event.id
+                    ));
+                    continue;
+                };
+                let Some(cooking) = cooking.as_ref() else {
+                    errors.push(format!(
+                        "events/{}: learn_recipe '{}' requires cooking.json",
+                        event.id, recipe_id
+                    ));
+                    continue;
+                };
+                let Some(recipe) = cooking.recipes.iter().find(|recipe| recipe.id == recipe_id)
+                else {
+                    errors.push(format!(
+                        "events/{}: learn_recipe '{}' not found",
+                        event.id, recipe_id
+                    ));
+                    continue;
+                };
+                if recipe
+                    .unlock_flag
+                    .as_deref()
+                    .map(|flag| flag.trim().is_empty())
+                    .unwrap_or(true)
+                {
+                    errors.push(format!(
+                        "events/{}: learn_recipe '{}' requires recipe unlock_flag",
+                        event.id, recipe_id
+                    ));
                 }
             }
         }
@@ -1086,6 +1262,211 @@ pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
         }
     }
 
+    if let Some(items) = &items {
+        for item in &items.items {
+            if item.effect.r#type != "learn_recipe" {
+                continue;
+            }
+            let Some(recipe_id) = item.effect.target.as_deref() else {
+                errors.push(format!(
+                    "items.json: item '{}' learn_recipe requires target recipe id",
+                    item.id
+                ));
+                continue;
+            };
+            let Some(cooking) = cooking.as_ref() else {
+                errors.push(format!(
+                    "items.json: item '{}' learn_recipe requires cooking.json",
+                    item.id
+                ));
+                continue;
+            };
+            let Some(recipe) = cooking.recipes.iter().find(|recipe| recipe.id == recipe_id) else {
+                errors.push(format!(
+                    "items.json: item '{}' learn_recipe references unknown recipe '{}'",
+                    item.id, recipe_id
+                ));
+                continue;
+            };
+            if recipe
+                .unlock_flag
+                .as_deref()
+                .map(|flag| flag.trim().is_empty())
+                .unwrap_or(true)
+            {
+                errors.push(format!(
+                    "items.json: item '{}' learn_recipe requires recipe unlock_flag",
+                    item.id
+                ));
+            }
+        }
+    }
+
+    if let Some(cooking) = &cooking {
+        let mut recipe_ids = HashSet::new();
+        let mut campfire_ids = HashSet::new();
+        let item_ids: HashSet<&str> = items
+            .as_ref()
+            .map(|items| items.items.iter().map(|item| item.id.as_str()).collect())
+            .unwrap_or_default();
+        let equipment_ids: HashSet<&str> = equipment
+            .as_ref()
+            .map(|equipment| {
+                equipment
+                    .equipment
+                    .iter()
+                    .map(|item| item.id.as_str())
+                    .collect()
+            })
+            .unwrap_or_default();
+        let currency_ids: HashSet<&str> = rules
+            .as_ref()
+            .map(|rules| rules.game.currency.id.as_str())
+            .into_iter()
+            .collect();
+
+        for recipe in &cooking.recipes {
+            if !recipe_ids.insert(recipe.id.as_str()) {
+                errors.push(format!("cooking.json: duplicate recipe id '{}'", recipe.id));
+            }
+            if recipe.name.trim().is_empty() {
+                errors.push(format!(
+                    "cooking.json: recipe '{}' requires name",
+                    recipe.id
+                ));
+            }
+            if recipe
+                .unlock_flag
+                .as_deref()
+                .map(|flag| flag.trim().is_empty())
+                .unwrap_or(false)
+            {
+                errors.push(format!(
+                    "cooking.json: recipe '{}' has empty unlock_flag",
+                    recipe.id
+                ));
+            }
+            if recipe.ingredients.is_empty() {
+                errors.push(format!(
+                    "cooking.json: recipe '{}' requires ingredients",
+                    recipe.id
+                ));
+            }
+            for ingredient in &recipe.ingredients {
+                if ingredient.qty <= 0 {
+                    errors.push(format!(
+                        "cooking.json: recipe '{}' ingredient '{}' must have qty > 0",
+                        recipe.id, ingredient.id
+                    ));
+                }
+                if !item_ids.contains(ingredient.id.as_str()) {
+                    errors.push(format!(
+                        "cooking.json: recipe '{}' references unknown item '{}'",
+                        recipe.id, ingredient.id
+                    ));
+                }
+            }
+            for item in &recipe.results.items {
+                if item.qty <= 0 {
+                    errors.push(format!(
+                        "cooking.json: recipe '{}' result item '{}' must have qty > 0",
+                        recipe.id, item.id
+                    ));
+                }
+                if !item_ids.contains(item.id.as_str()) {
+                    errors.push(format!(
+                        "cooking.json: recipe '{}' result item '{}' not found in items.json",
+                        recipe.id, item.id
+                    ));
+                }
+            }
+            for item in &recipe.results.equipment {
+                if item.qty <= 0 {
+                    errors.push(format!(
+                        "cooking.json: recipe '{}' result equipment '{}' must have qty > 0",
+                        recipe.id, item.id
+                    ));
+                }
+                if !equipment_ids.contains(item.id.as_str()) {
+                    errors.push(format!(
+                        "cooking.json: recipe '{}' result equipment '{}' not found in equipment.json",
+                        recipe.id, item.id
+                    ));
+                }
+            }
+            for currency in &recipe.results.currency {
+                if currency.amount <= 0 {
+                    errors.push(format!(
+                        "cooking.json: recipe '{}' result currency '{}' must have amount > 0",
+                        recipe.id, currency.id
+                    ));
+                }
+                if !currency_ids.contains(currency.id.as_str()) {
+                    errors.push(format!(
+                        "cooking.json: recipe '{}' result currency '{}' not found in rules.json",
+                        recipe.id, currency.id
+                    ));
+                }
+            }
+        }
+
+        for campfire in &cooking.campfires {
+            if !campfire_ids.insert(campfire.id.as_str()) {
+                errors.push(format!(
+                    "cooking.json: duplicate campfire id '{}'",
+                    campfire.id
+                ));
+            }
+            if campfire.label.trim().is_empty() {
+                errors.push(format!(
+                    "cooking.json: campfire '{}' requires label",
+                    campfire.id
+                ));
+            }
+            if campfire.recipes.is_empty() {
+                errors.push(format!(
+                    "cooking.json: campfire '{}' requires recipes",
+                    campfire.id
+                ));
+            }
+            for recipe_id in &campfire.recipes {
+                if !recipe_ids.contains(recipe_id.as_str()) {
+                    errors.push(format!(
+                        "cooking.json: campfire '{}' references unknown recipe '{}'",
+                        campfire.id, recipe_id
+                    ));
+                }
+            }
+        }
+    }
+
+    if cooking.is_none() {
+        for map in &maps {
+            if !map.campfires.is_empty() {
+                errors.push(format!(
+                    "maps/{}: campfires defined but cooking.json is missing",
+                    map.id
+                ));
+            }
+        }
+    } else if let Some(cooking) = &cooking {
+        let campfire_ids: HashSet<&str> = cooking
+            .campfires
+            .iter()
+            .map(|entry| entry.id.as_str())
+            .collect();
+        for map in &maps {
+            for campfire in &map.campfires {
+                if !campfire_ids.contains(campfire.campfire_id.as_str()) {
+                    errors.push(format!(
+                        "maps/{}: campfire '{}' references unknown campfire_id '{}'",
+                        map.id, campfire.id, campfire.campfire_id
+                    ));
+                }
+            }
+        }
+    }
+
     if let (Some(rules), Some(items), Some(equipment)) = (&rules, &items, &equipment) {
         let item_ids: HashSet<&str> = items.items.iter().map(|item| item.id.as_str()).collect();
         let equipment_ids: HashSet<&str> = equipment
@@ -1392,11 +1773,59 @@ pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
                                     ));
                                 }
                             }
+                            "learn_recipe" => {
+                                let Some(recipe_id) = action.recipe.as_deref() else {
+                                    errors.push(format!(
+                                        "dialog/{}: learn_recipe missing recipe id",
+                                        dialog.id
+                                    ));
+                                    continue;
+                                };
+                                let Some(cooking) = cooking.as_ref() else {
+                                    errors.push(format!(
+                                        "dialog/{}: learn_recipe '{}' requires cooking.json",
+                                        dialog.id, recipe_id
+                                    ));
+                                    continue;
+                                };
+                                let Some(recipe) =
+                                    cooking.recipes.iter().find(|recipe| recipe.id == recipe_id)
+                                else {
+                                    errors.push(format!(
+                                        "dialog/{}: learn_recipe '{}' not found",
+                                        dialog.id, recipe_id
+                                    ));
+                                    continue;
+                                };
+                                if recipe
+                                    .unlock_flag
+                                    .as_deref()
+                                    .map(|flag| flag.trim().is_empty())
+                                    .unwrap_or(true)
+                                {
+                                    errors.push(format!(
+                                        "dialog/{}: learn_recipe '{}' requires recipe unlock_flag",
+                                        dialog.id, recipe_id
+                                    ));
+                                }
+                            }
                             "rest_party" => {}
                             _ => {
                                 errors.push(format!(
                                     "dialog/{}: unknown action type '{}'",
                                     dialog.id, action.r#type
+                                ));
+                            }
+                        }
+                    }
+                }
+                if let Some(choices) = &node.choices {
+                    for choice in choices {
+                        if let Some(flags) = &choice.requires_flags {
+                            if flags.iter().any(|flag| flag.trim().is_empty()) {
+                                errors.push(format!(
+                                    "dialog/{}: choice '{}' has empty requires_flags entry",
+                                    dialog.id, choice.label
                                 ));
                             }
                         }

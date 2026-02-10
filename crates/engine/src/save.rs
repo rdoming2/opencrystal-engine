@@ -116,7 +116,7 @@ impl SaveFile {
             party: SaveParty::from_party(&runtime.party),
             inventory: SaveInventory::from_inventory(&runtime.inventory),
             flags: runtime.flags.clone(),
-            map_states: runtime.map_states.clone(),
+            map_states: prune_map_states(runtime),
             stats: runtime.stats_for_save(),
             vehicles: runtime
                 .vehicle_positions
@@ -190,6 +190,53 @@ impl SaveFile {
         serde_json::to_writer_pretty(file, self)
             .map_err(|err| format!("{}: {}", path.display(), err))
     }
+}
+
+fn prune_map_states(runtime: &GameRuntime) -> HashMap<String, MapState> {
+    let mut map_states = runtime.map_states.clone();
+
+    for (map_id, map_state) in map_states.iter_mut() {
+        let map_index = match runtime.content.map_index.get(map_id) {
+            Some(index) => *index,
+            None => continue,
+        };
+        let map = &runtime.content.maps[map_index];
+
+        for npc in &map.npcs {
+            let persist = runtime
+                .content
+                .npcs
+                .npcs
+                .iter()
+                .find(|entry| entry.id == npc.id)
+                .and_then(|entry| entry.behavior.persist)
+                .unwrap_or(false);
+            if persist {
+                continue;
+            }
+            if let Some(state) = map_state.entities.get_mut(&npc.id) {
+                let is_roam = state.state.as_deref() == Some("roam");
+                let is_patrol = state
+                    .state
+                    .as_deref()
+                    .map(|value| value.starts_with("patrol:"))
+                    .unwrap_or(false);
+                if is_roam || is_patrol {
+                    state.pos = None;
+                    state.state = None;
+                }
+            }
+        }
+
+        map_state.entities.retain(|_, state| {
+            state.pos.is_some()
+                || state.state.is_some()
+                || state.visible.is_some()
+                || state.sprite.is_some()
+        });
+    }
+
+    map_states
 }
 
 impl SaveParty {

@@ -70,6 +70,7 @@ unless using a ranged weapon category and reduces incoming physical damage.
 `systems` toggles whether a gameplay system/menu is enabled at all. It should be
 used for global availability (e.g., disabling magic equip or gameplay stats). Menu entries
 can still add `unlock_flag` gating for progression-driven unlocks.
+Set `systems.cooking` to enable campfire cooking.
 `settings` configures user-facing settings. Each setting can be hidden
 (`visible: false`), locked (`editable: false`), or provide allowed values. For
 `readiness_speed`, `min`, `max`, and `step` define the enforced range; for
@@ -531,6 +532,74 @@ Chest notes:
 - Loot can include any combination of items, equipment, and currency stacks.
 - Chests block movement and show a centered dialog on confirm.
 
+Door notes:
+
+- `doors` define locked or gated transitions.
+- `doors.requires_flag` locks the door until the flag is set.
+- `doors.locked_text` is shown when the door is locked (if no `locked_event`).
+- `doors.locked_event` queues an event when interacting with a locked door.
+- `doors.target_map`/`doors.target_pos` define an optional transition; doors without a target are passable once unlocked.
+- Doors block movement when locked, and can render with a custom `glyph`/`palette`.
+
+Puzzle notes:
+
+- `puzzles` define interactive objects that block movement.
+- `puzzles.requires_flags` gates visibility until all flags are set.
+- `puzzles.text` shows a centered dialog when interacted with.
+- `puzzles.event` queues an event when interacted with (optional alternative to `text`).
+- `puzzles.set_flag` is set when the puzzle is interacted with (useful for simple switches).
+
+Campfire notes:
+
+- `campfires` define cooking interactables that block movement.
+- `campfires.campfire_id` references a campfire set in `cooking.json`.
+- `campfires.requires_flags` gates visibility until all flags are set.
+
+## cooking.json
+
+Campfire cooking recipes and sets. Recipes list explicit item IDs for ingredients and
+produce items/equipment/currency on success.
+
+```json
+{
+  "version": 1,
+  "recipes": [
+    {
+      "id": "fish_skewer",
+      "name": "Fish Skewer",
+      "description": "A simple campfire skewer.",
+      "ingredients": [
+        {"id": "raw_fish", "qty": 1},
+        {"id": "herb_bundle", "qty": 1}
+      ],
+      "results": {
+        "items": [{"id": "fish_skewer", "qty": 1}],
+        "equipment": [],
+        "currency": []
+      }
+    }
+  ],
+  "campfires": [
+    {"id": "inn_kitchen", "label": "Inn Kitchen", "recipes": ["fish_skewer"]}
+  ]
+}
+```
+
+Campfire fields:
+
+- `id`: unique campfire set ID.
+- `label`: display label used in the cooking dialog.
+- `recipes`: list of recipe IDs available at the campfire.
+
+Recipe fields:
+
+- `id`: unique recipe ID.
+- `name`: display label for the recipe.
+- `description`: optional helper text (not shown in the dialog yet).
+- `unlock_flag`: optional flag required to unlock the recipe; if omitted, the recipe is always available.
+- `ingredients`: list of item stacks required to cook the recipe.
+- `results`: items, equipment, and currency produced on success.
+
 ## entities/encounters.json
 
 Encounter tables referenced by maps.
@@ -643,6 +712,13 @@ Dialog action types:
 - `set_flag` (field: `flag`)
 - `give_item` (fields: `item`, `qty`)
 - `rest_party` (no fields)
+- `learn_recipe` (field: `recipe`)
+
+Dialog choice fields:
+
+- `label`: button text.
+- `next`: node id, or `"end"` to close the dialog.
+- `requires_flags`: optional list of flags required to show the choice.
 
 ## entities/jobs.json
 
@@ -869,8 +945,9 @@ Item usage defines where and how items can be used. `context` values: `field`,
 `battle`, or `both`. `target` values: `self`, `ally`, `party`, `enemy`.
 
 `description` is optional text displayed in item menus.
-Common effect types: `heal_hp`, `heal_mp`, `revive`, `warp`, `learn_spell`, `cure_status`.
+Common effect types: `heal_hp`, `heal_mp`, `revive`, `warp`, `learn_spell`, `learn_recipe`, `cure_status`.
 `learn_spell` uses `effect.target` to specify the spell ID to teach.
+`learn_recipe` uses `effect.target` to specify the recipe ID to unlock.
 `cure_status` uses `effect.statuses` to list status IDs to remove.
 `warp` supports `effect.target: "last_overworld"` to return to the last overworld entry and
 `effect.destination` to warp to a specific map/position.
@@ -1049,6 +1126,7 @@ Supported event step types:
 - `give_item` (fields: `item`, `qty`)
 - `give_equipment` (fields: `item`, `qty`)
 - `learn_spell` (fields: `member`, `spell`)
+- `learn_recipe` (fields: `recipe`)
 - `warp` (fields: `target` with `map` and `pos`; use `map: "last_overworld"` to return to the last overworld entry)
 - `start_battle` (fields: `encounter`, `formation`)
 - `open_shop` (fields: `shop`)

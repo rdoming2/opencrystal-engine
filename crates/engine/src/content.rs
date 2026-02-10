@@ -2,6 +2,8 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use serde::{Deserialize, Serialize};
+
 use crate::dialog::DialogFile;
 use crate::encounters::EncountersFile;
 use crate::entities::{
@@ -9,7 +11,7 @@ use crate::entities::{
     ShopsFile, SpellsFile, VehiclesFile,
 };
 use crate::events::EventFile;
-use crate::maps::MapFile;
+use crate::maps::{MapChestLoot, MapFile};
 use crate::party::PartyFile;
 use crate::quests::QuestsFile;
 use crate::rules::{PartyMode, RulesFile};
@@ -36,9 +38,46 @@ pub struct Content {
     pub events: Vec<EventFile>,
     pub dialogs: Vec<DialogFile>,
     pub quests: Vec<QuestsFile>,
+    pub cooking: Option<CookingFile>,
     pub map_index: HashMap<String, usize>,
     pub event_index: HashMap<String, usize>,
     pub dialog_index: HashMap<String, usize>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct CookingFile {
+    pub version: u32,
+    pub recipes: Vec<CookingRecipe>,
+    #[serde(default)]
+    pub campfires: Vec<CookingCampfire>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct CookingRecipe {
+    pub id: String,
+    pub name: String,
+    #[serde(default)]
+    pub description: Option<String>,
+    #[serde(default)]
+    pub unlock_flag: Option<String>,
+    #[serde(default)]
+    pub ingredients: Vec<crate::inventory::InventoryStack>,
+    #[serde(default)]
+    pub results: MapChestLoot,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct CookingCampfire {
+    pub id: String,
+    pub label: String,
+    #[serde(default)]
+    pub recipes: Vec<String>,
+}
+
+impl CookingFile {
+    pub fn load(path: impl AsRef<Path>) -> Result<Self, String> {
+        crate::io::load_json(path)
+    }
 }
 
 impl Content {
@@ -210,6 +249,7 @@ impl Content {
             &mut errors,
             "quests",
         );
+        let cooking = load_optional(content_dir.join("cooking.json"), CookingFile::load);
 
         if !errors.is_empty() {
             return Err(errors);
@@ -266,6 +306,7 @@ impl Content {
             events,
             dialogs,
             quests,
+            cooking,
             map_index,
             event_index,
             dialog_index,

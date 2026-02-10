@@ -29,6 +29,9 @@ pub struct MapView {
     pub npcs: Vec<NpcView>,
     pub signs: Vec<SignView>,
     pub chests: Vec<ChestView>,
+    pub doors: Vec<DoorView>,
+    pub puzzles: Vec<PuzzleView>,
+    pub campfires: Vec<CampfireView>,
     pub save_points: Vec<(i32, i32)>,
     pub use_color: bool,
 }
@@ -86,12 +89,40 @@ pub struct ChestView {
     pub opened: bool,
 }
 
+#[derive(Clone)]
+pub struct DoorView {
+    pub id: String,
+    pub pos: (i32, i32),
+    pub glyph: char,
+    pub palette: Option<String>,
+    pub locked: bool,
+}
+
+#[derive(Clone)]
+pub struct PuzzleView {
+    pub id: String,
+    pub pos: (i32, i32),
+    pub glyph: char,
+    pub palette: Option<String>,
+}
+
+#[derive(Clone)]
+pub struct CampfireView {
+    pub id: String,
+    pub pos: (i32, i32),
+    pub glyph: char,
+    pub palette: Option<String>,
+}
+
 const DEFAULT_PLAYER_PALETTE: &str = "bright_white";
 const DEFAULT_NPC_PALETTE: &str = "bright_yellow";
 const DEFAULT_TRANSITION_PALETTE: &str = "bright_magenta";
 const DEFAULT_SAVE_POINT_PALETTE: &str = "bright_blue";
 const DEFAULT_SIGN_PALETTE: &str = "bright_yellow";
 const DEFAULT_CHEST_PALETTE: &str = "bright_yellow";
+const DEFAULT_DOOR_PALETTE: &str = "bright_yellow";
+const DEFAULT_PUZZLE_PALETTE: &str = "bright_magenta";
+const DEFAULT_CAMPFIRE_PALETTE: &str = "bright_red";
 const DEFAULT_VEHICLE_PALETTE: &str = "bright_cyan";
 
 pub fn show_dialog_on_map(
@@ -251,6 +282,30 @@ pub fn draw_overworld_frame(frame: &mut Frame, map: &MapView, player_pos: (i32, 
             } else if let Some(sign) = map.signs.iter().find(|sign| sign.pos == (map_x, map_y)) {
                 glyph = sign.glyph;
                 palette = sign.palette.as_deref().or(Some(DEFAULT_SIGN_PALETTE));
+            } else if let Some(door) = map.doors.iter().find(|door| door.pos == (map_x, map_y)) {
+                glyph = door.glyph;
+                if door.locked {
+                    palette = Some("bright_black");
+                } else {
+                    palette = door.palette.as_deref().or(Some(DEFAULT_DOOR_PALETTE));
+                }
+            } else if let Some(puzzle) = map
+                .puzzles
+                .iter()
+                .find(|puzzle| puzzle.pos == (map_x, map_y))
+            {
+                glyph = puzzle.glyph;
+                palette = puzzle.palette.as_deref().or(Some(DEFAULT_PUZZLE_PALETTE));
+            } else if let Some(campfire) = map
+                .campfires
+                .iter()
+                .find(|campfire| campfire.pos == (map_x, map_y))
+            {
+                glyph = campfire.glyph;
+                palette = campfire
+                    .palette
+                    .as_deref()
+                    .or(Some(DEFAULT_CAMPFIRE_PALETTE));
             } else if let Some(transition) = map
                 .transitions
                 .iter()

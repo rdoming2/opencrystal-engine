@@ -37,6 +37,7 @@ pub struct EventStep {
     pub dialog: Option<String>,
     pub spell: Option<String>,
     pub member: Option<String>,
+    pub recipe: Option<String>,
     pub ms: Option<i32>,
 }
 
@@ -216,6 +217,12 @@ pub fn apply_event_step(runtime: &mut GameRuntime, step: &EventStep) -> EventExe
             }
             EventExecutionResult::Continue
         }
+        "learn_recipe" => {
+            if let Some(recipe_id) = &step.recipe {
+                unlock_recipe(runtime, recipe_id);
+            }
+            EventExecutionResult::Continue
+        }
         "stat_set" => {
             if let (Some(stat), Some(value)) = (&step.stat, step.value) {
                 runtime.set_stat(stat, value);
@@ -236,5 +243,18 @@ pub fn apply_event_step(runtime: &mut GameRuntime, step: &EventStep) -> EventExe
             EventExecutionResult::Continue
         }
         _ => EventExecutionResult::Continue,
+    }
+}
+
+fn unlock_recipe(runtime: &mut GameRuntime, recipe_id: &str) {
+    let flag = runtime
+        .content
+        .cooking
+        .as_ref()
+        .and_then(|cooking| cooking.recipes.iter().find(|recipe| recipe.id == recipe_id))
+        .and_then(|recipe| recipe.unlock_flag.clone())
+        .filter(|flag| !flag.trim().is_empty());
+    if let Some(flag) = flag {
+        runtime.set_flag(&flag);
     }
 }

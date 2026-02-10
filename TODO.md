@@ -141,16 +141,16 @@
 - [x] Move WorldState from CLI to GameRuntime.
 - [x] Implement quest resolver (flag-driven steps and journal updates).
 - [x] Add quest step reveal flags (show_flag) and acquisition gating.
-- [ ] Implement NPC roaming (persisted positions).
+- [x] Implement NPC roaming (persisted positions).
 - [x] Implement event-driven NPC controls (show/hide/move/set_sprite).
 - [x] Implement inn rest feature (dialog action `rest_party`).
 - [x] Add configurable NPC interaction range (default 1 tile).
 - [x] Add event action to teach spells (learn_spell).
 - [x] Add fast travel menu (free and paid variants).
-- [ ] Add locked door support.
-- [ ] Add puzzle interactions.
+- [x] Add locked door support.
+- [x] Add puzzle interactions.
 - [ ] Add party talk interactions.
-- [ ] Add cooking system.
+- [x] Add cooking system.
 
 ## Content + Validation
 - [x] Add missing demo content (town map, shop UI, basic quests).

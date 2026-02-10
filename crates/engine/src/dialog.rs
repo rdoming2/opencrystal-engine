@@ -28,12 +28,14 @@ pub struct DialogAction {
     pub event: Option<String>,
     pub item: Option<String>,
     pub qty: Option<i32>,
+    pub recipe: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct DialogChoice {
     pub label: String,
     pub next: String,
+    pub requires_flags: Option<Vec<String>>,
 }
 
 impl DialogFile {
@@ -80,6 +82,25 @@ pub fn apply_dialog_action(
             rest_party(&mut runtime.party, &runtime.content, &runtime.content.rules);
             EventExecutionResult::Continue
         }
+        "learn_recipe" => {
+            if let Some(recipe_id) = &action.recipe {
+                unlock_recipe(runtime, recipe_id);
+            }
+            EventExecutionResult::Continue
+        }
         _ => EventExecutionResult::Continue,
+    }
+}
+
+fn unlock_recipe(runtime: &mut GameRuntime, recipe_id: &str) {
+    let flag = runtime
+        .content
+        .cooking
+        .as_ref()
+        .and_then(|cooking| cooking.recipes.iter().find(|recipe| recipe.id == recipe_id))
+        .and_then(|recipe| recipe.unlock_flag.clone())
+        .filter(|flag| !flag.trim().is_empty());
+    if let Some(flag) = flag {
+        runtime.set_flag(&flag);
     }
 }
