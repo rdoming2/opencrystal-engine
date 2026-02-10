@@ -45,7 +45,7 @@
   - [x] Serialize world/party/inventory/flags.
   - [x] Load persistent NPC positions.
   - [x] Add save slot management.
-  - [ ] Default save selection to last used slot.
+  - [x] Default save selection to last used slot.
   - [x] Enforce save rules (map allow_save + save_points).
   - [x] Autosave slot after transitions.
 

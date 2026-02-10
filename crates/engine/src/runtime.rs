@@ -40,6 +40,7 @@ pub struct GameRuntime {
     pub stats: HashMap<String, i32>,
     pub playtime: u64,
     pub start_time: Instant,
+    pub last_manual_save_slot: Option<u8>,
 }
 
 #[derive(Clone, Debug)]
@@ -120,6 +121,7 @@ impl GameRuntime {
             stats,
             playtime: 0,
             start_time: Instant::now(),
+            last_manual_save_slot: None,
         }
     }
 
@@ -385,6 +387,7 @@ impl GameRuntime {
         } else {
             self.state = GameState::Overworld;
         }
+        self.last_manual_save_slot = None;
     }
 
     pub fn queue_event(&mut self, event_id: &str) {

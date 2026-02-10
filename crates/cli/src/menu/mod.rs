@@ -95,7 +95,7 @@ pub fn run_menu_loop(
             runtime.menu_state.focus = MenuFocus::Detail;
         }
         let slots = build_save_slots(runtime, save_dir);
-        if let Some(index) = first_selectable_save_slot(&slots) {
+        if let Some(index) = default_save_selection(runtime, &slots) {
             runtime.menu_state.detail_selection = index;
         }
     }
@@ -473,7 +473,7 @@ pub fn run_menu_loop(
                                         runtime.menu_state.detail_page = 0;
                                         let slots = build_save_slots(runtime, save_dir);
                                         runtime.menu_state.detail_selection =
-                                            first_selectable_save_slot(&slots).unwrap_or(0);
+                                            default_save_selection(runtime, &slots).unwrap_or(0);
                                         save_message = None;
                                     }
                                     "settings" => {
@@ -511,6 +511,7 @@ pub fn run_menu_loop(
                             if slot.selectable {
                                 match write_save_slot(runtime, save_dir, slot.slot) {
                                     Ok(()) => {
+                                        runtime.last_manual_save_slot = Some(slot.slot);
                                         save_message = Some(SaveMessage {
                                             text: "Saved.".to_string(),
                                             style: PanelSpanStyle::Accent,
@@ -1600,6 +1601,18 @@ fn write_save_slot(runtime: &GameRuntime, save_dir: &Path, slot: u8) -> Result<(
 
 fn first_selectable_save_slot(slots: &[SaveSlotEntry]) -> Option<usize> {
     slots.iter().position(|slot| slot.selectable)
+}
+
+fn default_save_selection(runtime: &GameRuntime, slots: &[SaveSlotEntry]) -> Option<usize> {
+    if let Some(slot_id) = runtime.last_manual_save_slot {
+        if let Some(index) = slots
+            .iter()
+            .position(|slot| slot.selectable && slot.slot == slot_id)
+        {
+            return Some(index);
+        }
+    }
+    first_selectable_save_slot(slots)
 }
 
 fn move_save_selection(current: usize, slots: &[SaveSlotEntry], direction: i32) -> usize {

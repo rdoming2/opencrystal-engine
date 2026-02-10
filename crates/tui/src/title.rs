@@ -30,32 +30,48 @@ pub fn run_title(
     session: &mut TuiSession,
     title_ui: &TitleUiFile,
     bindings: &InputBindings,
+    load_enabled: bool,
+    default_selected: usize,
 ) -> io::Result<TitleAction> {
-    let mut selected = 0usize;
+    let mut selected = default_selected.min(title_ui.menu.len().saturating_sub(1));
+    if let Some(index) = first_enabled_menu_item(title_ui, load_enabled) {
+        if title_ui
+            .menu
+            .get(selected)
+            .map(|item| !menu_item_enabled(item, load_enabled))
+            .unwrap_or(true)
+        {
+            selected = index;
+        }
+    } else {
+        selected = 0;
+    }
 
     loop {
         session.terminal_mut().draw(|frame| {
-            draw_title_frame(frame, title_ui, selected);
+            draw_title_frame(frame, title_ui, selected, load_enabled);
         })?;
 
         if let Event::Key(key) = event::read()? {
             if let Some(action) = bindings.action_for(key.code) {
                 match action {
                     Action::MoveUp => {
-                        if selected > 0 {
-                            selected -= 1;
-                        }
+                        selected = move_menu_selection(selected, title_ui, load_enabled, -1);
                     }
                     Action::MoveDown => {
-                        if selected + 1 < title_ui.menu.len() {
-                            selected += 1;
+                        selected = move_menu_selection(selected, title_ui, load_enabled, 1);
+                    }
+                    Action::Confirm => {
+                        if let Some(item) = title_ui.menu.get(selected) {
+                            if menu_item_enabled(item, load_enabled) {
+                                return Ok(map_action(&item.id));
+                            }
                         }
                     }
-                    Action::Confirm => return Ok(map_action(&title_ui.menu[selected].id)),
                     Action::Cancel | Action::Menu => return Ok(TitleAction::Exit),
                     Action::Quit => {
                         if confirm_quit(session, |frame| {
-                            draw_title_frame(frame, title_ui, selected)
+                            draw_title_frame(frame, title_ui, selected, load_enabled)
                         })? {
                             return Ok(TitleAction::Exit);
                         }
@@ -115,7 +131,12 @@ pub fn run_load_menu(
     }
 }
 
-pub fn draw_title_frame(frame: &mut Frame, title_ui: &TitleUiFile, selected: usize) {
+pub fn draw_title_frame(
+    frame: &mut Frame,
+    title_ui: &TitleUiFile,
+    selected: usize,
+    load_enabled: bool,
+) {
     let size = frame.size();
     let layout = Layout::default()
         .direction(Direction::Vertical)
@@ -158,7 +179,9 @@ pub fn draw_title_frame(frame: &mut Frame, title_ui: &TitleUiFile, selected: usi
         .enumerate()
         .map(|(index, item)| {
             let mut style = Style::default().fg(Color::White);
-            if index == selected {
+            if !menu_item_enabled(item, load_enabled) {
+                style = style.fg(Color::Gray);
+            } else if index == selected {
                 style = style.fg(Color::Yellow).add_modifier(Modifier::BOLD);
             }
             Line::from(Span::styled(item.label.as_str(), style))
@@ -277,8 +300,56 @@ fn map_action(id: &str) -> TitleAction {
     }
 }
 
+fn menu_item_enabled(item: &crate::ui::MenuItem, load_enabled: bool) -> bool {
+    if item.id == "load_game" {
+        load_enabled
+    } else {
+        true
+    }
+}
+
 fn first_enabled_slot(slots: &[LoadSlotEntry]) -> Option<usize> {
     slots.iter().position(|slot| slot.enabled)
+}
+
+fn first_enabled_menu_item(title_ui: &TitleUiFile, load_enabled: bool) -> Option<usize> {
+    title_ui
+        .menu
+        .iter()
+        .position(|item| menu_item_enabled(item, load_enabled))
+}
+
+fn move_menu_selection(
+    current: usize,
+    title_ui: &TitleUiFile,
+    load_enabled: bool,
+    direction: i32,
+) -> usize {
+    if title_ui.menu.is_empty() {
+        return 0;
+    }
+    let mut index = current.min(title_ui.menu.len().saturating_sub(1));
+    loop {
+        if direction < 0 {
+            if index == 0 {
+                return current;
+            }
+            index = index.saturating_sub(1);
+        } else {
+            if index + 1 >= title_ui.menu.len() {
+                return current;
+            }
+            index = (index + 1).min(title_ui.menu.len().saturating_sub(1));
+        }
+        if title_ui
+            .menu
+            .get(index)
+            .map(|item| menu_item_enabled(item, load_enabled))
+            .unwrap_or(false)
+        {
+            return index;
+        }
+    }
 }
 
 fn move_slot_selection(current: usize, slots: &[LoadSlotEntry], direction: i32) -> usize {

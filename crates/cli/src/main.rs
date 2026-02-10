@@ -189,7 +189,20 @@ fn run_play(args: Vec<String>) {
         if let Err(err) = session.terminal_mut().clear() {
             eprintln!("Failed to clear TUI: {}", err);
         }
-        match run_title(session, &title_ui, &input_bindings) {
+        let load_enabled = has_loadable_saves(&runtime, &save_dir);
+        let default_selected = if load_enabled {
+            menu_index(&title_ui, "load_game").or_else(|| menu_index(&title_ui, "new_game"))
+        } else {
+            menu_index(&title_ui, "new_game")
+        }
+        .unwrap_or(0);
+        match run_title(
+            session,
+            &title_ui,
+            &input_bindings,
+            load_enabled,
+            default_selected,
+        ) {
             Ok(action) => action,
             Err(err) => {
                 eprintln!("Failed to run title UI: {}", err);
@@ -534,11 +547,37 @@ fn run_load_flow(
         .ok_or_else(|| "Selected slot is empty".to_string())?;
     let save = SaveFile::load(save_slot_path(save_dir, entry.slot))?;
     save.apply_to_runtime(runtime);
+    if entry.slot > 0 {
+        runtime.last_manual_save_slot = Some(entry.slot);
+    }
     runtime.state = GameState::Overworld;
     runtime.event_queue.clear();
     runtime.active_event = None;
     runtime.event_step = 0;
     Ok(true)
+}
+
+fn menu_index(title_ui: &TitleUiFile, id: &str) -> Option<usize> {
+    title_ui.menu.iter().position(|item| item.id == id)
+}
+
+fn has_loadable_saves(runtime: &GameRuntime, save_dir: &PathBuf) -> bool {
+    if runtime.effective_autosave_enabled() && loadable_save_exists(save_dir, 0) {
+        return true;
+    }
+    let max_slots = runtime.content.rules.save.slots_max.max(1) as u8;
+    for slot in 1..=max_slots {
+        if loadable_save_exists(save_dir, slot) {
+            return true;
+        }
+    }
+    false
+}
+
+fn loadable_save_exists(save_dir: &PathBuf, slot: u8) -> bool {
+    SaveFile::load(save_slot_path(save_dir, slot))
+        .map(|save| save.version != 0)
+        .unwrap_or(false)
 }
 
 fn build_load_slots(runtime: &GameRuntime, save_dir: &PathBuf) -> Vec<LoadSlotEntry> {

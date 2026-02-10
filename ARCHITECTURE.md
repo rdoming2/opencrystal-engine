@@ -59,6 +59,11 @@ It is a design reference meant to guide initial implementation.
   - Use ASCII art sprites when terminal size is at least 110x32.
   - Auto-fallback to glyphs when space is constrained.
 
+### Title screen
+
+- Load is disabled when no loadable saves exist; default selection is New.
+- When loadable saves exist, default selection is Load.
+
 ### Battle layout (FF homage)
 
 - Top: battlefield (enemy visuals + player sprites arranged in a right-side vertical grid).
