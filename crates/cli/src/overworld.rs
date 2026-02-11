@@ -466,7 +466,22 @@ pub fn run_overworld_loop(
                         dialog_ui,
                         bindings,
                         "",
-                        "The party was defeated.",
+                        &crate::battle::ui_text(
+                            runtime,
+                            "battle.defeat_message",
+                            "The party was defeated.",
+                        ),
+                    )?;
+                    tui::dialog::show_dialog(
+                        session,
+                        dialog_ui,
+                        bindings,
+                        "",
+                        &crate::battle::ui_text(
+                            runtime,
+                            "battle.defeat_return",
+                            "Returning to the main menu.",
+                        ),
                     )?;
                     return Err(std::io::Error::new(
                         std::io::ErrorKind::Interrupted,

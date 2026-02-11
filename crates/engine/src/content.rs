@@ -8,7 +8,7 @@ use crate::dialog::DialogFile;
 use crate::encounters::EncountersFile;
 use crate::entities::{
     AbilitiesFile, EffectsFile, EnemiesFile, EquipmentFile, ItemsFile, JobsFile, NpcsFile,
-    ShopsFile, SpellsFile, VehiclesFile,
+    ShopsFile, SpellsFile, StringsFile, VehiclesFile,
 };
 use crate::events::EventFile;
 use crate::maps::{MapChestLoot, MapFile};
@@ -21,6 +21,7 @@ use crate::world::WorldsFile;
 pub struct Content {
     pub rules: RulesFile,
     pub effects: EffectsFile,
+    pub strings: Option<StringsFile>,
     pub worlds: WorldsFile,
     pub stats: StatsFile,
     pub encounters: EncountersFile,
@@ -154,6 +155,12 @@ impl Content {
         events
     }
 
+    pub fn ui_text(&self, key: &str) -> Option<&str> {
+        self.strings
+            .as_ref()
+            .and_then(|file| file.strings.get(key).map(|value| value.as_str()))
+    }
+
     pub fn load(content_dir: impl AsRef<Path>) -> Result<Self, Vec<String>> {
         let content_dir = content_dir.as_ref();
         let mut errors = Vec::new();
@@ -163,6 +170,10 @@ impl Content {
             content_dir.join("effects.json"),
             EffectsFile::load,
             &mut errors,
+        );
+        let strings = load_optional(
+            content_dir.join("ui").join("strings.json"),
+            StringsFile::load,
         );
         let party = match rules.as_ref().map(|file| &file.party_mode) {
             Some(PartyMode::Preset) | Some(PartyMode::PresetRename) => {
@@ -289,6 +300,7 @@ impl Content {
         Ok(Self {
             rules,
             effects,
+            strings,
             worlds,
             stats,
             encounters,

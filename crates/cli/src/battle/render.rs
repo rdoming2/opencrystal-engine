@@ -12,7 +12,6 @@ use super::state::{
 };
 use super::CommandEntry;
 use crate::menu::abilities::ability_cost_label;
-use crate::menu::abilities::ability_group_available;
 use crate::menu::common::{AbilityEntry, InventoryEntry, SpellEntry};
 use crate::menu::magic::spell_cost_label;
 
@@ -164,6 +163,8 @@ pub fn build_battle_render_state(
         focus: battle_focus(menu_state),
         log: battle_state.log.clone(),
         paused: menu_state.paused,
+        pause_title: crate::battle::ui_text(runtime, "battle.pause_title", "PAUSED"),
+        pause_hint: crate::battle::ui_text(runtime, "battle.pause_hint", "Press Pause to resume"),
         use_color: runtime
             .content
             .rules
@@ -200,10 +201,10 @@ pub fn build_battle_command_panel(
     menu_state: &BattleMenuState,
     battle_ui: &BattleUiFile,
     command_entries: &[CommandEntry],
-    actor_id: Option<&str>,
+    _actor_id: Option<&str>,
     spell_entries: &[SpellEntry],
     ability_entries: &[AbilityEntry],
-    ability_entries_all: &[AbilityEntry],
+    _ability_entries_all: &[AbilityEntry],
     item_entries: &[InventoryEntry],
     is_player_turn: bool,
 ) -> BattleCommandPanelView {
@@ -294,51 +295,19 @@ pub fn build_battle_command_panel(
                 .min(item_entries.len().saturating_sub(1)),
         },
         _ => {
-            let command_count = command_entries.len();
-            let page_size = battle_ui.panels.commands.page_size.max(1);
-            let selected = if command_count == 0 {
+            let title = battle_ui.panels.commands.title.clone();
+            let selected = if command_entries.is_empty() {
                 0
             } else {
                 menu_state
                     .command_index
-                    .min(command_count.saturating_sub(1))
-            };
-            let total_pages = if command_count == 0 {
-                1
-            } else {
-                (command_count + page_size - 1) / page_size
-            };
-            let page = if command_count == 0 {
-                0
-            } else {
-                selected / page_size
-            };
-            let start = page.saturating_mul(page_size);
-            let end = (start + page_size).min(command_count);
-            let title = if total_pages > 1 {
-                format!(
-                    "{} ({}/{})",
-                    battle_ui.panels.commands.title,
-                    page + 1,
-                    total_pages
-                )
-            } else {
-                battle_ui.panels.commands.title.clone()
+                    .min(command_entries.len().saturating_sub(1))
             };
             let items = command_entries
-                .get(start..end)
-                .unwrap_or(&[])
                 .iter()
                 .map(|command| BattleCommandItem {
                     label: command.label.clone(),
-                    enabled: command_enabled(
-                        runtime,
-                        actor_id,
-                        command,
-                        spell_entries,
-                        ability_entries_all,
-                        item_entries,
-                    ),
+                    enabled: true,
                 })
                 .collect();
             BattleCommandPanelView {
@@ -347,7 +316,7 @@ pub fn build_battle_command_panel(
                 items,
                 columns: Vec::new(),
                 rows: Vec::new(),
-                selected: selected.saturating_sub(start),
+                selected,
             }
         }
     }
@@ -368,38 +337,5 @@ pub fn battle_focus(menu_state: &BattleMenuState) -> BattleFocus {
         BattlePhase::TargetEnemy => BattleFocus::Enemies,
         BattlePhase::TargetParty => BattleFocus::Party,
         _ => BattleFocus::Commands,
-    }
-}
-
-fn command_enabled(
-    runtime: &GameRuntime,
-    actor_id: Option<&str>,
-    command: &CommandEntry,
-    spell_entries: &[SpellEntry],
-    ability_entries_all: &[AbilityEntry],
-    item_entries: &[InventoryEntry],
-) -> bool {
-    match command.kind {
-        crate::battle::CommandKind::Magic => {
-            crate::menu::system_enabled(runtime, Some("magic")) && !spell_entries.is_empty()
-        }
-        crate::battle::CommandKind::Abilities => !ability_entries_all.is_empty(),
-        crate::battle::CommandKind::AbilitiesGroup => actor_id
-            .and_then(|actor_id| {
-                command
-                    .ability_group
-                    .as_deref()
-                    .map(|group| (actor_id, group))
-            })
-            .map(|(actor_id, group)| ability_group_available(runtime, actor_id, group))
-            .unwrap_or(false),
-        crate::battle::CommandKind::Items => {
-            crate::menu::system_enabled(runtime, Some("items")) && !item_entries.is_empty()
-        }
-        crate::battle::CommandKind::Row => {
-            let rows = &runtime.content.rules.battle.rows;
-            rows.enabled && rows.allow_battle_switch
-        }
-        _ => true,
     }
 }

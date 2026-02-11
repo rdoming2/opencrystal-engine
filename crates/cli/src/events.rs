@@ -129,11 +129,53 @@ fn handle_event_result(
                         dialog_ui,
                         bindings,
                         "",
-                        "The party was defeated.",
+                        &crate::battle::ui_text(
+                            runtime,
+                            "battle.defeat_message",
+                            "The party was defeated.",
+                        ),
+                    )?;
+                    show_dialog_on_map(
+                        session,
+                        map,
+                        runtime.world.position,
+                        dialog_ui,
+                        bindings,
+                        "",
+                        &crate::battle::ui_text(
+                            runtime,
+                            "battle.defeat_return",
+                            "Returning to the main menu.",
+                        ),
                     )?;
                 } else {
-                    show_dialog(session, dialog_ui, bindings, "", "The party was defeated.")?;
+                    show_dialog(
+                        session,
+                        dialog_ui,
+                        bindings,
+                        "",
+                        &crate::battle::ui_text(
+                            runtime,
+                            "battle.defeat_message",
+                            "The party was defeated.",
+                        ),
+                    )?;
+                    show_dialog(
+                        session,
+                        dialog_ui,
+                        bindings,
+                        "",
+                        &crate::battle::ui_text(
+                            runtime,
+                            "battle.defeat_return",
+                            "Returning to the main menu.",
+                        ),
+                    )?;
                 }
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::Interrupted,
+                    "defeat",
+                ));
             }
         }
         engine::events::EventExecutionResult::OpenShop { shop_id } => {

@@ -93,12 +93,13 @@
 - [x] Optional front/back row rules (battle + menu toggles).
 - [x] Status persistence rules and overworld poison ticks.
 - [ ] Status effects and damage formulas (derived stats).
-  - [ ] Implement critical hit calculations and messaging.
-- [ ] Implement command-specific behaviors (steal, throw, counter, pray, parry, cover).
-- [ ] Add Defend command behavior.
-- [ ] Add optional boss scaling rules.
+- [x] Status effects and damage formulas (derived stats).
+  - [x] Implement critical hit calculations and messaging.
+- [x] Implement command-specific behaviors (steal, throw, counter, pray, parry, cover).
+- [x] Add Defend command behavior.
+- [x] Add optional boss scaling rules.
 - [x] Victory/defeat flow (spoils, level-ups, modals).
-  - [ ] Update defeat messaging and return to main menu on loss.
+  - [x] Update defeat messaging and return to main menu on loss.
 - [x] Scan reveals enemy HP.
 - [x] Define battle rules schema (damage, hit, crit, Readiness speed).
 - [x] Define status effects schema (buffs/debuffs, durations).
@@ -106,7 +107,7 @@
 - [x] Define skills/abilities schema (non-spell actions).
 - [x] Add ability costs (hp/mp/currency/item/death/random).
 - [x] Add readiness speed setting to main menu.
-- [ ] Add localization support for UI strings and command labels.
+- [x] Add localization support for UI strings and command labels.
 
 ## Magic System
 - [x] Implement job-based spell learnsets (level/item/equip/jp).
@@ -146,7 +147,7 @@
 - [x] Implement inn rest feature (dialog action `rest_party`).
 - [x] Add configurable NPC interaction range (default 1 tile).
 - [x] Add event action to teach spells (learn_spell).
-- [x] Add fast travel menu (free and paid variants).
+- [x] Consolidate fast travel into overworld map menu (free and paid variants).
 - [x] Add locked door support.
 - [x] Add puzzle interactions.
 - [ ] Add party talk interactions.

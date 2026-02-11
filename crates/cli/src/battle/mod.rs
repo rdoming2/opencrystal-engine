@@ -33,7 +33,7 @@ use self::state::{
     BattlePhase, BattleTurnActor, BattleTurnState, PendingBattleAction, TargetMode, TargetRule,
     TargetSide, VictoryState,
 };
-use crate::menu::abilities::{ability_group_available, build_battle_ability_entries};
+use crate::menu::abilities::build_battle_ability_entries;
 use crate::menu::common::{AbilityEntry, InventoryEntry, SpellEntry};
 use crate::menu::inventory::build_battle_item_entries;
 use crate::menu::magic::build_battle_spell_entries;
@@ -44,6 +44,23 @@ pub enum BattleOutcome {
     Victory,
     Defeat,
     Escaped,
+}
+
+pub fn ui_text(runtime: &GameRuntime, key: &str, default: &str) -> String {
+    runtime.content.ui_text(key).unwrap_or(default).to_string()
+}
+
+pub fn format_ui_text(
+    runtime: &GameRuntime,
+    key: &str,
+    default: &str,
+    vars: &[(&str, String)],
+) -> String {
+    let mut text = ui_text(runtime, key, default);
+    for (name, value) in vars {
+        text = text.replace(&format!("{{{}}}", name), value);
+    }
+    text
 }
 
 pub fn run_battle(
@@ -68,7 +85,10 @@ pub fn run_battle(
         return Ok(BattleOutcome::Defeat);
     };
     battle_state.active_index = start_index;
-    push_battle_log(&mut battle_state.log, "A battle begins!");
+    push_battle_log(
+        &mut battle_state.log,
+        ui_text(runtime, "battle.start", "A battle begins!"),
+    );
 
     let mut menu_state = BattleMenuState::new();
     let mut turn_state = if matches!(
@@ -124,13 +144,19 @@ pub fn run_battle(
                 } else {
                     Some(VictoryState::Summary)
                 };
-                push_battle_log(&mut battle_state.log, "Victory!");
+                push_battle_log(
+                    &mut battle_state.log,
+                    ui_text(runtime, "battle.victory", "Victory!"),
+                );
             }
         }
         if is_party_defeated(&runtime.party, &battle_state.party_order) {
             if menu_state.phase != BattlePhase::Defeat {
                 menu_state.phase = BattlePhase::Defeat;
-                push_battle_log(&mut battle_state.log, "Defeat...");
+                push_battle_log(
+                    &mut battle_state.log,
+                    ui_text(runtime, "battle.defeat", "Defeat..."),
+                );
             }
         }
 
@@ -189,7 +215,7 @@ pub fn run_battle(
                         runtime,
                         &mut battle_state,
                         enemy_index,
-                        &mut menu_state.defending,
+                        &mut menu_state,
                         rng,
                     ) {
                         let command_entries =
@@ -253,6 +279,11 @@ pub fn run_battle(
                         }
                         battle_state.active_index = party_index;
                         menu_state.defending.remove(&current_id);
+                        menu_state.parrying.remove(&current_id);
+                        menu_state.countering.remove(&current_id);
+                        menu_state
+                            .covering
+                            .retain(|_, coverer| coverer != &current_id);
                         if last_actor_id.as_deref() != Some(current_id.as_str()) {
                             menu_state.reset_for_actor();
                             last_actor_id = Some(current_id.clone());
@@ -299,7 +330,7 @@ pub fn run_battle(
                                 runtime,
                                 &mut battle_state,
                                 enemy_index,
-                                &mut menu_state.defending,
+                                &mut menu_state,
                                 rng,
                             ) {
                                 let command_entries =
@@ -335,16 +366,26 @@ pub fn run_battle(
             }
         }
 
-        let command_entries = command_entries_for_actor(runtime, &actor_id);
-        if menu_state.command_index >= command_entries.len() {
-            menu_state.command_index = command_entries.len().saturating_sub(1);
-        }
         let spell_entries = build_battle_spell_entries(runtime, &actor_id);
         let ability_entries_all = build_battle_ability_entries(runtime, &actor_id, None);
         let command_group = ability_group_for_command(runtime, menu_state.command_id.as_deref());
         let ability_entries =
             build_battle_ability_entries(runtime, &actor_id, command_group.as_deref());
         let item_entries = build_battle_item_entries(runtime);
+        let mut command_entries = command_entries_for_actor(runtime, &actor_id);
+        command_entries.retain(|command| {
+            command_is_enabled(
+                runtime,
+                &actor_id,
+                command,
+                &spell_entries,
+                &ability_entries_all,
+                &item_entries,
+            )
+        });
+        if menu_state.command_index >= command_entries.len() {
+            menu_state.command_index = command_entries.len().saturating_sub(1);
+        }
         let render_state = build_battle_render_state(
             runtime,
             &battle_state,
@@ -371,18 +412,37 @@ pub fn run_battle(
                                 == JobProgressionMode::JobPoints,
                             &runtime.content.rules.game.currency.symbol,
                             &result.rewards.items,
+                            &ui_text(runtime, "battle.victory_title", "Victory!"),
+                            &ui_text(runtime, "battle.items_found", "Items found:"),
+                            &ui_text(
+                                runtime,
+                                "battle.victory_prompt",
+                                "Press Confirm to continue.",
+                            ),
                         )?;
                     }
                 }
                 Some(VictoryState::LevelUp(index)) => {
                     if let Some(ref result) = battle_result {
                         if let Some(diff) = result.level_ups.get(index) {
+                            let headline = format_ui_text(
+                                runtime,
+                                "battle.level_up",
+                                "{actor} reached Level {level}!",
+                                &[
+                                    ("actor", diff.actor_name.clone()),
+                                    ("level", diff.new_level.to_string()),
+                                ],
+                            );
                             tui::battle::draw_level_up_modal(
                                 session,
-                                &diff.actor_name,
-                                diff.old_level,
-                                diff.new_level,
+                                &headline,
                                 &diff.stat_changes,
+                                &ui_text(
+                                    runtime,
+                                    "battle.level_up_prompt",
+                                    "Press Confirm to continue.",
+                                ),
                             )?;
                         }
                     }
@@ -515,7 +575,14 @@ pub fn run_battle(
                         &ability_entries_all,
                         &item_entries,
                     ) {
-                        push_battle_log(&mut battle_state.log, "Command unavailable.");
+                        push_battle_log(
+                            &mut battle_state.log,
+                            ui_text(
+                                runtime,
+                                "battle.command_unavailable",
+                                "Command unavailable.",
+                            ),
+                        );
                         continue;
                     }
                     match command.kind {
@@ -523,21 +590,66 @@ pub fn run_battle(
                             menu_state.phase = BattlePhase::TargetEnemy;
                             menu_state.pending_action = Some(PendingBattleAction::Attack);
                             if !set_initial_enemy_target(&mut menu_state, &battle_state) {
-                                push_battle_log(&mut battle_state.log, "No valid targets.");
+                                push_battle_log(
+                                    &mut battle_state.log,
+                                    ui_text(runtime, "battle.no_targets", "No valid targets."),
+                                );
                                 menu_state.reset_for_actor();
                             }
                         }
                         CommandKind::Magic => {
                             if spell_entries.is_empty() {
-                                push_battle_log(&mut battle_state.log, "No spells available.");
+                                push_battle_log(
+                                    &mut battle_state.log,
+                                    ui_text(runtime, "battle.no_spells", "No spells available."),
+                                );
                             } else {
                                 menu_state.phase = BattlePhase::Magic;
                                 menu_state.magic_index = 0;
                             }
                         }
                         CommandKind::Abilities | CommandKind::AbilitiesGroup => {
-                            if ability_entries.is_empty() {
-                                push_battle_log(&mut battle_state.log, "No abilities available.");
+                            if command.kind == CommandKind::AbilitiesGroup {
+                                let usable_group = usable_group_abilities(
+                                    runtime,
+                                    &actor_id,
+                                    command.ability_group.as_deref(),
+                                );
+                                if usable_group.is_empty() {
+                                    push_battle_log(
+                                        &mut battle_state.log,
+                                        ui_text(
+                                            runtime,
+                                            "battle.no_abilities",
+                                            "No abilities available.",
+                                        ),
+                                    );
+                                    continue;
+                                }
+                                if usable_group.len() == 1 {
+                                    let entry = usable_group[0].clone();
+                                    if !begin_ability_targeting(
+                                        runtime,
+                                        &mut battle_state,
+                                        &mut menu_state,
+                                        entry,
+                                    ) {
+                                        menu_state.reset_for_actor();
+                                    }
+                                } else {
+                                    menu_state.command_id = Some(command.id.clone());
+                                    menu_state.phase = BattlePhase::Abilities;
+                                    menu_state.ability_index = 0;
+                                }
+                            } else if ability_entries_all.is_empty() {
+                                push_battle_log(
+                                    &mut battle_state.log,
+                                    ui_text(
+                                        runtime,
+                                        "battle.no_abilities",
+                                        "No abilities available.",
+                                    ),
+                                );
                             } else {
                                 menu_state.command_id = Some(command.id.clone());
                                 menu_state.phase = BattlePhase::Abilities;
@@ -546,7 +658,10 @@ pub fn run_battle(
                         }
                         CommandKind::Items => {
                             if item_entries.is_empty() {
-                                push_battle_log(&mut battle_state.log, "No items available.");
+                                push_battle_log(
+                                    &mut battle_state.log,
+                                    ui_text(runtime, "battle.no_items", "No items available."),
+                                );
                             } else {
                                 menu_state.phase = BattlePhase::Items;
                                 menu_state.item_index = 0;
@@ -554,11 +669,17 @@ pub fn run_battle(
                         }
                         CommandKind::Run => {
                             if rng.r#gen::<f32>() < 0.5 {
-                                push_battle_log(&mut battle_state.log, "Escaped!");
+                                push_battle_log(
+                                    &mut battle_state.log,
+                                    ui_text(runtime, "battle.escape_success", "Escaped!"),
+                                );
                                 cleanup_party_statuses_after_battle(runtime);
                                 return Ok(BattleOutcome::Escaped);
                             }
-                            push_battle_log(&mut battle_state.log, "Escape failed!");
+                            push_battle_log(
+                                &mut battle_state.log,
+                                ui_text(runtime, "battle.escape_fail", "Escape failed!"),
+                            );
                             let render_state = build_battle_render_state(
                                 runtime,
                                 &battle_state,
@@ -593,7 +714,12 @@ pub fn run_battle(
                                 .unwrap_or_else(|| actor_id.clone());
                             push_battle_log(
                                 &mut battle_state.log,
-                                format!("{} defends.", actor_name),
+                                format_ui_text(
+                                    runtime,
+                                    "battle.log.defend",
+                                    "{actor} defends.",
+                                    &[("actor", actor_name)],
+                                ),
                             );
                             let render_state = build_battle_render_state(
                                 runtime,
@@ -620,12 +746,21 @@ pub fn run_battle(
                             advance_turn(&mut menu_state, &mut turn_state, &mut battle_state);
                         }
                         CommandKind::Row => {
+                            let mut row_message: Option<(String, String)> = None;
                             if let Some(actor) = runtime.party.roster.get_mut(&actor_id) {
                                 toggle_actor_row(actor);
-                                let row_label = actor_row_label(actor);
+                                let row_label = actor_row_label(actor).to_string();
+                                row_message = Some((actor.name.clone(), row_label));
+                            }
+                            if let Some((actor_name, row_label)) = row_message {
                                 push_battle_log(
                                     &mut battle_state.log,
-                                    format!("{} moves to the {} row.", actor.name, row_label),
+                                    format_ui_text(
+                                        runtime,
+                                        "battle.log.row",
+                                        "{actor} moves to the {row} row.",
+                                        &[("actor", actor_name), ("row", row_label)],
+                                    ),
                                 );
                             }
                             let render_state = build_battle_render_state(
@@ -675,17 +810,19 @@ pub fn run_battle(
                         continue;
                     };
                     if !entry.usable {
-                        let reason = entry
-                            .reason
-                            .clone()
-                            .unwrap_or_else(|| "Cannot cast.".to_string());
+                        let reason = entry.reason.clone().unwrap_or_else(|| {
+                            ui_text(runtime, "battle.cast_unavailable", "Cannot cast.")
+                        });
                         push_battle_log(&mut battle_state.log, reason);
                         continue;
                     }
                     menu_state.pending_action = Some(PendingBattleAction::Magic(entry.clone()));
                     let options = target_options_for_magic(entry);
                     if options.is_empty() {
-                        push_battle_log(&mut battle_state.log, "No valid targets.");
+                        push_battle_log(
+                            &mut battle_state.log,
+                            ui_text(runtime, "battle.no_targets", "No valid targets."),
+                        );
                         menu_state.reset_for_actor();
                         continue;
                     }
@@ -702,7 +839,10 @@ pub fn run_battle(
                     };
                     if menu_state.phase == BattlePhase::TargetEnemy {
                         if !set_initial_enemy_target(&mut menu_state, &battle_state) {
-                            push_battle_log(&mut battle_state.log, "No valid targets.");
+                            push_battle_log(
+                                &mut battle_state.log,
+                                ui_text(runtime, "battle.no_targets", "No valid targets."),
+                            );
                             menu_state.reset_for_actor();
                         }
                     } else if let Some(action) = menu_state.pending_action.clone() {
@@ -712,7 +852,10 @@ pub fn run_battle(
                             runtime,
                             &action,
                         ) {
-                            push_battle_log(&mut battle_state.log, "No valid targets.");
+                            push_battle_log(
+                                &mut battle_state.log,
+                                ui_text(runtime, "battle.no_targets", "No valid targets."),
+                            );
                             menu_state.reset_for_actor();
                         }
                     }
@@ -740,7 +883,10 @@ pub fn run_battle(
                     menu_state.pending_action = Some(PendingBattleAction::Ability(entry.clone()));
                     let options = target_options_for_ability(entry);
                     if options.is_empty() {
-                        push_battle_log(&mut battle_state.log, "No valid targets.");
+                        push_battle_log(
+                            &mut battle_state.log,
+                            ui_text(runtime, "battle.no_targets", "No valid targets."),
+                        );
                         menu_state.reset_for_actor();
                         continue;
                     }
@@ -757,7 +903,10 @@ pub fn run_battle(
                     };
                     if menu_state.phase == BattlePhase::TargetEnemy {
                         if !set_initial_enemy_target(&mut menu_state, &battle_state) {
-                            push_battle_log(&mut battle_state.log, "No valid targets.");
+                            push_battle_log(
+                                &mut battle_state.log,
+                                ui_text(runtime, "battle.no_targets", "No valid targets."),
+                            );
                             menu_state.reset_for_actor();
                         }
                     } else if let Some(action) = menu_state.pending_action.clone() {
@@ -767,7 +916,10 @@ pub fn run_battle(
                             runtime,
                             &action,
                         ) {
-                            push_battle_log(&mut battle_state.log, "No valid targets.");
+                            push_battle_log(
+                                &mut battle_state.log,
+                                ui_text(runtime, "battle.no_targets", "No valid targets."),
+                            );
                             menu_state.reset_for_actor();
                         }
                     }
@@ -793,7 +945,10 @@ pub fn run_battle(
                         continue;
                     };
                     if !entry.usable {
-                        push_battle_log(&mut battle_state.log, "Item unusable.");
+                        push_battle_log(
+                            &mut battle_state.log,
+                            ui_text(runtime, "battle.item_unusable", "Item unusable."),
+                        );
                         continue;
                     }
                     let Some(item) = runtime
@@ -842,7 +997,10 @@ pub fn run_battle(
                             menu_state.target_side = TargetSide::Enemy;
                             menu_state.target_mode = TargetMode::Single;
                             if !set_initial_enemy_target(&mut menu_state, &battle_state) {
-                                push_battle_log(&mut battle_state.log, "No valid targets.");
+                                push_battle_log(
+                                    &mut battle_state.log,
+                                    ui_text(runtime, "battle.no_targets", "No valid targets."),
+                                );
                                 menu_state.reset_for_actor();
                             }
                         }
@@ -859,7 +1017,10 @@ pub fn run_battle(
                                     runtime,
                                     &action,
                                 ) {
-                                    push_battle_log(&mut battle_state.log, "No valid targets.");
+                                    push_battle_log(
+                                        &mut battle_state.log,
+                                        ui_text(runtime, "battle.no_targets", "No valid targets."),
+                                    );
                                     menu_state.reset_for_actor();
                                 }
                             }
@@ -894,7 +1055,10 @@ pub fn run_battle(
                             };
                             if menu_state.phase == BattlePhase::TargetEnemy {
                                 if !set_initial_enemy_target(&mut menu_state, &battle_state) {
-                                    push_battle_log(&mut battle_state.log, "No valid targets.");
+                                    push_battle_log(
+                                        &mut battle_state.log,
+                                        ui_text(runtime, "battle.no_targets", "No valid targets."),
+                                    );
                                 }
                             } else if let Some(action) = menu_state.pending_action.clone() {
                                 if !set_initial_party_target(
@@ -903,7 +1067,10 @@ pub fn run_battle(
                                     runtime,
                                     &action,
                                 ) {
-                                    push_battle_log(&mut battle_state.log, "No valid targets.");
+                                    push_battle_log(
+                                        &mut battle_state.log,
+                                        ui_text(runtime, "battle.no_targets", "No valid targets."),
+                                    );
                                 }
                             }
                         }
@@ -916,7 +1083,10 @@ pub fn run_battle(
                     let valid = enemy_target_indices(&battle_state);
                     let Some(target_index) = ensure_valid_index(menu_state.enemy_index, &valid)
                     else {
-                        push_battle_log(&mut battle_state.log, "No valid targets.");
+                        push_battle_log(
+                            &mut battle_state.log,
+                            ui_text(runtime, "battle.no_targets", "No valid targets."),
+                        );
                         menu_state.reset_for_actor();
                         continue;
                     };
@@ -1004,13 +1174,16 @@ pub fn run_battle(
                                 } else {
                                     None
                                 };
+                                let target_side = menu_state.target_side;
+                                let target_mode = menu_state.target_mode;
                                 execute_ability_action(
                                     runtime,
                                     &mut battle_state,
                                     &actor_id,
                                     &entry,
-                                    menu_state.target_side,
-                                    menu_state.target_mode,
+                                    &mut menu_state,
+                                    target_side,
+                                    target_mode,
                                     target_index,
                                     rng,
                                 );
@@ -1132,7 +1305,10 @@ pub fn run_battle(
                             };
                             if menu_state.phase == BattlePhase::TargetEnemy {
                                 if !set_initial_enemy_target(&mut menu_state, &battle_state) {
-                                    push_battle_log(&mut battle_state.log, "No valid targets.");
+                                    push_battle_log(
+                                        &mut battle_state.log,
+                                        ui_text(runtime, "battle.no_targets", "No valid targets."),
+                                    );
                                 }
                             } else if let Some(action) = menu_state.pending_action.clone() {
                                 if !set_initial_party_target(
@@ -1141,7 +1317,10 @@ pub fn run_battle(
                                     runtime,
                                     &action,
                                 ) {
-                                    push_battle_log(&mut battle_state.log, "No valid targets.");
+                                    push_battle_log(
+                                        &mut battle_state.log,
+                                        ui_text(runtime, "battle.no_targets", "No valid targets."),
+                                    );
                                 }
                             }
                         }
@@ -1159,8 +1338,12 @@ pub fn run_battle(
                     let Some(target_index) = ensure_valid_index(menu_state.party_index, &valid)
                     else {
                         let message = match rule {
-                            TargetRule::KnockedOut => "No fallen allies.",
-                            TargetRule::Alive => "No valid targets.",
+                            TargetRule::KnockedOut => {
+                                ui_text(runtime, "battle.no_fallen", "No fallen allies.")
+                            }
+                            TargetRule::Alive => {
+                                ui_text(runtime, "battle.no_targets", "No valid targets.")
+                            }
                         };
                         push_battle_log(&mut battle_state.log, message);
                         menu_state.reset_for_actor();
@@ -1213,13 +1396,16 @@ pub fn run_battle(
                             } else {
                                 None
                             };
+                            let target_side = menu_state.target_side;
+                            let target_mode = menu_state.target_mode;
                             execute_ability_action(
                                 runtime,
                                 &mut battle_state,
                                 &actor_id,
                                 &entry,
-                                menu_state.target_side,
-                                menu_state.target_mode,
+                                &mut menu_state,
+                                target_side,
+                                target_mode,
                                 target_index,
                                 rng,
                             );
@@ -1824,9 +2010,10 @@ pub fn command_entries_for_actor(runtime: &GameRuntime, actor_id: &str) -> Vec<C
         let Some(kind) = command_kind_from_rule(command.kind.as_str()) else {
             continue;
         };
+        let label_key = format!("command.{}", command.id);
         entries.push(CommandEntry {
             id: command.id.clone(),
-            label: command.label.clone(),
+            label: ui_text(runtime, &label_key, command.label.as_str()),
             kind,
             sort_order: command.sort_order,
             ability_group: command.ability_group.clone(),
@@ -1873,6 +2060,77 @@ fn ability_group_for_command(runtime: &GameRuntime, command_id: Option<&str>) ->
     command.ability_group.clone()
 }
 
+fn group_abilities(
+    runtime: &GameRuntime,
+    actor_id: &str,
+    group: Option<&str>,
+) -> Vec<AbilityEntry> {
+    build_battle_ability_entries(runtime, actor_id, group)
+}
+
+fn usable_group_abilities(
+    runtime: &GameRuntime,
+    actor_id: &str,
+    group: Option<&str>,
+) -> Vec<AbilityEntry> {
+    group_abilities(runtime, actor_id, group)
+        .into_iter()
+        .filter(|entry| entry.usable)
+        .collect()
+}
+
+fn begin_ability_targeting(
+    runtime: &GameRuntime,
+    battle_state: &mut BattleState,
+    menu_state: &mut BattleMenuState,
+    entry: AbilityEntry,
+) -> bool {
+    menu_state.pending_action = Some(PendingBattleAction::Ability(entry.clone()));
+    let options = target_options_for_ability(&entry);
+    if options.is_empty() {
+        push_battle_log(
+            &mut battle_state.log,
+            ui_text(runtime, "battle.no_targets", "No valid targets."),
+        );
+        return false;
+    }
+    let (target_side, target_mode) = select_initial_target_option(
+        entry.default_target.as_str(),
+        entry.target_mode.as_str(),
+        &options,
+    );
+    menu_state.target_side = target_side;
+    menu_state.target_mode = target_mode;
+    match target_side {
+        TargetSide::Enemy => {
+            menu_state.phase = BattlePhase::TargetEnemy;
+            if !set_initial_enemy_target(menu_state, battle_state) {
+                push_battle_log(
+                    &mut battle_state.log,
+                    ui_text(runtime, "battle.no_targets", "No valid targets."),
+                );
+                return false;
+            }
+        }
+        TargetSide::Party => {
+            menu_state.phase = BattlePhase::TargetParty;
+            let rule = party_target_rule(menu_state.pending_action.as_ref().unwrap(), runtime);
+            let valid = party_target_indices(runtime, battle_state, rule);
+            if valid.is_empty() {
+                push_battle_log(
+                    &mut battle_state.log,
+                    ui_text(runtime, "battle.no_targets", "No valid targets."),
+                );
+                return false;
+            }
+            if let Some(index) = valid.first().copied() {
+                menu_state.party_index = index;
+            }
+        }
+    }
+    true
+}
+
 fn command_is_enabled(
     runtime: &GameRuntime,
     actor_id: &str,
@@ -1885,11 +2143,11 @@ fn command_is_enabled(
         CommandKind::Magic => {
             crate::menu::system_enabled(runtime, Some("magic")) && !spell_entries.is_empty()
         }
-        CommandKind::Abilities => !ability_entries_all.is_empty(),
+        CommandKind::Abilities => ability_entries_all.iter().any(|entry| entry.usable),
         CommandKind::AbilitiesGroup => command
             .ability_group
             .as_deref()
-            .map(|group| ability_group_available(runtime, actor_id, group))
+            .map(|group| !usable_group_abilities(runtime, actor_id, Some(group)).is_empty())
             .unwrap_or(false),
         CommandKind::Items => {
             crate::menu::system_enabled(runtime, Some("items")) && !item_entries.is_empty()

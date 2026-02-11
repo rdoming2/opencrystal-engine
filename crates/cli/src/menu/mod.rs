@@ -133,10 +133,12 @@ pub fn run_menu_loop(
             menu_default_panel(menu_ui, progress_ui, runtime)
         };
 
+        let allow_overworld_travel = overworld_travel_allowed(runtime);
         let footer_text = menu_footer_text(
             focus,
             submenu_action.as_str(),
             runtime.menu_state.detail_page,
+            allow_overworld_travel,
         );
         tui::menu::draw_menu(
             session,
@@ -196,7 +198,7 @@ pub fn run_menu_loop(
                         } else if runtime.menu_state.detail_selection > 0 {
                             runtime.menu_state.detail_selection -= 1;
                         }
-                    } else if submenu_action == "overworld_map" || submenu_action == "fast_travel" {
+                    } else if submenu_action == "overworld_map" {
                         let destinations = overworld_destinations_for_runtime(runtime);
                         runtime.menu_state.detail_selection = move_overworld_selection(
                             runtime.menu_state.detail_selection,
@@ -343,7 +345,7 @@ pub fn run_menu_loop(
                                 runtime.menu_state.detail_selection += 1;
                             }
                         }
-                    } else if submenu_action == "overworld_map" || submenu_action == "fast_travel" {
+                    } else if submenu_action == "overworld_map" {
                         let destinations = overworld_destinations_for_runtime(runtime);
                         runtime.menu_state.detail_selection = move_overworld_selection(
                             runtime.menu_state.detail_selection,
@@ -459,13 +461,6 @@ pub fn run_menu_loop(
                                         runtime.menu_state.detail_page = 0;
                                         runtime.menu_state.detail_selection = 0;
                                     }
-                                    "fast_travel" => {
-                                        runtime.menu_state.focus = MenuFocus::Detail;
-                                        runtime.menu_state.active_submenu =
-                                            Some(entry.action.clone());
-                                        runtime.menu_state.detail_page = 0;
-                                        runtime.menu_state.detail_selection = 0;
-                                    }
                                     "save" => {
                                         runtime.menu_state.focus = MenuFocus::Detail;
                                         runtime.menu_state.active_submenu =
@@ -527,7 +522,10 @@ pub fn run_menu_loop(
                                 }
                             }
                         }
-                    } else if submenu_action == "fast_travel" {
+                    } else if submenu_action == "overworld_map" {
+                        if !overworld_travel_allowed(runtime) {
+                            continue;
+                        }
                         let destinations = overworld_destinations_for_runtime(runtime);
                         if destinations.is_empty() {
                             continue;
@@ -1132,7 +1130,6 @@ fn build_menu_entries(
 ) -> Vec<MenuEntryState> {
     let save_allowed = map_save_allowed(runtime, map_id, player_pos);
     let overview_available = overworld_map_available(runtime);
-    let fast_travel_available = fast_travel_enabled(runtime);
     menu_ui
         .menu
         .iter()
@@ -1149,15 +1146,9 @@ fn build_menu_entries(
             if entry.action == "overworld_map" && !overview_available {
                 selectable = false;
             }
-            if entry.action == "fast_travel" && (!overview_available || !fast_travel_available) {
-                selectable = false;
-            }
             let show = selectable
                 || (!entry.enabled && entry.locked_behavior.as_deref() == Some("disable"))
                 || (!unlock_enabled && entry.locked_behavior.as_deref() == Some("disable"))
-                || (entry.action == "fast_travel"
-                    && !selectable
-                    && entry.locked_behavior.as_deref() == Some("disable"))
                 || (entry.action == "save"
                     && !save_allowed
                     && entry.locked_behavior.as_deref() == Some("disable"));
@@ -1251,10 +1242,12 @@ fn menu_detail_panel(
         };
     }
     if action == "overworld_map" {
-        return build_overworld_map_panel(runtime, panel_size, "Overworld Map", false);
-    }
-    if action == "fast_travel" {
-        return build_overworld_map_panel(runtime, panel_size, "Fast Travel", true);
+        return build_overworld_map_panel(
+            runtime,
+            panel_size,
+            "Overworld Map",
+            overworld_travel_allowed(runtime),
+        );
     }
     if action == "settings" {
         return build_settings_panel(runtime, runtime.menu_state.detail_selection);
@@ -1368,7 +1361,12 @@ fn menu_panel_size(
     PanelSize { width, height }
 }
 
-fn menu_footer_text(focus: MenuPane, submenu: &str, page: usize) -> &'static str {
+fn menu_footer_text(
+    focus: MenuPane,
+    submenu: &str,
+    page: usize,
+    allow_overworld_travel: bool,
+) -> &'static str {
     match focus {
         MenuPane::List => "Confirm: open  Cancel: close",
         MenuPane::Detail => match submenu {
@@ -1380,8 +1378,13 @@ fn menu_footer_text(focus: MenuPane, submenu: &str, page: usize) -> &'static str
                     "Left/Right: summary  Cancel: back"
                 }
             }
-            "overworld_map" => "Up/Down: select  Cancel: back",
-            "fast_travel" => "Confirm: travel  Up/Down: select  Cancel: back",
+            "overworld_map" => {
+                if allow_overworld_travel {
+                    "Confirm: travel  Up/Down: select  Cancel: back"
+                } else {
+                    "Up/Down: select  Cancel: back"
+                }
+            }
             "settings" => "Confirm: toggle  Left/Right: adjust  Cancel: back",
             "items" => {
                 if page == 0 {
@@ -2148,6 +2151,10 @@ fn fast_travel_enabled(runtime: &GameRuntime) -> bool {
         return true;
     }
     runtime.has_flag(&world.fast_travel.requires_flag)
+}
+
+fn overworld_travel_allowed(runtime: &GameRuntime) -> bool {
+    system_enabled(runtime, Some("fast_travel")) && fast_travel_enabled(runtime)
 }
 
 fn format_currency_amount(

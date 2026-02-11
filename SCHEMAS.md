@@ -65,6 +65,8 @@ absolute XP totals per level or `mode: "formula"` with a formula string (use
 `battle` defines the command catalog and the global command set used in battle. The global set is
 the default menu for every job; job `commands` entries add to it (primary + secondary jobs are
 merged, duplicates removed). Command labels come from the catalog so UI text can be overridden.
+`battle.formulas` configures hit, crit, and damage calculations (expressions with stat variables).
+`battle.boss_scaling` enables optional stat multipliers for enemies with the `boss` trait.
 `battle.rows` enables optional front/back row rules; when enabled, back row reduces physical attack
 unless using a ranged weapon category and reduces incoming physical damage.
 `systems` toggles whether a gameplay system/menu is enabled at all. It should be
@@ -232,6 +234,25 @@ Command definition fields:
 - `kind`: `attack`, `magic`, `abilities`, `abilities_group`, `items`, `run`, `defend`, `row`.
 - `sort_order`: order in the command list (lower values first).
 - `ability_group`: required when `kind` is `abilities_group`; matches abilities `command_group`.
+
+Battle formula fields:
+
+- `formulas.physical`: expression for physical base damage.
+- `formulas.magic`: expression for magic base damage.
+- `formulas.hit`: expression for hit chance (0-1).
+- `formulas.crit`: expression for crit chance (0-1).
+- `formulas.crit_multiplier`: damage multiplier applied on crit.
+
+Formula variables:
+
+- `atk`, `def`, `matk`, `mdef`, `agi`, `lck`, `eva`, `lvl`
+- `target_eva`, `target_lvl`, `power`
+
+Boss scaling fields:
+
+- `boss_scaling.enabled`: enable scaling for enemies with `boss` trait.
+- `boss_scaling.hp_multiplier`: multiplier for enemy HP.
+- `boss_scaling.stat_multiplier`: multiplier for other stats.
 
 Battle row fields:
 
@@ -1425,6 +1446,8 @@ Runtime notes:
 
 - Save is also gated by map `allow_save` and `save_points`; the menu can display
   a disabled entry even if the save system exists.
+- The Overworld Map menu panel is view-only until fast travel is unlocked via the
+  world `fast_travel` config and the `systems.fast_travel` rule toggle.
 
 ## ui/title.json
 
@@ -1470,6 +1493,22 @@ Logo fields:
   "footer": {
     "left": "A crystal-bound journey",
     "right": "By OpenCrystal Team"
+  }
+}
+```
+
+## ui/strings.json
+
+Localized UI strings keyed by id. The engine falls back to built-in defaults when a key is
+missing, so this file is optional but recommended.
+
+```json
+{
+  "version": 1,
+  "strings": {
+    "command.attack": "Attack",
+    "battle.victory": "Victory!",
+    "battle.no_targets": "No valid targets."
   }
 }
 ```

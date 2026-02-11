@@ -6,7 +6,7 @@ use crate::dialog::DialogFile;
 use crate::encounters::EncountersFile;
 use crate::entities::{
     AbilitiesFile, EffectsFile, EnemiesFile, EquipmentFile, ItemsFile, JobsFile, NpcsFile,
-    ShopsFile, SpellsFile, VehiclesFile,
+    ShopsFile, SpellsFile, StringsFile, VehiclesFile,
 };
 use crate::events::EventFile;
 use crate::maps::MapFile;
@@ -59,6 +59,7 @@ pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
     let vehicles_path = content_dir.join("entities").join("vehicles.json");
     let shops_path = content_dir.join("entities").join("shops.json");
     let cooking_path = content_dir.join("cooking.json");
+    let strings_path = content_dir.join("ui").join("strings.json");
 
     let rules = load_single(&rules_path, |path| RulesFile::load(path), &mut errors);
     let effects = load_single(&effects_path, |path| EffectsFile::load(path), &mut errors);
@@ -101,6 +102,7 @@ pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
     let cooking = load_optional(&cooking_path, |path| {
         crate::content::CookingFile::load(path)
     });
+    let strings = load_optional(&strings_path, |path| StringsFile::load(path));
 
     if let Some(rules) = &rules {
         if rules.game.party_size > 4 {
@@ -277,6 +279,54 @@ pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
         }
         if rules.systems.get("cooking").copied().unwrap_or(false) && cooking.is_none() {
             errors.push("cooking.json: cooking system enabled but file not found".to_string());
+        }
+        if let Some(formulas) = rules.battle.formulas.physical.as_deref() {
+            if formulas.trim().is_empty() {
+                errors.push("rules.json: battle.formulas.physical must not be empty".to_string());
+            }
+        }
+        if let Some(formulas) = rules.battle.formulas.magic.as_deref() {
+            if formulas.trim().is_empty() {
+                errors.push("rules.json: battle.formulas.magic must not be empty".to_string());
+            }
+        }
+        if let Some(formulas) = rules.battle.formulas.hit.as_deref() {
+            if formulas.trim().is_empty() {
+                errors.push("rules.json: battle.formulas.hit must not be empty".to_string());
+            }
+        }
+        if let Some(formulas) = rules.battle.formulas.crit.as_deref() {
+            if formulas.trim().is_empty() {
+                errors.push("rules.json: battle.formulas.crit must not be empty".to_string());
+            }
+        }
+        if rules.battle.formulas.crit_multiplier <= 0.0 {
+            errors.push("rules.json: battle.formulas.crit_multiplier must be > 0".to_string());
+        }
+        if rules.battle.boss_scaling.enabled {
+            if rules.battle.boss_scaling.hp_multiplier <= 0.0 {
+                errors
+                    .push("rules.json: battle.boss_scaling.hp_multiplier must be > 0".to_string());
+            }
+            if rules.battle.boss_scaling.stat_multiplier <= 0.0 {
+                errors.push(
+                    "rules.json: battle.boss_scaling.stat_multiplier must be > 0".to_string(),
+                );
+            }
+        }
+    }
+
+    if let Some(strings) = &strings {
+        for (key, value) in &strings.strings {
+            if key.trim().is_empty() {
+                errors.push("ui/strings.json: string key must not be empty".to_string());
+            }
+            if value.trim().is_empty() {
+                errors.push(format!(
+                    "ui/strings.json: value for key '{}' must not be empty",
+                    key
+                ));
+            }
         }
     }
 

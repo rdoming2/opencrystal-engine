@@ -77,7 +77,35 @@ pub struct BattleRules {
     #[serde(default = "default_battle_commands")]
     pub commands: Vec<BattleCommandDefinition>,
     #[serde(default)]
+    pub formulas: BattleFormulaRules,
+    #[serde(default)]
     pub rows: BattleRowRules,
+    #[serde(default)]
+    pub boss_scaling: BossScalingRules,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct BattleFormulaRules {
+    #[serde(default)]
+    pub physical: Option<String>,
+    #[serde(default)]
+    pub magic: Option<String>,
+    #[serde(default)]
+    pub hit: Option<String>,
+    #[serde(default)]
+    pub crit: Option<String>,
+    #[serde(default = "default_battle_crit_multiplier")]
+    pub crit_multiplier: f32,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct BossScalingRules {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default = "default_boss_hp_multiplier")]
+    pub hp_multiplier: f32,
+    #[serde(default = "default_boss_stat_multiplier")]
+    pub stat_multiplier: f32,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -364,7 +392,31 @@ impl Default for BattleRules {
         Self {
             global_commands: default_battle_global_commands(),
             commands: default_battle_commands(),
+            formulas: BattleFormulaRules::default(),
             rows: BattleRowRules::default(),
+            boss_scaling: BossScalingRules::default(),
+        }
+    }
+}
+
+impl Default for BattleFormulaRules {
+    fn default() -> Self {
+        Self {
+            physical: None,
+            magic: None,
+            hit: None,
+            crit: None,
+            crit_multiplier: default_battle_crit_multiplier(),
+        }
+    }
+}
+
+impl Default for BossScalingRules {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            hp_multiplier: default_boss_hp_multiplier(),
+            stat_multiplier: default_boss_stat_multiplier(),
         }
     }
 }
@@ -544,6 +596,18 @@ fn default_back_row_defense_multiplier() -> f32 {
 
 fn default_back_row_battle_shift() -> i32 {
     1
+}
+
+fn default_battle_crit_multiplier() -> f32 {
+    1.5
+}
+
+fn default_boss_hp_multiplier() -> f32 {
+    1.2
+}
+
+fn default_boss_stat_multiplier() -> f32 {
+    1.1
 }
 
 fn default_battle_command_sort_order() -> i32 {

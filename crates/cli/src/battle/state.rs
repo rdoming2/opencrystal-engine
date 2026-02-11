@@ -1,5 +1,5 @@
 use engine::battle::BattleState;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum BattlePhase {
     Command,
@@ -32,6 +32,9 @@ pub struct BattleMenuState {
     pub paused: bool,
     pub command_id: Option<String>,
     pub defending: HashSet<String>,
+    pub parrying: HashSet<String>,
+    pub countering: HashSet<String>,
+    pub covering: HashMap<String, String>,
     pub target_side: TargetSide,
     pub target_mode: TargetMode,
 }
@@ -50,6 +53,9 @@ impl BattleMenuState {
             paused: false,
             command_id: None,
             defending: HashSet::new(),
+            parrying: HashSet::new(),
+            countering: HashSet::new(),
+            covering: HashMap::new(),
             target_side: TargetSide::Party,
             target_mode: TargetMode::Single,
         }

@@ -18,6 +18,13 @@ pub struct EffectsFile {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct StringsFile {
+    pub version: u32,
+    #[serde(default)]
+    pub strings: HashMap<String, String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ElementDefinition {
     pub id: String,
     pub label: String,
@@ -486,6 +493,12 @@ impl JobsFile {
 }
 
 impl EffectsFile {
+    pub fn load(path: impl AsRef<Path>) -> Result<Self, String> {
+        crate::io::load_json(path)
+    }
+}
+
+impl StringsFile {
     pub fn load(path: impl AsRef<Path>) -> Result<Self, String> {
         crate::io::load_json(path)
     }

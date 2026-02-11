@@ -364,10 +364,6 @@ pub fn build_battle_ability_entries(
     entries
 }
 
-pub fn ability_group_available(runtime: &GameRuntime, actor_id: &str, command_group: &str) -> bool {
-    !build_battle_ability_entries(runtime, actor_id, Some(command_group)).is_empty()
-}
-
 fn ability_header_line(actor: &engine::party::Actor) -> MenuPanelLine {
     panel_line_spans(vec![
         panel_span("Actor: ", PanelSpanStyle::Normal),

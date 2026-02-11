@@ -88,6 +88,8 @@ pub struct BattleRenderState {
     pub focus: BattleFocus,
     pub log: Vec<String>,
     pub paused: bool,
+    pub pause_title: String,
+    pub pause_hint: String,
     pub use_color: bool,
     pub flash_enemies: Vec<usize>,
     pub flash_party: Vec<usize>,
@@ -138,11 +140,11 @@ pub fn draw_battle_frame(frame: &mut Frame, battle_ui: &BattleUiFile, state: &Ba
     draw_command_row(frame, columns_area, battle_ui, state, hide_titles);
 
     if state.paused {
-        draw_pause_overlay(frame);
+        draw_pause_overlay(frame, &state.pause_title, &state.pause_hint);
     }
 }
 
-fn draw_pause_overlay(frame: &mut Frame) {
+fn draw_pause_overlay(frame: &mut Frame, title: &str, hint: &str) {
     let area = centered_rect(frame.size(), 28, 7);
     frame.render_widget(Clear, area);
     let block = Block::default()
@@ -151,16 +153,13 @@ fn draw_pause_overlay(frame: &mut Frame) {
     let lines = vec![
         Line::from(Span::raw("")),
         Line::from(Span::styled(
-            "PAUSED",
+            title,
             Style::default()
                 .fg(Color::Yellow)
                 .add_modifier(Modifier::BOLD),
         )),
         Line::from(Span::raw("")),
-        Line::from(Span::styled(
-            "Press Pause to resume",
-            Style::default().fg(Color::Gray),
-        )),
+        Line::from(Span::styled(hint, Style::default().fg(Color::Gray))),
     ];
     let paragraph = Paragraph::new(lines)
         .block(block)
@@ -177,6 +176,9 @@ pub fn draw_victory_summary(
     show_jp: bool,
     currency_label: &str,
     items: &HashMap<String, i32>,
+    victory_title: &str,
+    items_label: &str,
+    prompt_label: &str,
 ) -> io::Result<()> {
     session
         .terminal_mut()
@@ -187,7 +189,7 @@ pub fn draw_victory_summary(
             let mut lines = Vec::new();
             lines.push(Line::from(Span::raw("")));
             lines.push(Line::from(Span::styled(
-                "Victory!",
+                victory_title,
                 Style::default()
                     .fg(Color::Yellow)
                     .add_modifier(Modifier::BOLD),
@@ -218,7 +220,7 @@ pub fn draw_victory_summary(
             )));
 
             if !items.is_empty() {
-                lines.push(Line::from(Span::raw("Items found:")));
+                lines.push(Line::from(Span::raw(items_label)));
                 for (item, qty) in items {
                     lines.push(Line::from(Span::styled(
                         format!("  {} x{}", item, qty),
@@ -229,7 +231,7 @@ pub fn draw_victory_summary(
 
             lines.push(Line::from(Span::raw("")));
             lines.push(Line::from(Span::styled(
-                "Press Confirm to continue.",
+                prompt_label,
                 Style::default().fg(Color::Gray),
             )));
 
@@ -244,10 +246,9 @@ pub fn draw_victory_summary(
 
 pub fn draw_level_up_modal(
     session: &mut TuiSession,
-    actor_name: &str,
-    _old_level: u32,
-    new_level: u32,
+    headline: &str,
     stat_changes: &HashMap<String, (i32, i32)>,
+    prompt_label: &str,
 ) -> io::Result<()> {
     session
         .terminal_mut()
@@ -259,7 +260,7 @@ pub fn draw_level_up_modal(
             lines.push(Line::from(Span::raw("")));
             lines.push(Line::from(Span::raw("")));
             lines.push(Line::from(Span::styled(
-                format!("{} reached Level {}!", actor_name, new_level),
+                headline,
                 Style::default()
                     .fg(Color::Cyan)
                     .add_modifier(Modifier::BOLD),
@@ -277,7 +278,7 @@ pub fn draw_level_up_modal(
 
             lines.push(Line::from(Span::raw("")));
             lines.push(Line::from(Span::styled(
-                "Press Confirm to continue.",
+                prompt_label,
                 Style::default().fg(Color::Gray),
             )));
 
@@ -460,8 +461,43 @@ fn draw_command_panel(
     let mut lines = Vec::new();
     match state.command_panel.mode {
         BattleCommandPanelMode::Commands => {
-            for (index, item) in state.command_panel.items.iter().enumerate() {
-                let is_selected = index == state.command_panel.selected;
+            let total = state.command_panel.items.len();
+            let available_lines = area.height.saturating_sub(2) as usize;
+            if available_lines == 0 {
+                return;
+            }
+            let mut page_size = available_lines.max(1);
+            let mut total_pages = (total + page_size - 1) / page_size;
+            let mut show_dots = total_pages > 1;
+            if show_dots && hide_titles {
+                page_size = available_lines.saturating_sub(1).max(1);
+                total_pages = (total + page_size - 1) / page_size;
+                show_dots = total_pages > 1;
+            }
+            let selected = state.command_panel.selected.min(total.saturating_sub(1));
+            let page = if page_size == 0 {
+                0
+            } else {
+                selected / page_size
+            };
+            let start = page.saturating_mul(page_size);
+            let end = (start + page_size).min(total);
+            let page_label = if show_dots {
+                Some(format!("< {}/{} >", page + 1, total_pages))
+            } else {
+                None
+            };
+            if hide_titles {
+                if let Some(ref label) = page_label {
+                    lines.push(Line::from(Span::styled(
+                        label.clone(),
+                        Style::default().fg(Color::Gray),
+                    )));
+                }
+            }
+            for (offset, item) in state.command_panel.items[start..end].iter().enumerate() {
+                let index = start + offset;
+                let is_selected = index == selected;
                 let mut style = if item.enabled {
                     Style::default().fg(Color::White)
                 } else {
@@ -505,8 +541,36 @@ fn draw_command_panel(
             }
         }
     }
+    let title_with_dots = if hide_titles {
+        None
+    } else if matches!(state.command_panel.mode, BattleCommandPanelMode::Commands) {
+        let total = state.command_panel.items.len();
+        let available_lines = area.height.saturating_sub(2) as usize;
+        let page_size = available_lines.max(1);
+        let total_pages = (total + page_size - 1) / page_size;
+        if total_pages > 1 {
+            let selected = state.command_panel.selected.min(total.saturating_sub(1));
+            let page = if page_size == 0 {
+                0
+            } else {
+                selected / page_size
+            };
+            let dots = format!("< {}/{} >", page + 1, total_pages);
+            Some(if state.command_panel.title.is_empty() {
+                dots
+            } else {
+                format!("{} {}", state.command_panel.title, dots)
+            })
+        } else {
+            None
+        }
+    } else {
+        None
+    };
     let title = if hide_titles {
         ""
+    } else if let Some(ref title) = title_with_dots {
+        title.as_str()
     } else {
         state.command_panel.title.as_str()
     };

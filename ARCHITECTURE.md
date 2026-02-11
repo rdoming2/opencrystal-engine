@@ -107,6 +107,7 @@ All runtime data is loaded from JSON. Files are organized into top-level categor
 - `ui/title.json`: title screen layout, menu, and optional logo palettes.
 - `ui/menu.json`: main menu layout, optional entries, and panel templates.
 - `ui/dialog.json`: dialog box layout and behavior.
+- `ui/strings.json`: localization strings for UI and battle messaging.
 - `input.json`: key bindings.
 - `stats.json`: base and derived stat definitions.
 - `save.json`: runtime save format.
@@ -121,7 +122,7 @@ All runtime data is loaded from JSON. Files are organized into top-level categor
 - Travel mechanisms:
   - Event/NPC travel.
   - Item-based travel (warp/escape).
-  - Overworld fast travel (unlockable).
+  - Overworld fast travel (unlockable, accessed from the overworld map menu).
   - Vehicle travel with unlock flags.
 - The overworld map menu uses a downsampled view of the base overworld map by
   default and reuses overworld transitions as destinations with optional costs.
@@ -232,6 +233,7 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
 - Status effects and traits are resolved via `effects.json` definitions (poison ticks, protect/shell, elemental multipliers).
 - Spells and abilities declare target modes (`single`/`multi`) with optional attenuation for group targeting.
 - Statuses can be configured to clear at battle end; poison also ticks on overworld movement steps.
+- Battle formulas can be configured for hit, crit, and damage calculations; boss scaling is optional and gated by the `boss` trait.
 
 ### Progress tracking
 

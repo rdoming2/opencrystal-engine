@@ -4,7 +4,9 @@ use std::collections::HashMap;
 use crate::content::Content;
 use crate::encounters::EncounterMember;
 use crate::entities::{EnemyArt, EnemyDefinition, EnemyLoot, EnemySprite};
+use crate::expr::eval_expression;
 use crate::party::{Actor, PartyState, StatusInstance};
+use crate::rules::BattleRules;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum BattleMode {
@@ -71,6 +73,25 @@ pub enum DamageKind {
     Magic,
 }
 
+#[derive(Clone, Debug)]
+pub struct CombatantStats {
+    pub atk: i32,
+    pub def: i32,
+    pub matk: i32,
+    pub mdef: i32,
+    pub agi: i32,
+    pub lck: i32,
+    pub eva: i32,
+    pub lvl: i32,
+}
+
+#[derive(Clone, Debug)]
+pub struct AttackRoll {
+    pub hit: bool,
+    pub crit: bool,
+    pub base_damage: i32,
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct StatusTurnResult {
     pub can_act: bool,
@@ -120,7 +141,7 @@ pub fn build_battle_state(
                 .enemies
                 .iter()
                 .find(|enemy| enemy.id == member.enemy)?;
-            Some(build_enemy(enemy, member.pos))
+            Some(build_enemy(content, enemy, member.pos))
         })
         .collect::<Vec<_>>();
 
@@ -191,6 +212,100 @@ pub fn apply_damage_to_enemy(enemy: &mut BattleEnemy, amount: i32) {
     enemy.current_hp = (enemy.current_hp - amount).max(0);
 }
 
+pub fn actor_combat_stats(actor: &Actor) -> CombatantStats {
+    CombatantStats {
+        atk: actor.derived_stats.get("atk").copied().unwrap_or(0),
+        def: actor.derived_stats.get("def").copied().unwrap_or(0),
+        matk: actor.derived_stats.get("matk").copied().unwrap_or(0),
+        mdef: actor.derived_stats.get("mdef").copied().unwrap_or(0),
+        agi: actor.base_stats.get("agi").copied().unwrap_or(0),
+        lck: actor.base_stats.get("lck").copied().unwrap_or(0),
+        eva: actor.derived_stats.get("eva").copied().unwrap_or(0),
+        lvl: actor.level as i32,
+    }
+}
+
+pub fn enemy_combat_stats(content: &Content, enemy: &BattleEnemy) -> CombatantStats {
+    let derived = derived_stats_for_enemy(content, &enemy.stats);
+    CombatantStats {
+        atk: derived.get("atk").copied().unwrap_or_else(|| enemy.atk()),
+        def: derived.get("def").copied().unwrap_or_else(|| enemy.def()),
+        matk: derived
+            .get("matk")
+            .copied()
+            .unwrap_or_else(|| stat_value(&enemy.stats, "int") * 2),
+        mdef: derived
+            .get("mdef")
+            .copied()
+            .unwrap_or_else(|| stat_value(&enemy.stats, "int") + stat_value(&enemy.stats, "vit")),
+        agi: stat_value(&enemy.stats, "agi"),
+        lck: stat_value(&enemy.stats, "lck"),
+        eva: derived.get("eva").copied().unwrap_or(0),
+        lvl: stat_value(&enemy.stats, "lvl").max(1),
+    }
+}
+
+pub fn roll_attack(
+    _content: &Content,
+    rules: &BattleRules,
+    attacker: &CombatantStats,
+    defender: &CombatantStats,
+    kind: DamageKind,
+    power: i32,
+    rng: &mut impl Rng,
+) -> AttackRoll {
+    let hit_chance = evaluate_chance_formula(
+        rules.formulas.hit.as_deref(),
+        attacker,
+        defender,
+        power,
+        1.0,
+    );
+    if rng.r#gen::<f32>() > hit_chance {
+        return AttackRoll {
+            hit: false,
+            crit: false,
+            base_damage: 0,
+        };
+    }
+
+    let crit_chance = evaluate_chance_formula(
+        rules.formulas.crit.as_deref(),
+        attacker,
+        defender,
+        power,
+        0.05,
+    );
+    let crit = rng.r#gen::<f32>() <= crit_chance;
+    let base_damage = match kind {
+        DamageKind::Physical => evaluate_damage_formula(
+            rules.formulas.physical.as_deref(),
+            attacker,
+            defender,
+            power,
+            default_physical_base(attacker, defender, power),
+        ),
+        DamageKind::Magic => evaluate_damage_formula(
+            rules.formulas.magic.as_deref(),
+            attacker,
+            defender,
+            power,
+            default_magic_base(attacker, defender, power),
+        ),
+    };
+    let mut damage = roll_damage(base_damage, rng);
+    if crit {
+        damage = ((damage as f32) * rules.formulas.crit_multiplier.max(0.1))
+            .round()
+            .max(1.0) as i32;
+    }
+    AttackRoll {
+        hit: true,
+        crit,
+        base_damage: damage.max(1),
+    }
+}
+
 pub fn physical_damage(attacker_atk: i32, defender_def: i32, rng: &mut impl Rng) -> i32 {
     let base = attacker_atk.saturating_sub(defender_def / 2).max(1);
     roll_damage(base, rng)
@@ -223,13 +338,15 @@ pub fn collect_rewards(enemies: &[BattleEnemy], rng: &mut impl Rng) -> BattleRew
     rewards
 }
 
-fn build_enemy(enemy: &EnemyDefinition, pos: [i32; 2]) -> BattleEnemy {
-    let max_hp = stat_value(&enemy.stats, "hp");
-    let max_mp = stat_value(&enemy.stats, "mp");
+fn build_enemy(content: &Content, enemy: &EnemyDefinition, pos: [i32; 2]) -> BattleEnemy {
+    let mut stats = enemy.stats.clone();
+    apply_boss_scaling(content, enemy, &mut stats);
+    let max_hp = stat_value(&stats, "hp");
+    let max_mp = stat_value(&stats, "mp");
     BattleEnemy {
         id: enemy.id.clone(),
         name: enemy.name.clone(),
-        stats: enemy.stats.clone(),
+        stats,
         traits: enemy.traits.clone(),
         sprite: enemy.sprite.clone(),
         art: enemy.art.clone(),
@@ -247,6 +364,132 @@ fn build_enemy(enemy: &EnemyDefinition, pos: [i32; 2]) -> BattleEnemy {
 
 fn stat_value(stats: &HashMap<String, i32>, key: &str) -> i32 {
     stats.get(key).copied().unwrap_or(0)
+}
+
+fn apply_boss_scaling(
+    content: &Content,
+    enemy: &EnemyDefinition,
+    stats: &mut HashMap<String, i32>,
+) {
+    let scaling = &content.rules.battle.boss_scaling;
+    if !scaling.enabled {
+        return;
+    }
+    if !enemy.traits.iter().any(|trait_id| trait_id == "boss") {
+        return;
+    }
+    for (stat, value) in stats.iter_mut() {
+        let multiplier = if stat == "hp" {
+            scaling.hp_multiplier
+        } else {
+            scaling.stat_multiplier
+        };
+        *value = ((*value as f32) * multiplier).round().max(1.0) as i32;
+    }
+}
+
+fn derived_stats_for_enemy(
+    content: &Content,
+    base_stats: &HashMap<String, i32>,
+) -> HashMap<String, i32> {
+    let mut vars = HashMap::new();
+    for (stat, value) in base_stats {
+        vars.insert(stat.clone(), *value as f64);
+    }
+    vars.insert(
+        "lvl".to_string(),
+        base_stats.get("lvl").copied().unwrap_or(1) as f64,
+    );
+    for stat in &content.stats.stats.base {
+        vars.entry(format!("gear.{}", stat.id)).or_insert(0.0);
+        vars.entry(format!("buffs.{}", stat.id)).or_insert(0.0);
+    }
+    for stat in &content.stats.stats.derived {
+        vars.entry(format!("gear.{}", stat.id)).or_insert(0.0);
+        vars.entry(format!("buffs.{}", stat.id)).or_insert(0.0);
+    }
+    let mut derived = base_stats.clone();
+    for stat in &content.stats.stats.derived {
+        if let Some(formula) = content.stats.stats.formulas.get(&stat.id) {
+            if let Ok(result) = eval_expression(formula, &vars) {
+                derived.insert(stat.id.clone(), result.floor() as i32);
+            }
+        }
+    }
+    derived
+}
+
+fn evaluate_damage_formula(
+    formula: Option<&str>,
+    attacker: &CombatantStats,
+    defender: &CombatantStats,
+    power: i32,
+    fallback: i32,
+) -> i32 {
+    let Some(formula) = formula else {
+        return fallback.max(1);
+    };
+    let vars = combat_formula_vars(attacker, defender, power);
+    match eval_expression(formula, &vars) {
+        Ok(result) => result.round().max(1.0) as i32,
+        Err(_) => fallback.max(1),
+    }
+}
+
+fn evaluate_chance_formula(
+    formula: Option<&str>,
+    attacker: &CombatantStats,
+    defender: &CombatantStats,
+    power: i32,
+    fallback: f32,
+) -> f32 {
+    let Some(formula) = formula else {
+        return clamp_chance(fallback);
+    };
+    let vars = combat_formula_vars(attacker, defender, power);
+    match eval_expression(formula, &vars) {
+        Ok(result) => clamp_chance(result as f32),
+        Err(_) => clamp_chance(fallback),
+    }
+}
+
+fn combat_formula_vars(
+    attacker: &CombatantStats,
+    defender: &CombatantStats,
+    power: i32,
+) -> HashMap<String, f64> {
+    let mut vars = HashMap::new();
+    vars.insert("atk".to_string(), attacker.atk as f64);
+    vars.insert("def".to_string(), defender.def as f64);
+    vars.insert("matk".to_string(), attacker.matk as f64);
+    vars.insert("mdef".to_string(), defender.mdef as f64);
+    vars.insert("agi".to_string(), attacker.agi as f64);
+    vars.insert("lck".to_string(), attacker.lck as f64);
+    vars.insert("eva".to_string(), attacker.eva as f64);
+    vars.insert("lvl".to_string(), attacker.lvl as f64);
+    vars.insert("target_eva".to_string(), defender.eva as f64);
+    vars.insert("target_lvl".to_string(), defender.lvl as f64);
+    vars.insert("power".to_string(), power as f64);
+    vars
+}
+
+fn clamp_chance(value: f32) -> f32 {
+    value.max(0.05).min(0.99)
+}
+
+fn default_physical_base(attacker: &CombatantStats, defender: &CombatantStats, power: i32) -> i32 {
+    attacker
+        .atk
+        .saturating_sub(defender.def / 2)
+        .saturating_add(power)
+        .max(1)
+}
+
+fn default_magic_base(attacker: &CombatantStats, defender: &CombatantStats, power: i32) -> i32 {
+    power
+        .saturating_add(attacker.matk)
+        .saturating_sub(defender.mdef / 2)
+        .max(1)
 }
 
 pub fn status_definition<'a>(

@@ -1,9 +1,11 @@
-use engine::battle::{apply_turn_start_statuses, damage_multiplier, BattleMode, DamageKind};
+use engine::battle::{
+    actor_combat_stats, apply_damage_to_actor, apply_turn_start_statuses, damage_multiplier,
+    enemy_combat_stats, roll_attack, BattleMode, DamageKind,
+};
 use engine::party::{actor_traits, row_defense_multiplier};
 use engine::runtime::GameRuntime;
 use rand::seq::SliceRandom;
 use rand::Rng;
-use std::collections::HashSet;
 
 use super::state::{BattleMenuState, BattleTurnActor, BattleTurnState};
 
@@ -74,7 +76,7 @@ pub fn enemy_take_turn(
     runtime: &mut GameRuntime,
     battle_state: &mut engine::battle::BattleState,
     enemy_index: usize,
-    defending: &mut HashSet<String>,
+    menu_state: &mut BattleMenuState,
     rng: &mut impl Rng,
 ) -> Option<usize> {
     let Some(enemy) = battle_state.enemies.get_mut(enemy_index) else {
@@ -120,41 +122,239 @@ pub fn enemy_take_turn(
     let Some(target_id) = living_party.choose(rng).cloned() else {
         return None;
     };
-    let Some(target) = runtime.party.roster.get_mut(&target_id) else {
-        return None;
-    };
-    let def = target.derived_stats.get("def").copied().unwrap_or(0);
-    let mut damage = engine::battle::physical_damage(enemy.atk(), def, rng);
-    if defending.remove(&target_id) {
-        damage = (damage / 2).max(1);
+    let (final_target_id, covered) = resolve_cover_target(runtime, menu_state, &target_id);
+    if let Some((coverer, original)) = covered {
         push_battle_log(
             &mut battle_state.log,
-            format!("{} braces for impact!", target.name),
+            crate::battle::format_ui_text(
+                runtime,
+                "battle.log.cover",
+                "{coverer} covers {target}!",
+                &[("coverer", coverer), ("target", original)],
+            ),
+        );
+    }
+
+    let Some(target_snapshot) = runtime.party.roster.get(&final_target_id).cloned() else {
+        return None;
+    };
+    let target_name = target_snapshot.name.clone();
+    let attacker_stats = enemy_combat_stats(&runtime.content, enemy);
+    let defender_stats = actor_combat_stats(&target_snapshot);
+    let roll = roll_attack(
+        &runtime.content,
+        &runtime.content.rules.battle,
+        &attacker_stats,
+        &defender_stats,
+        DamageKind::Physical,
+        0,
+        rng,
+    );
+    if !roll.hit {
+        push_battle_log(
+            &mut battle_state.log,
+            crate::battle::format_ui_text(
+                runtime,
+                "battle.log.miss",
+                "{actor} misses {target}.",
+                &[
+                    ("actor", enemy.name.clone()),
+                    ("target", target_name.clone()),
+                ],
+            ),
+        );
+        return battle_state
+            .party_order
+            .iter()
+            .position(|id| id == &final_target_id);
+    }
+
+    let mut damage = roll.base_damage;
+    if menu_state.parrying.remove(&final_target_id) {
+        damage = ((damage as f32) * 0.5).round().max(1.0) as i32;
+        push_battle_log(
+            &mut battle_state.log,
+            crate::battle::format_ui_text(
+                runtime,
+                "battle.log.parry",
+                "{target} parries the attack!",
+                &[("target", target_name.clone())],
+            ),
+        );
+    }
+    if menu_state.defending.remove(&final_target_id) {
+        damage = ((damage as f32) * 0.5).round().max(1.0) as i32;
+        push_battle_log(
+            &mut battle_state.log,
+            crate::battle::format_ui_text(
+                runtime,
+                "battle.log.brace",
+                "{target} braces for impact!",
+                &[("target", target_name.clone())],
+            ),
         );
     }
     let multiplier = damage_multiplier(
         &runtime.content,
-        &target.statuses,
-        &actor_traits(&runtime.content, target),
+        &target_snapshot.statuses,
+        &actor_traits(&runtime.content, &target_snapshot),
         DamageKind::Physical,
         None,
     );
-    let row_multiplier = row_defense_multiplier(&runtime.content, target);
+    let row_multiplier = row_defense_multiplier(&runtime.content, &target_snapshot);
     damage = ((damage as f32) * multiplier * row_multiplier)
         .round()
         .max(0.0) as i32;
-    engine::battle::apply_damage_to_actor(target, damage);
+    if let Some(target) = runtime.party.roster.get_mut(&final_target_id) {
+        apply_damage_to_actor(target, damage);
+    }
+    if roll.crit {
+        push_battle_log(
+            &mut battle_state.log,
+            crate::battle::ui_text(runtime, "battle.log.critical", "Critical hit!"),
+        );
+    }
     push_battle_log(
         &mut battle_state.log,
-        format!("{} attacks {} for {} HP.", enemy.name, target.name, damage),
+        crate::battle::format_ui_text(
+            runtime,
+            "battle.log.attack",
+            "{actor} attacks {target} for {damage} HP.",
+            &[
+                ("actor", enemy.name.clone()),
+                ("target", target_name.clone()),
+                ("damage", damage.to_string()),
+            ],
+        ),
     );
-    if target.current_hp <= 0 {
-        push_battle_log(&mut battle_state.log, format!("{} falls!", target.name));
+    if runtime
+        .party
+        .roster
+        .get(&final_target_id)
+        .map(|actor| actor.current_hp <= 0)
+        .unwrap_or(false)
+    {
+        push_battle_log(
+            &mut battle_state.log,
+            crate::battle::format_ui_text(
+                runtime,
+                "battle.log.fall",
+                "{actor} falls!",
+                &[("actor", target_name.clone())],
+            ),
+        );
     }
+    handle_counter_attack(
+        runtime,
+        battle_state,
+        menu_state,
+        enemy_index,
+        &final_target_id,
+        rng,
+    );
     battle_state
         .party_order
         .iter()
-        .position(|id| id == &target_id)
+        .position(|id| id == &final_target_id)
+}
+
+fn resolve_cover_target(
+    runtime: &GameRuntime,
+    menu_state: &mut BattleMenuState,
+    target_id: &str,
+) -> (String, Option<(String, String)>) {
+    if let Some(coverer_id) = menu_state.covering.remove(target_id) {
+        let coverer_alive = runtime
+            .party
+            .roster
+            .get(&coverer_id)
+            .map(|actor| actor.current_hp > 0)
+            .unwrap_or(false);
+        if coverer_alive {
+            let coverer_name = runtime
+                .party
+                .roster
+                .get(&coverer_id)
+                .map(|actor| actor.name.clone())
+                .unwrap_or_else(|| coverer_id.clone());
+            let target_name = runtime
+                .party
+                .roster
+                .get(target_id)
+                .map(|actor| actor.name.clone())
+                .unwrap_or_else(|| target_id.to_string());
+            return (coverer_id, Some((coverer_name, target_name)));
+        }
+    }
+    (target_id.to_string(), None)
+}
+
+fn handle_counter_attack(
+    runtime: &mut GameRuntime,
+    battle_state: &mut engine::battle::BattleState,
+    menu_state: &mut BattleMenuState,
+    enemy_index: usize,
+    target_id: &str,
+    rng: &mut impl Rng,
+) {
+    if !menu_state.countering.remove(target_id) {
+        return;
+    }
+    let Some(actor) = runtime.party.roster.get(target_id) else {
+        return;
+    };
+    if actor.current_hp <= 0 {
+        return;
+    }
+    let Some(enemy) = battle_state.enemies.get_mut(enemy_index) else {
+        return;
+    };
+    if !enemy.is_alive() {
+        return;
+    }
+    let attacker_stats = actor_combat_stats(actor);
+    let defender_stats = enemy_combat_stats(&runtime.content, enemy);
+    let roll = roll_attack(
+        &runtime.content,
+        &runtime.content.rules.battle,
+        &attacker_stats,
+        &defender_stats,
+        DamageKind::Physical,
+        0,
+        rng,
+    );
+    if !roll.hit {
+        return;
+    }
+    let mut damage = roll.base_damage;
+    let multiplier = damage_multiplier(
+        &runtime.content,
+        &enemy.statuses,
+        &enemy.traits,
+        DamageKind::Physical,
+        None,
+    );
+    damage = ((damage as f32) * multiplier).round().max(0.0) as i32;
+    engine::battle::apply_damage_to_enemy(enemy, damage);
+    if roll.crit {
+        push_battle_log(
+            &mut battle_state.log,
+            crate::battle::ui_text(runtime, "battle.log.critical", "Critical hit!"),
+        );
+    }
+    push_battle_log(
+        &mut battle_state.log,
+        crate::battle::format_ui_text(
+            runtime,
+            "battle.log.counter",
+            "{actor} counters {target} for {damage} HP.",
+            &[
+                ("actor", actor.name.clone()),
+                ("target", enemy.name.clone()),
+                ("damage", damage.to_string()),
+            ],
+        ),
+    );
 }
 
 pub fn push_battle_log(log: &mut Vec<String>, message: impl Into<String>) {
