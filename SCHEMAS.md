@@ -370,8 +370,7 @@ Defines multiple worlds and inter-world travel.
 
 - `overworld_map_id` identifies the world map used for overworld travel, warp returns, and fast
   travel. It should reference a map in `maps/*.json`.
-- The menu map view defaults to a downsampled `overworld_map_id` view; `overview` is optional
-  and reserved for custom art if/when needed.
+- The menu map view uses a downsampled `overworld_map_id` view sized to the viewport.
 
 ```json
 {
@@ -382,11 +381,6 @@ Defines multiple worlds and inter-world travel.
       "name": "Gaia",
       "starting_map": "overworld_gaia",
       "overworld_map_id": "overworld_gaia",
-      "zoom_levels": ["overview", "explore"],
-      "overview": {
-        "enabled": true,
-        "map_id": "gaia_overview"
-      },
       "vehicles": ["ship", "airship"],
       "fast_travel": {
         "enabled": true,
@@ -524,7 +518,7 @@ Saving rules:
   `allow_save` is false.
 - `return_to_last` on transitions uses the last entry position for the current map
   when leaving (falls back to `target_map` + `target_pos` if unavailable).
-- `label` is optional display text for fast-travel/overview menus.
+- `label` is optional display text for fast-travel/map menus.
 - `requires_flag` gates access to the transition until a flag is set.
 - `cost` is an optional currency stack charged on fast travel.
 - Fast travel destinations are only shown after the target map has been visited in-game.

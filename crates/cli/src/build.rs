@@ -19,7 +19,7 @@ use engine::rules::{
     RenderRules, RulesFile, SaveRules, SettingsRules, StatsRules,
 };
 use engine::stats::{StatEntry, StatsDefinition, StatsFile};
-use engine::world::{FastTravelConfig, OverviewConfig, WorldDefinition, WorldsFile};
+use engine::world::{FastTravelConfig, WorldDefinition, WorldsFile};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use serde_json::Deserializer;
@@ -271,11 +271,6 @@ fn create_project_structure(target_dir: &Path, title: &str) -> Result<(), String
             name: "Default World".to_string(),
             starting_map: "starting_map".to_string(),
             overworld_map_id: "starting_map".to_string(),
-            zoom_levels: vec!["explore".to_string()],
-            overview: OverviewConfig {
-                enabled: false,
-                map_id: "starting_map".to_string(),
-            },
             vehicles: Vec::new(),
             fast_travel: FastTravelConfig {
                 enabled: false,

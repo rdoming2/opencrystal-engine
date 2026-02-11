@@ -73,11 +73,10 @@ It is a design reference meant to guide initial implementation.
 - Right: party list with HP/MP/Readiness/status.
 - Battle dialog can float at the top as a log overlay.
 
-### Overworld map zoom
+### Overworld map view
 
-- Two discrete zoom levels:
-  - Overview: full world map if space allows, otherwise scrollable.
-  - Exploration: standard overworld LOD.
+- The overworld map menu shows a downsampled view of the base overworld map sized
+  to the current viewport.
 
 ## Input
 
@@ -126,6 +125,7 @@ All runtime data is loaded from JSON. Files are organized into top-level categor
   - Vehicle travel with unlock flags.
 - The overworld map menu uses a downsampled view of the base overworld map by
   default and reuses overworld transitions as destinations with optional costs.
+- Demo content uses the downsampled overworld view (no overview map).
 - Destinations remain hidden until the party has visited the target map; the
   map view highlights the party location and unlocked vehicles.
 - Warp items return to the last recorded overworld entry unless a specific destination is provided.
@@ -438,8 +438,6 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
       "name": "Gaia",
       "starting_map": "overworld_gaia",
       "overworld_map_id": "overworld_gaia",
-      "zoom_levels": ["overview", "explore"],
-      "overview": {"enabled": true, "map_id": "gaia_overview"},
       "vehicles": ["ship", "airship"],
       "fast_travel": {"enabled": true, "requires_flag": "world.fast_travel_unlocked"},
       "links": [{"to_world": "luna", "requires_flag": "world.luna_unlocked"}]

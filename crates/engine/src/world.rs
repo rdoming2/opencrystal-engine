@@ -12,17 +12,9 @@ pub struct WorldDefinition {
     pub name: String,
     pub starting_map: String,
     pub overworld_map_id: String,
-    pub zoom_levels: Vec<String>,
-    pub overview: OverviewConfig,
     pub vehicles: Vec<String>,
     pub fast_travel: FastTravelConfig,
     pub links: Vec<WorldLink>,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct OverviewConfig {
-    pub enabled: bool,
-    pub map_id: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

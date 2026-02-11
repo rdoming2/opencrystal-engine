@@ -1776,11 +1776,11 @@ fn build_overworld_map_panel(
         .min(destinations.len().saturating_sub(1));
     let mut list_lines =
         build_destination_list_lines(runtime, &destinations, selection, panel_size.width);
-    let mut overview_line = if allow_travel {
+    let mut view_only_line = if allow_travel {
         None
     } else {
         Some(panel_line_spans(vec![panel_span(
-            "Overview only.",
+            "View only.",
             PanelSpanStyle::Muted,
         )]))
     };
@@ -1788,14 +1788,14 @@ fn build_overworld_map_panel(
     if !list_lines.is_empty() {
         reserved_lines += 1;
     }
-    if overview_line.is_some() {
+    if view_only_line.is_some() {
         reserved_lines += 1;
     }
     let mut map_height = panel_size.height.saturating_sub(reserved_lines as u16);
     if map_height == 0 {
         map_height = panel_size.height;
         list_lines.clear();
-        overview_line = None;
+        view_only_line = None;
     }
     let map_view = build_overworld_map_view(map, panel_size.width, map_height);
     let markers = build_overworld_markers(runtime, map, &map_view, &destinations, selection);
@@ -1804,7 +1804,7 @@ fn build_overworld_map_panel(
         lines.push(panel_line(""));
     }
     lines.extend(list_lines);
-    if let Some(line) = overview_line {
+    if let Some(line) = view_only_line {
         lines.push(line);
     }
     MenuPanelView {
@@ -2067,19 +2067,23 @@ fn build_overworld_map_view(
 ) -> OverworldMapView {
     let width = map.width.max(1);
     let height = map.height.max(1);
-    let target_width = target_width.max(1).min(width as u16) as u32;
-    let target_height = target_height.max(1).min(height as u16) as u32;
+    let base_width = target_width.max(1);
+    let base_height = target_height.max(1);
+    let min_width = 6.min(base_width);
+    let min_height = 4.min(base_height);
+    let target_width = base_width.clamp(min_width, base_width).min(width as u16) as u32;
+    let target_height = base_height
+        .clamp(min_height, base_height)
+        .min(height as u16) as u32;
     let mut tiles = Vec::new();
     if width == target_width && height == target_height {
         for y in 0..target_height {
-            let row = map
-                .tiles
-                .get(y as usize)
-                .map(|row| row.as_str())
-                .unwrap_or("");
+            let row = map.tiles.get(y as usize).map(|row| row.as_str());
             let mut line = String::new();
             for x in 0..target_width {
-                let ch = row.chars().nth(x as usize).unwrap_or(' ');
+                let ch = row
+                    .and_then(|row| row.chars().nth(x as usize))
+                    .unwrap_or(' ');
                 line.push(ch);
             }
             tiles.push(line);
