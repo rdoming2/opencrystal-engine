@@ -1,7 +1,8 @@
 use std::collections::HashMap;
 use std::io::{self, ErrorKind};
 
-use ratatui::layout::Alignment;
+use ratatui::layout::{Alignment, Constraint, Direction, Layout};
+use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
 use ratatui::Frame;
@@ -11,9 +12,10 @@ use crate::dialog::{
     draw_choice_box, draw_dialog_overlay, paginate_lines, wait_for_continue, ChoiceView,
 };
 use crate::input::{Action, InputBindings};
+use crate::menu::{render_panel_line, MenuPanelView};
 use crate::session::TuiSession;
 use crate::ui::DialogUiFile;
-use crate::utils::{clamp, palette_style, wrap_text};
+use crate::utils::{centered_rect, clamp, palette_style, truncate_line, wrap_text};
 
 #[derive(Clone)]
 pub struct MapView {
@@ -219,6 +221,37 @@ pub fn show_dialog_with_choices_on_map(
     )
 }
 
+pub fn show_dialog_with_choices_and_details_on_map(
+    session: &mut TuiSession,
+    map: &MapView,
+    player_pos: (i32, i32),
+    dialog_ui: &DialogUiFile,
+    bindings: &InputBindings,
+    speaker: &str,
+    text: &str,
+    choices: &[ChoiceView],
+    details: &[MenuPanelView],
+) -> io::Result<Option<usize>> {
+    let width = dialog_inner_width(session, dialog_ui);
+    let lines = wrap_text(text, width);
+    let mut pages = paginate_lines(lines, dialog_ui, speaker);
+
+    while pages.len() > 1 {
+        if let Some(page) = pages.pop() {
+            draw_overworld_with_dialog(session, map, player_pos, dialog_ui, speaker, &page, None)?;
+            wait_for_continue(session, bindings, |frame| {
+                draw_overworld_frame(frame, map, player_pos);
+                draw_dialog_overlay(frame, dialog_ui, speaker, &page);
+            })?;
+        }
+    }
+
+    let page = pages.pop().unwrap_or_default();
+    choose_dialog_option_with_details_on_map(
+        session, map, player_pos, dialog_ui, bindings, speaker, &page, choices, details,
+    )
+}
+
 pub fn draw_overworld(
     session: &mut TuiSession,
     map: &MapView,
@@ -359,6 +392,27 @@ pub fn draw_overworld_with_dialog(
         .map(|_| ())
 }
 
+pub fn draw_overworld_with_dialog_and_details(
+    session: &mut TuiSession,
+    map: &MapView,
+    player_pos: (i32, i32),
+    dialog_ui: &DialogUiFile,
+    speaker: &str,
+    lines: &[String],
+    choices: &[ChoiceView],
+    details: &[MenuPanelView],
+    selected: usize,
+) -> io::Result<()> {
+    session
+        .terminal_mut()
+        .draw(|frame| {
+            draw_overworld_frame(frame, map, player_pos);
+            draw_dialog_overlay(frame, dialog_ui, speaker, lines);
+            draw_choice_details_box(frame, choices, selected, details.get(selected));
+        })
+        .map(|_| ())
+}
+
 pub fn draw_overworld_with_centered_dialog(
     session: &mut TuiSession,
     map: &MapView,
@@ -416,6 +470,58 @@ pub fn choose_dialog_option_on_map(
                             draw_overworld_frame(frame, map, player_pos);
                             draw_dialog_overlay(frame, dialog_ui, speaker, lines);
                             draw_choice_box(frame, choices, selected);
+                        })? {
+                            return Err(io::Error::new(ErrorKind::Interrupted, "quit"));
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+}
+
+pub fn choose_dialog_option_with_details_on_map(
+    session: &mut TuiSession,
+    map: &MapView,
+    player_pos: (i32, i32),
+    dialog_ui: &DialogUiFile,
+    bindings: &InputBindings,
+    speaker: &str,
+    lines: &[String],
+    choices: &[ChoiceView],
+    details: &[MenuPanelView],
+) -> io::Result<Option<usize>> {
+    let mut selected = 0usize;
+    loop {
+        draw_overworld_with_dialog_and_details(
+            session, map, player_pos, dialog_ui, speaker, lines, choices, details, selected,
+        )?;
+        if let std::io::Result::Ok(crossterm::event::Event::Key(key)) = crossterm::event::read() {
+            if let Some(action) = bindings.action_for(key.code) {
+                match action {
+                    Action::MoveUp => {
+                        if selected > 0 {
+                            selected -= 1;
+                        }
+                    }
+                    Action::MoveDown => {
+                        if selected + 1 < choices.len() {
+                            selected += 1;
+                        }
+                    }
+                    Action::Confirm => return Ok(Some(selected)),
+                    Action::Cancel | Action::Menu => return Ok(None),
+                    Action::Quit => {
+                        if confirm_quit(session, |frame| {
+                            draw_overworld_frame(frame, map, player_pos);
+                            draw_dialog_overlay(frame, dialog_ui, speaker, lines);
+                            draw_choice_details_box(
+                                frame,
+                                choices,
+                                selected,
+                                details.get(selected),
+                            );
                         })? {
                             return Err(io::Error::new(ErrorKind::Interrupted, "quit"));
                         }
@@ -513,4 +619,107 @@ fn draw_tooltip_overlay(frame: &mut Frame, lines: &[String]) {
         .alignment(Alignment::Center)
         .wrap(Wrap { trim: false });
     frame.render_widget(paragraph, area);
+}
+
+fn draw_choice_details_box(
+    frame: &mut Frame,
+    choices: &[ChoiceView],
+    selected: usize,
+    detail: Option<&MenuPanelView>,
+) {
+    if choices.is_empty() {
+        return;
+    }
+
+    let area = frame.size();
+    let max_choice = choices
+        .iter()
+        .map(|choice| choice.label.chars().count())
+        .max()
+        .unwrap_or(0);
+    let detail_title_width = detail.map(|entry| entry.title.chars().count()).unwrap_or(0);
+    let detail_width = detail
+        .map(|entry| entry.lines.iter().map(panel_line_width).max().unwrap_or(0))
+        .unwrap_or(0)
+        .max(detail_title_width);
+
+    let mut left_width = (max_choice as u16).saturating_add(4).max(12);
+    let mut right_width = (detail_width as u16).saturating_add(4).max(18);
+    let max_width = area.width.saturating_sub(4).max(20);
+    let mut width = left_width.saturating_add(right_width);
+    if width > max_width {
+        let right_target = max_width.saturating_sub(left_width).max(10);
+        if right_target < 12 {
+            left_width = max_width.saturating_div(2).max(10);
+            right_width = max_width.saturating_sub(left_width).max(10);
+        } else {
+            right_width = right_target;
+        }
+        width = left_width.saturating_add(right_width);
+    }
+
+    let list_height = choices.len() as u16;
+    let detail_height = detail.map(|entry| entry.lines.len()).unwrap_or(0) as u16;
+    let max_height = area.height.saturating_sub(4).max(5);
+    let height = list_height
+        .max(detail_height)
+        .saturating_add(2)
+        .min(max_height)
+        .max(5);
+    let panel_area = centered_rect(area, width, height);
+
+    let columns = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Length(left_width),
+            Constraint::Length(right_width),
+        ])
+        .split(panel_area);
+
+    let list_inner_width = columns[0].width.saturating_sub(2) as usize;
+    let list_inner_height = columns[0].height.saturating_sub(2) as usize;
+    let mut list_lines = Vec::new();
+    for (index, choice) in choices.iter().enumerate().take(list_inner_height) {
+        let style = if index == selected {
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD)
+        } else {
+            Style::default()
+        };
+        let label = truncate_line(&choice.label, list_inner_width);
+        list_lines.push(Line::from(Span::styled(label, style)));
+    }
+    let list_panel = Paragraph::new(list_lines)
+        .block(Block::default().borders(Borders::ALL).title("Recipes"))
+        .alignment(Alignment::Left)
+        .wrap(Wrap { trim: false });
+    frame.render_widget(list_panel, columns[0]);
+
+    let detail_title = detail
+        .map(|entry| entry.title.as_str())
+        .unwrap_or("Details");
+    let detail_inner_height = columns[1].height.saturating_sub(2) as usize;
+    let detail_lines = detail
+        .map(|entry| {
+            entry
+                .lines
+                .iter()
+                .map(render_panel_line)
+                .take(detail_inner_height)
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    let detail_panel = Paragraph::new(detail_lines)
+        .block(Block::default().borders(Borders::ALL).title(detail_title))
+        .alignment(Alignment::Left)
+        .wrap(Wrap { trim: false });
+    frame.render_widget(detail_panel, columns[1]);
+}
+
+fn panel_line_width(line: &crate::menu::MenuPanelLine) -> usize {
+    line.spans
+        .iter()
+        .map(|span| span.text.chars().count())
+        .sum()
 }

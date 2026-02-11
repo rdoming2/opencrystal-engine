@@ -85,6 +85,7 @@
   - [ ] Keep item menu panels visible when no items exist (empty categories).
 - [x] Equipment swap flow with stat preview.
 - [x] Add startup content chooser when `--content` is omitted.
+- [x] Show campfire recipe ingredient requirements with inventory counts.
 
 ## Battle System
 - [x] Turn-based flow (command selection, targeting, resolve action).

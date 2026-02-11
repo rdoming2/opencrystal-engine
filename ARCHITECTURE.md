@@ -195,6 +195,11 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
 - Equipment is slot-based (weapons, armor, accessories) and validated by job categories.
 - Equipping recomputes derived stats and clamps current HP/MP to new maxima.
 
+### Cooking system
+
+- Campfire recipe selection shows a left-hand recipe list with a right-hand detail panel.
+- The detail panel lists ingredient requirements alongside current inventory counts.
+
 ### Magic system
 
 - Magic schools are data-driven (white/black in demo; expandable to blue/time/etc).
@@ -465,6 +470,7 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
 
 - Rune stone arc (4 elemental dungeons + bonus island dragon finale).
 - Overworld + 1 town + 5 dungeons (4 rune sites + bonus).
+- Small farm location with an ingredient merchant and ambient NPCs.
 - 10-15 enemies, 5 jobs, 6-8 spells, 10 items.
 - Job unlocks tied to boss NPC encounters; airship unlock after all four runes.
 - Jobs use per-job leveling, so changing jobs updates the actor level to the tracked job level.

@@ -612,6 +612,10 @@ Campfire fields:
 - `label`: display label used in the cooking dialog.
 - `recipes`: list of recipe IDs available at the campfire.
 
+UI notes:
+
+- Campfire recipe selection shows ingredient requirements with current inventory counts in a right-hand detail panel.
+
 Recipe fields:
 
 - `id`: unique recipe ID.

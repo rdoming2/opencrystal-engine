@@ -5,6 +5,7 @@ use engine::runtime::{GameRuntime, GameState};
 use rand::Rng;
 use tui::dialog::ChoiceView;
 use tui::input::{Action, InputBindings};
+use tui::menu::{MenuPanelView, PanelSpanStyle};
 use tui::overworld::{
     draw_overworld, draw_overworld_with_tooltip, show_centered_dialog_on_map, MapView, NpcView,
     TileRender, TransitionView, VehicleView,
@@ -15,6 +16,7 @@ use tui::ui::{BattleUiFile, DialogUiFile, MenuUiFile, ProgressUiFile};
 use crate::battle::{try_start_random_battle, BattleOutcome};
 use crate::dialog::run_dialog_on_map;
 use crate::events::run_event_loop;
+use crate::menu::inventory::{panel_line_spans, panel_span};
 use crate::menu::run_menu_loop;
 use crate::shop::lookup_item_name;
 use crate::utils::read_action;
@@ -1331,7 +1333,12 @@ fn open_campfire(
             })
             .collect::<Vec<_>>();
 
-        let selection = tui::overworld::show_dialog_with_choices_on_map(
+        let details = recipes
+            .iter()
+            .map(|recipe| build_recipe_detail_panel(runtime, recipe))
+            .collect::<Vec<_>>();
+
+        let selection = tui::overworld::show_dialog_with_choices_and_details_on_map(
             session,
             map,
             player_pos,
@@ -1340,6 +1347,7 @@ fn open_campfire(
             "Campfire",
             &format!("{} Recipes", campfire_def.label),
             &choices,
+            &details,
         )?;
 
         let Some(selection) = selection else {
@@ -1455,6 +1463,58 @@ fn format_cooking_results(
         format!("Cooked: {}.", found.join(", "))
     };
     format!("{}\n{}", cost_text, result_text)
+}
+
+fn build_recipe_detail_panel(
+    runtime: &GameRuntime,
+    recipe: &engine::content::CookingRecipe,
+) -> MenuPanelView {
+    let mut lines = Vec::new();
+    lines.push(panel_line_spans(vec![panel_span(
+        "Ingredients",
+        PanelSpanStyle::Accent,
+    )]));
+
+    let mut ready = true;
+    for ingredient in &recipe.ingredients {
+        let have = runtime.inventory.item_qty(&ingredient.id);
+        let need = ingredient.qty;
+        if have < need {
+            ready = false;
+        }
+        let count_style = if have >= need {
+            PanelSpanStyle::Accent
+        } else {
+            PanelSpanStyle::Muted
+        };
+        lines.push(panel_line_spans(vec![
+            panel_span(
+                format!("{}: ", lookup_item_name(runtime, &ingredient.id)),
+                PanelSpanStyle::Normal,
+            ),
+            panel_span(format!("{}/{}", have, need), count_style),
+        ]));
+    }
+
+    let status_text = if ready {
+        "Ready"
+    } else {
+        "Missing ingredients"
+    };
+    let status_style = if ready {
+        PanelSpanStyle::Accent
+    } else {
+        PanelSpanStyle::Muted
+    };
+    lines.push(panel_line_spans(vec![
+        panel_span("Status: ", PanelSpanStyle::Normal),
+        panel_span(status_text, status_style),
+    ]));
+
+    MenuPanelView {
+        title: recipe.name.clone(),
+        lines,
+    }
 }
 
 fn recipe_unlocked(runtime: &GameRuntime, recipe: &engine::content::CookingRecipe) -> bool {
