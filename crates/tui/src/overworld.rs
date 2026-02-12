@@ -668,6 +668,8 @@ fn draw_choice_details_box(
         .max(5);
     let panel_area = centered_rect(area, width, height);
 
+    frame.render_widget(ratatui::widgets::Clear, panel_area);
+
     let columns = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([
