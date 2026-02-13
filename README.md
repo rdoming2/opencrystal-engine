@@ -33,11 +33,13 @@ cargo run -- play --content content/demo
 
 ## Commands
 
-- `cryst play [--render=auto|wide|modern] [--content path]`
-- `cryst validate`
+- `cryst play [--render=auto|wide|modern] [--content path] [--content-dir path]`
+- `cryst validate [--content path] [--content-dir path]`
 - `cryst new-project <name> [--path path]`
-- `cryst build new <kind> <id> [--content path] [--name label] [--force]`
-- `cryst build upgrade [--content path] [--dry-run]`
+- `cryst build new <kind> <id> [--content path] [--content-dir path] [--name label] [--force]`
+- `cryst build upgrade [--content path] [--content-dir path] [--dry-run]`
+
+`--content-dir` defaults to `~/.local/share/opencrystal/content` (or `XDG_DATA_HOME/opencrystal/content`).
 - `cryst build new-project <name> [--path path]`
 
 ## Content packs

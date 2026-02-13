@@ -80,15 +80,17 @@ fn run_play(args: Vec<String>) {
     let content_dir = match parse_content_dir(&args) {
         Some(dir) => dir,
         None => {
-            let base_dir = PathBuf::from("content");
-            if let Some(session) = session_guard.as_mut() {
+            let base_dir = parse_content_base_dir(&args).unwrap_or_else(default_content_base_dir);
+            if base_dir.join("rules.json").exists() {
+                base_dir
+            } else if let Some(session) = session_guard.as_mut() {
                 let bindings = InputBindings::default_bindings();
                 match choose_content_dir(session, &bindings, &base_dir) {
                     Some(dir) => dir,
                     None => return,
                 }
             } else {
-                PathBuf::from("content/demo")
+                base_dir.join("demo")
             }
         }
     };
@@ -331,7 +333,14 @@ fn run_play(args: Vec<String>) {
 
 fn run_validate() {
     let args: Vec<String> = env::args().skip(2).collect();
-    let content_dir = parse_content_dir(&args).unwrap_or_else(|| PathBuf::from("content/demo"));
+    let base_dir = parse_content_base_dir(&args).unwrap_or_else(default_content_base_dir);
+    let content_dir = parse_content_dir(&args).unwrap_or_else(|| {
+        if base_dir.join("rules.json").exists() {
+            base_dir.clone()
+        } else {
+            base_dir.join("demo")
+        }
+    });
     let mut errors = engine::validate::validate_content(&content_dir);
 
     let input_path = content_dir.join("input.json");
@@ -509,6 +518,33 @@ fn parse_content_dir(args: &[String]) -> Option<PathBuf> {
     None
 }
 
+fn parse_content_base_dir(args: &[String]) -> Option<PathBuf> {
+    let mut iter = args.iter();
+    while let Some(arg) = iter.next() {
+        if let Some(value) = arg.strip_prefix("--content-dir=") {
+            return Some(PathBuf::from(value));
+        }
+        if arg == "--content-dir" {
+            return iter.next().map(PathBuf::from);
+        }
+    }
+    None
+}
+
+fn default_content_base_dir() -> PathBuf {
+    if let Ok(path) = env::var("XDG_DATA_HOME") {
+        return PathBuf::from(path).join("opencrystal").join("content");
+    }
+    if let Ok(home) = env::var("HOME") {
+        return PathBuf::from(home)
+            .join(".local")
+            .join("share")
+            .join("opencrystal")
+            .join("content");
+    }
+    PathBuf::from("content")
+}
+
 fn default_save_dir(content_dir: &PathBuf) -> PathBuf {
     let base_dir = if let Ok(path) = env::var("XDG_DATA_HOME") {
         PathBuf::from(path)
@@ -672,6 +708,6 @@ fn slugify(value: &str) -> String {
 
 fn print_usage() {
     println!(
-        "OpenCrystal\n\nUsage:\n  cryst play [--render=auto|wide|modern] [--content path]\n  cryst validate\n  cryst new-project <name> [--path path]\n  cryst build new <kind> <id> [--content path] [--name label] [--force]\n  cryst build upgrade [--content path] [--dry-run]\n  cryst build new-project <name> [--path path]"
+        "OpenCrystal\n\nUsage:\n  cryst play [--render=auto|wide|modern] [--content path] [--content-dir path]\n  cryst validate [--content path] [--content-dir path]\n  cryst new-project <name> [--path path]\n  cryst build new <kind> <id> [--content path] [--content-dir path] [--name label] [--force]\n  cryst build upgrade [--content path] [--content-dir path] [--dry-run]\n  cryst build new-project <name> [--path path]"
     );
 }

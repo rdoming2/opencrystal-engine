@@ -1325,7 +1325,8 @@ struct BuildNewOptions {
 
 impl BuildNewOptions {
     fn from_args(args: &[String]) -> Self {
-        let content_dir = flag_value(args, "--content");
+        let content_dir =
+            flag_value(args, "--content").or_else(|| flag_value(args, "--content-dir"));
         let name = flag_value(args, "--name");
         let force = has_flag(args, "--force");
         let positionals = collect_positionals(args);
@@ -1349,7 +1350,8 @@ struct BuildUpgradeOptions {
 impl BuildUpgradeOptions {
     fn from_args(args: &[String]) -> Self {
         Self {
-            content_dir: flag_value(args, "--content"),
+            content_dir: flag_value(args, "--content")
+                .or_else(|| flag_value(args, "--content-dir")),
             dry_run: has_flag(args, "--dry-run"),
         }
     }
@@ -1397,7 +1399,7 @@ fn collect_positionals(args: &[String]) -> Vec<String> {
             if arg.contains('=') {
                 continue;
             }
-            if arg == "--content" || arg == "--name" || arg == "--path" {
+            if arg == "--content" || arg == "--content-dir" || arg == "--name" || arg == "--path" {
                 iter.next();
             }
             continue;
@@ -1409,7 +1411,7 @@ fn collect_positionals(args: &[String]) -> Vec<String> {
 
 fn print_build_usage() {
     println!(
-        "Build usage:\n  cryst build new <kind> <id> [--content path] [--name label] [--force]\n  cryst build upgrade [--content path] [--dry-run]\n  cryst build new-project <name> [--path path]"
+        "Build usage:\n  cryst build new <kind> <id> [--content path] [--content-dir path] [--name label] [--force]\n  cryst build upgrade [--content path] [--content-dir path] [--dry-run]\n  cryst build new-project <name> [--path path]"
     );
 }
 
