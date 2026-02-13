@@ -77,10 +77,24 @@ fn main() {
 fn run_play(args: Vec<String>) {
     let render_mode = parse_render_mode(&args).unwrap_or(RenderMode::Auto);
     let mut session_guard = SessionGuard::start();
-    let content_dir = match parse_content_dir(&args) {
+    let content_dir_arg = parse_content_dir(&args);
+    let content_base_arg = parse_content_base_dir(&args);
+    let content_dir = match content_dir_arg {
         Some(dir) => dir,
         None => {
-            let base_dir = parse_content_base_dir(&args).unwrap_or_else(default_content_base_dir);
+            let base_dir = content_base_arg.unwrap_or_else(|| {
+                let base_dir = default_content_base_dir();
+                if content_dir_arg.is_none() {
+                    if let Err(err) = fs::create_dir_all(&base_dir) {
+                        eprintln!(
+                            "Failed to create default content directory {}: {}",
+                            base_dir.display(),
+                            err
+                        );
+                    }
+                }
+                base_dir
+            });
             if base_dir.join("rules.json").exists() {
                 base_dir
             } else if let Some(session) = session_guard.as_mut() {
@@ -333,8 +347,22 @@ fn run_play(args: Vec<String>) {
 
 fn run_validate() {
     let args: Vec<String> = env::args().skip(2).collect();
-    let base_dir = parse_content_base_dir(&args).unwrap_or_else(default_content_base_dir);
-    let content_dir = parse_content_dir(&args).unwrap_or_else(|| {
+    let content_dir_arg = parse_content_dir(&args);
+    let content_base_arg = parse_content_base_dir(&args);
+    let base_dir = content_base_arg.clone().unwrap_or_else(|| {
+        let base_dir = default_content_base_dir();
+        if content_dir_arg.is_none() && content_base_arg.is_none() {
+            if let Err(err) = fs::create_dir_all(&base_dir) {
+                eprintln!(
+                    "Failed to create default content directory {}: {}",
+                    base_dir.display(),
+                    err
+                );
+            }
+        }
+        base_dir
+    });
+    let content_dir = content_dir_arg.unwrap_or_else(|| {
         if base_dir.join("rules.json").exists() {
             base_dir.clone()
         } else {

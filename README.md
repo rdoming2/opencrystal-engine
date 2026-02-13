@@ -3,6 +3,9 @@
 OpenCrystal is a Rust-based JRPG engine for the terminal. It targets wide compatibility
 (ANSI + 256 colors) while keeping the content fully data-driven via JSON.
 
+## Disclaimer
+This project is an original open-source game engine inspired by classic turn-based RPG mechanics. It is not affiliated with or endorsed by any existing franchise.
+
 ## Goals
 
 - TUI-first JRPG engine with FF-style overworlds, towns, dungeons, and battles.
