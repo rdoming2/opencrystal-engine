@@ -134,8 +134,7 @@ Each snippet corresponds to an existing schema.
     "save": true,
     "settings": true,
     "summons": false,
-    "magic_equip": false,
-    "materia": false
+    "magic_equip": false
   },
   "render": {
     "min_art_width": 110,

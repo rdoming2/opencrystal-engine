@@ -153,8 +153,7 @@ only; autosave uses slot 0 and never reduces the manual slot total.
     "save": true,
     "settings": true,
     "summons": false,
-    "magic_equip": false,
-    "materia": false
+    "magic_equip": false
   },
   "save": {
     "slots_max": 10

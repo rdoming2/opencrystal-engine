@@ -7,7 +7,7 @@ It is a design reference meant to guide initial implementation.
 
 - Terminal-first, wide compatibility (ANSI + 256 colors), with optional modern enhancements later.
 - Data-driven engine: worlds, maps, entities, rules, and events defined via JSON.
-- Support multiple gameplay styles: FF1-style party creation, job system with unlock flags,
+- Support multiple gameplay styles: default party, party creation, job system with unlock flags,
   turn-based and Readiness variants, and multiple worlds with vehicle travel.
 - Maintain accessibility with flexible input bindings and scalable layouts.
 
@@ -256,7 +256,7 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
 - Confirm moves focus to the right pane (submenu content); Cancel returns to list.
 - Menu is modal and pauses overworld updates.
 - Menu entries are optional and can be gated by rules `systems` toggles and optional
-  unlock flags (e.g., Summons, Materia, Job Change, Journal, Save).
+  unlock flags (e.g., Summons, Job Change, Journal, Save).
 - Party submenu exposes actions per member (reorder, swap with reserve, switch row). Swap actions are
   gated by save-allowed maps; row selection is shown when battle row rules are enabled.
 - Custom status/gameplay stats panels are handled via configurable menu panels in `ui/menu.json`.
@@ -387,8 +387,7 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
     "save": true,
     "settings": true,
     "summons": false,
-    "magic_equip": false,
-    "materia": false
+    "magic_equip": false
   },
   "save": {
     "slots_max": 10
