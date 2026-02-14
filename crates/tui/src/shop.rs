@@ -1,15 +1,15 @@
 use std::io::{self, ErrorKind};
 
 use crossterm::event::{self, Event};
-use ratatui::Frame;
 use ratatui::layout::{Alignment, Constraint, Direction, Layout};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, Paragraph, Wrap};
+use ratatui::Frame;
 
 use crate::dialog::confirm_quit;
-use crate::input::{Action, InputBindings};
-use crate::menu::{MenuPanelView, render_panel_line};
+use crate::input::{is_actionable_key, Action, InputBindings};
+use crate::menu::{render_panel_line, MenuPanelView};
 use crate::session::TuiSession;
 use crate::utils::centered_rect;
 
@@ -114,6 +114,9 @@ pub fn show_shop(
         })?;
 
         if let Event::Key(key) = event::read()? {
+            if !is_actionable_key(&key) {
+                continue;
+            }
             if let Some(action) = bindings.action_for(key.code) {
                 match action {
                     Action::MoveUp => {
@@ -230,6 +233,9 @@ pub fn show_quantity_picker(
         })?;
 
         if let Event::Key(key) = event::read()? {
+            if !is_actionable_key(&key) {
+                continue;
+            }
             if let Some(action) = bindings.action_for(key.code) {
                 match action {
                     Action::MoveLeft => {
@@ -292,6 +298,9 @@ pub fn show_info_popup(
         })?;
 
         if let Event::Key(key) = event::read()? {
+            if !is_actionable_key(&key) {
+                continue;
+            }
             if let Some(action) = bindings.action_for(key.code) {
                 match action {
                     Action::Confirm | Action::Cancel => return Ok(()),

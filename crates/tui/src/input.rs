@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::path::Path;
 
-use crossterm::event::KeyCode;
+use crossterm::event::{KeyCode, KeyEvent, KeyEventKind};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq)]
@@ -86,6 +86,10 @@ impl InputBindings {
         key_map.insert(KeyCode::Char('l'), Action::Learn);
         Self { key_map }
     }
+}
+
+pub fn is_actionable_key(key: &KeyEvent) -> bool {
+    matches!(key.kind, KeyEventKind::Press | KeyEventKind::Repeat)
 }
 
 fn action_from_id(id: &str) -> Option<Action> {

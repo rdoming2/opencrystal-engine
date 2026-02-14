@@ -11,7 +11,7 @@ use crate::dialog::{
     centered_dialog_width_for_area, confirm_quit, dialog_inner_width, draw_centered_dialog_overlay,
     draw_choice_box, draw_dialog_overlay, paginate_lines, wait_for_continue, ChoiceView,
 };
-use crate::input::{Action, InputBindings};
+use crate::input::{is_actionable_key, Action, InputBindings};
 use crate::menu::{render_panel_line, MenuPanelView};
 use crate::session::TuiSession;
 use crate::ui::DialogUiFile;
@@ -451,6 +451,9 @@ pub fn choose_dialog_option_on_map(
             Some((selected, choices)),
         )?;
         if let std::io::Result::Ok(crossterm::event::Event::Key(key)) = crossterm::event::read() {
+            if !is_actionable_key(&key) {
+                continue;
+            }
             if let Some(action) = bindings.action_for(key.code) {
                 match action {
                     Action::MoveUp => {
@@ -498,6 +501,9 @@ pub fn choose_dialog_option_with_details_on_map(
             session, map, player_pos, dialog_ui, speaker, lines, choices, details, selected,
         )?;
         if let std::io::Result::Ok(crossterm::event::Event::Key(key)) = crossterm::event::read() {
+            if !is_actionable_key(&key) {
+                continue;
+            }
             if let Some(action) = bindings.action_for(key.code) {
                 match action {
                     Action::MoveUp => {
