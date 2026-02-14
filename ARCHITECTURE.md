@@ -65,7 +65,7 @@ and showing `rules.json` metadata (title, optional description/author).
 - Load is disabled when no loadable saves exist; default selection is New.
 - When loadable saves exist, default selection is Load.
 
-### Battle layout (FF homage)
+### Battle layout
 
 - Top: battlefield (enemy visuals + player sprites arranged in a right-side vertical grid).
 - Bottom: command region, split into three columns:
@@ -116,7 +116,7 @@ All runtime data is loaded from JSON. Files are organized into top-level categor
 
 ### World system
 
-- Supports multiple worlds (classic FF-style world jumps).
+- Supports multiple worlds (space/time/dimensions) 
 - Each world contains maps, travel rules, and zoom config.
 - Worlds define `overworld_map_id` to anchor overworld-only travel and warp returns.
 - Travel mechanisms:
@@ -171,7 +171,7 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
 - Party creation modes (`party_mode`):
   - `create`: name + job selection; job list filtered by job `unlock_flag` and preselects
     the job marked `is_default`. If `systems.jobs` is disabled, job selection is skipped.
-  - `preset`: roster-driven party (FF5/FF6 style) that skips menu-based creation.
+  - `preset`: roster-driven party that skips menu-based creation.
   - `preset_rename`: same as `preset` but immediately offers rename prompts for new characters.
 - Experience curves are configurable via `exp_curve` (table or formula).
 - Derived stat formulas can reference `lvl` for level scaling.

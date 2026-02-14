@@ -8,7 +8,7 @@ This project is an original open-source game engine inspired by classic turn-bas
 
 ## Goals
 
-- TUI-first JRPG engine with FF-style overworlds, towns, dungeons, and battles.
+- TUI-first JRPG engine with classic renditions of overworlds, towns, dungeons, and battles.
 - Configurable systems (jobs, magic schools, Readiness vs turn-based, world jumps, vehicles).
 - Content driven by JSON maps, entities, events, and UI layouts.
 
