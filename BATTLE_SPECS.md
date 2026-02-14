@@ -1,9 +1,9 @@
 # Battle UI and Interaction Specs (Short)
 
-This document defines the minimal FF-style battle UI and interaction flow for OpenCrystal.
+This document defines the minimal battle UI and interaction flow for OpenCrystal.
 It aims to be prescriptive while keeping content authoring simple.
 
-## 1) UI layout constraints (FF homage)
+## 1) UI layout constraints
 
 - Battlefield occupies the top portion of the screen.
 - Command area occupies the bottom portion and is split into three columns:
@@ -79,4 +79,4 @@ Content creators only configure:
 - Spell/item list columns and grouping (fixed defaults).
 - Breakpoints and visual behavior (compact vs standard).
 
-Everything else is enforced by engine logic to keep FF-style consistency.
+Everything else is enforced by engine logic for consistency.
