@@ -44,8 +44,3 @@ cargo run -- play --content content/demo
 
 `--content-dir` defaults to `~/.local/share/opencrystal/content` (or `XDG_DATA_HOME/opencrystal/content`).
 - `cryst build new-project <name> [--path path]`
-
-## Content packs
-
-Content lives in `content/<game_name>/` with folders like `entities/`, `maps/`, `events/`, and `ui/`.
-Only `content/demo` is tracked in git; other packs are ignored by default.
