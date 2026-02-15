@@ -8,7 +8,7 @@ use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
 use ratatui::Frame;
 
 use crate::dialog::confirm_quit;
-use crate::input::{Action, InputBindings};
+use crate::input::{is_actionable_key, Action, InputBindings};
 use crate::session::TuiSession;
 use crate::ui::{MenuLayout, MenuUiFile};
 
@@ -91,6 +91,9 @@ pub fn run_content_menu(
         })?;
 
         if let Event::Key(key) = event::read()? {
+            if !is_actionable_key(&key) {
+                continue;
+            }
             if let Some(action) = bindings.action_for(key.code) {
                 match action {
                     Action::MoveUp => {

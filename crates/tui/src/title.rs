@@ -8,7 +8,7 @@ use ratatui::widgets::{Block, Borders, Paragraph};
 use ratatui::Frame;
 
 use crate::dialog::confirm_quit;
-use crate::input::{Action, InputBindings};
+use crate::input::{is_actionable_key, Action, InputBindings};
 use crate::session::TuiSession;
 use crate::ui::{TitleLogo, TitleUiFile};
 use crate::utils::{centered_rect, palette_style};
@@ -53,6 +53,9 @@ pub fn run_title(
         })?;
 
         if let Event::Key(key) = event::read()? {
+            if !is_actionable_key(&key) {
+                continue;
+            }
             if let Some(action) = bindings.action_for(key.code) {
                 match action {
                     Action::MoveUp => {
@@ -99,6 +102,9 @@ pub fn run_load_menu(
         })?;
 
         if let Event::Key(key) = event::read()? {
+            if !is_actionable_key(&key) {
+                continue;
+            }
             if let Some(action) = bindings.action_for(key.code) {
                 match action {
                     Action::MoveUp => {

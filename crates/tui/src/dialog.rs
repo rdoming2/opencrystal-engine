@@ -9,7 +9,7 @@ use ratatui::widgets::{Block, Borders, Clear, Paragraph, Wrap};
 use ratatui::{Frame, Terminal};
 use std::io::Stdout;
 
-use crate::input::{Action, InputBindings};
+use crate::input::{is_actionable_key, Action, InputBindings};
 use crate::session::TuiSession;
 use crate::ui::DialogUiFile;
 use crate::utils::{centered_rect, truncate_line, wrap_text};
@@ -170,6 +170,9 @@ where
 {
     loop {
         if let Event::Key(key) = event::read()? {
+            if !is_actionable_key(&key) {
+                continue;
+            }
             if let Some(action) = bindings.action_for(key.code) {
                 if matches!(action, Action::Confirm | Action::Cancel | Action::Menu) {
                     return Ok(());
@@ -202,6 +205,9 @@ pub fn choose_dialog_option(
             Some((selected, choices)),
         )?;
         if let Event::Key(key) = event::read()? {
+            if !is_actionable_key(&key) {
+                continue;
+            }
             if let Some(action) = bindings.action_for(key.code) {
                 match action {
                     Action::MoveUp => {
@@ -248,6 +254,9 @@ where
         })?;
 
         if let Event::Key(key) = event::read()? {
+            if !is_actionable_key(&key) {
+                continue;
+            }
             match key.code {
                 KeyCode::Char('y') | KeyCode::Char('Y') => return Ok(true),
                 KeyCode::Char('n') | KeyCode::Char('N') => return Ok(false),
@@ -271,6 +280,9 @@ pub fn prompt_text(
         })?;
 
         if let Event::Key(key) = event::read()? {
+            if !is_actionable_key(&key) {
+                continue;
+            }
             match key.code {
                 KeyCode::Enter => {
                     let trimmed = value.trim();
@@ -314,6 +326,9 @@ pub fn prompt_choice(
         })?;
 
         if let Event::Key(key) = event::read()? {
+            if !is_actionable_key(&key) {
+                continue;
+            }
             if let Some(action) = bindings.action_for(key.code) {
                 match action {
                     Action::MoveUp => {

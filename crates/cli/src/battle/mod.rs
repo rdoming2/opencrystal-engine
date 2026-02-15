@@ -18,7 +18,7 @@ use engine::runtime::GameRuntime;
 use rand::Rng;
 use tui::battle::{draw_battle, draw_battle_frame, BattleRenderState};
 use tui::dialog::confirm_quit;
-use tui::input::{Action, InputBindings};
+use tui::input::{is_actionable_key, Action, InputBindings};
 use tui::session::TuiSession;
 use tui::ui::BattleUiFile;
 
@@ -1808,6 +1808,9 @@ fn wait_for_battle_dialog(
             };
             if crossterm::event::poll(wait)? {
                 if let crossterm::event::Event::Key(key) = crossterm::event::read()? {
+                    if !is_actionable_key(&key) {
+                        continue;
+                    }
                     if let Some(action) = bindings.action_for(key.code) {
                         if matches!(action, Action::Confirm | Action::Cancel | Action::Menu) {
                             break;
