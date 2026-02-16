@@ -20,8 +20,8 @@ use engine::rules::{
 };
 use engine::stats::{StatEntry, StatsDefinition, StatsFile};
 use engine::world::{FastTravelConfig, WorldDefinition, WorldsFile};
-use serde::de::DeserializeOwned;
 use serde::Serialize;
+use serde::de::DeserializeOwned;
 use serde_json::Deserializer;
 use tui::input::InputFile;
 use tui::ui::{
@@ -218,7 +218,7 @@ fn create_project_structure(target_dir: &Path, title: &str) -> Result<(), String
                 y: 0,
             },
             currency: Currency {
-                id: "gil".to_string(),
+                id: "gold".to_string(),
                 name: "G".to_string(),
                 symbol: "G".to_string(),
             },
@@ -999,7 +999,7 @@ fn build_new_shop(content_dir: &Path, id: &str, name: &str, force: bool) -> Resu
     file.shops.push(ShopDefinition {
         id: id.to_string(),
         name: name.to_string(),
-        currency: "gil".to_string(),
+        currency: "gold".to_string(),
         inventory: Vec::new(),
     });
     write_json_pretty(path, &file)?;

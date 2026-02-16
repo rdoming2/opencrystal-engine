@@ -368,7 +368,7 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
       "x": 20,
       "y": 14
     },
-    "currency": {"id": "gil", "name": "G", "symbol": "G"}
+    "currency": {"id": "gold", "name": "G", "symbol": "G"}
   },
   "party_mode": "create",
   "exp_curve": {

@@ -108,7 +108,7 @@ only; autosave uses slot 0 and never reduces the manual slot total.
       "x": 20,
       "y": 14
     },
-    "currency": {"id": "gil", "name": "G", "symbol": "G"}
+    "currency": {"id": "gold", "name": "G", "symbol": "G"}
   },
   "battle": {
     "global_commands": ["attack", "defend", "items", "run"],
@@ -489,7 +489,7 @@ start an event, then the event can `npc_hide` to prevent re-triggering.
       "loot": {
         "items": [{"id": "potion", "qty": 2}],
         "equipment": [{"id": "bronze_sword", "qty": 1}],
-        "currency": [{"id": "gil", "amount": 50}]
+        "currency": [{"id": "gold", "amount": 50}]
       }
     }
   ],
@@ -506,7 +506,7 @@ start an event, then the event can `npc_hide` to prevent re-triggering.
       "target_pos": [1, 1],
       "label": "Ember",
       "requires_flag": "dungeon.ember_unlocked",
-      "cost": {"id": "gil", "amount": 200},
+      "cost": {"id": "gold", "amount": 200},
       "return_to_last": false,
       "glyph": "D",
       "palette": "bright_magenta"
@@ -1024,7 +1024,7 @@ Common effect types: `heal_hp`, `heal_mp`, `revive`, `warp`, `learn_spell`, `lea
     {
       "id": "corner_store",
       "name": "Corner Store",
-      "currency": "gil",
+      "currency": "gold",
       "inventory": [
         {"item": "potion", "price": 50},
         {"item": "bronze_sword", "price": 200}
@@ -1773,7 +1773,7 @@ Vehicle fields:
     }
   },
   "inventory": {
-    "currency": {"id": "gil", "amount": 250},
+    "currency": {"id": "gold", "amount": 250},
     "items": [{"id": "potion", "qty": 3}],
     "equipment": [{"id": "bronze_sword", "qty": 1}]
   },
@@ -1999,7 +1999,7 @@ to the schemas defined above and consolidate the former `BATTLE_MOCK.md` example
     "party_reserve_size": 4,
     "battle_mode": "turn",
     "magic_system": "mp",
-    "currency": {"id": "gil", "name": "G", "symbol": "G"}
+    "currency": {"id": "gold", "name": "G", "symbol": "G"}
   },
   "party_mode": "create",
   "systems": {
