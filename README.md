@@ -14,6 +14,19 @@ mechanics. It is not affiliated with or endorsed by any existing franchise.
 - Configurable systems (jobs, magic schools, Readiness vs turn-based, world jumps, vehicles).
 - Content driven by JSON maps, entities, events, and UI layouts.
 
+## Capabilities
+
+- **Rendering:** ANSI + 256 color output with wide/modern render modes, palette-based colors, and battle breakpoints for glyph vs ASCII art.
+- **Worlds & maps:** multi-world travel, overworld/town/dungeon maps, encounter zones, transitions, save points, vehicles, and overworld map menus with auto-downsampled views.
+- **Events & dialog:** event scripts with dialog/narration, flags, grants, warps, battles, NPC show/hide/move/sprite, shops, rests, and stat updates; triggers on map enter/step with zone or coordinate targeting; dialog trees with actions and gated choices.
+- **Battle system:** turn-based and Readiness modes, pause, command catalog with job extensions, target rules, front/back rows, boss scaling, elements/traits/status effects, and victory/defeat rewards.
+- **Jobs & progression:** character/job/job_points progression modes, optional secondary jobs, job command lists, spell/ability unlocks by level/item/equip/jp, magic equip slots, and tier charge tables.
+- **Party & inventory:** create/preset/preset_rename party modes, roster + reserve, equipment slots, inventory stacks, items usable in field/battle, and campfire cooking.
+- **UI & UX:** two-pane main menu, journal/quest tracking, gameplay stats panels, settings visibility/locking, localized UI strings, and configurable title/menu/battle layouts.
+- **Data & tooling:** JSON schemas with validation, content pack metadata, `cryst build` stubs/upgrades, and JSON save files with autosave slot support.
+
+See `SCHEMAS.md` and `CONTENT_AUTHORING_GUIDE.md` for schema-level details and authoring workflows.
+
 ## Project layout
 
 - `crates/engine/`: runtime systems, loaders, validation.
