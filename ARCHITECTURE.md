@@ -3,6 +3,12 @@
 This document describes the planned engine architecture, data formats, and UI layout for OpenCrystal.
 It is a design reference meant to guide initial implementation.
 
+## Related docs
+
+- `README.md` for project overview and CLI basics.
+- `SCHEMAS.md` for JSON schema details and examples.
+- `CONTENT_AUTHORING_GUIDE.md` for content pack workflow.
+
 ## Goals
 
 - Terminal-first, wide compatibility (ANSI + 256 colors), with optional modern enhancements later.

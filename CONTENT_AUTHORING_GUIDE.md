@@ -4,10 +4,14 @@ This guide describes how to build OpenCrystal content packs that validate cleanl
 follow the project's data-driven conventions. It focuses on JSON authoring, event
 structure, and practical workflow tips for building playable content.
 
+## Related docs
+
+- `README.md` for project overview and CLI basics.
+- `SCHEMAS.md` for authoritative JSON schema details and examples.
+
 ## Scope
 
 Use this guide when you are writing or maintaining content under `content/<pack_name>/`.
-Refer to `SCHEMAS.md` for the authoritative JSON schema details and examples.
 
 ## Content pack layout
 

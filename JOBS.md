@@ -6,6 +6,12 @@ and, if the rules allow it, an optional secondary job. As actors gain
 experience, jobs unlock new base stats, spells, and abilities according to
 per-job growth data defined in `content/demo/entities/jobs.json`.
 
+## Related docs
+
+- `README.md` for project overview and CLI basics.
+- `SCHEMAS.md` for job schema details.
+- `CONTENT_AUTHORING_GUIDE.md` for content pack workflow.
+
 ## Progression Modes
 
 The job progression mode is configured under `rules.json -> job_system ->

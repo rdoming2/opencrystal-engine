@@ -1,5 +1,10 @@
 # OpenCrystal TODO
 
+## Related docs
+
+- `README.md` for project overview.
+- `ARCHITECTURE.md` for system design context.
+
 ## Runtime
 - [x] Create runtime state machine.
   - [x] Title state.

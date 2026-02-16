@@ -3,7 +3,12 @@
 This document defines the minimal battle UI and interaction flow for OpenCrystal.
 It aims to be prescriptive while keeping content authoring simple.
 
-## 1) UI layout constraints
+## Related docs
+
+- `README.md` for project overview and CLI basics.
+- `SCHEMAS.md` for battle UI schema examples.
+
+## UI layout constraints
 
 - Battlefield occupies the top portion of the screen.
 - Command area occupies the bottom portion and is split into three columns:
@@ -13,7 +18,7 @@ It aims to be prescriptive while keeping content authoring simple.
 - No custom column widths in content; layout uses code heuristics.
 - Panel titles can be hidden on compact terminals.
 
-## 2) Breakpoints (minimal behavior)
+## Breakpoints (minimal behavior)
 
 - Compact (small terminals):
   - Enemy visuals are glyph-only.
@@ -22,14 +27,14 @@ It aims to be prescriptive while keeping content authoring simple.
   - Enemy visuals use ASCII art when available.
   - Panel titles shown.
 
-## 3) Selection and highlighting rules
+## Selection and highlighting rules
 
 - Active party member is highlighted in the party list.
 - Selected enemy is highlighted in the enemy list and outlined in the battlefield.
 - Selected party target is highlighted in the party list and outlined in the battlefield.
 - Menu focus is always visible (invert or underline).
 
-## 4) Interaction flow
+## Interaction flow
 
 1. Active party member becomes ready (turn-based or Readiness).
 2. Command menu opens with default selection on Attack.
@@ -42,14 +47,14 @@ It aims to be prescriptive while keeping content authoring simple.
 5. Enemy actions resolve on their turn or when their Readiness fills (depending on mode).
 6. Action resolves, UI returns to command or next party member.
 
-## 5) Menu list content constraints
+## Menu list content constraints
 
 - Magic list shows columns: Spell, MP.
 - Items list shows columns: Item, Qty.
 - Enemy list shows enemy name and optional status markers.
 - Party list shows HP/MP/Readiness/status in a fixed order.
 
-## 6) Battle pause behavior
+## Battle pause behavior
 
 - Space toggles pause.
 - When paused:
@@ -57,7 +62,7 @@ It aims to be prescriptive while keeping content authoring simple.
 - Readiness timers stop.
   - Input ignores command selection except unpause.
 
-## 7) Target rules
+## Target rules
 
 - Each action resolves its target rules:
   - Attack: enemy-only.
@@ -65,13 +70,13 @@ It aims to be prescriptive while keeping content authoring simple.
   - Items: uses item effect rules (ally/enemy/self/all).
 - If target becomes invalid (KO, removed), prompt reselect.
 
-## 8) Enemy visual rules
+## Enemy visual rules
 
 - If breakpoint is compact, show glyph only.
 - If standard, prefer ASCII art if defined; otherwise glyph.
 - Bosses may define ASCII art; glyph fallback is always supported.
 
-## 9) Minimal config surface (content)
+## Minimal config surface (content)
 
 Content creators only configure:
 
