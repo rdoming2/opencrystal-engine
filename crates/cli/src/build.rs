@@ -20,8 +20,8 @@ use engine::rules::{
 };
 use engine::stats::{StatEntry, StatsDefinition, StatsFile};
 use engine::world::{FastTravelConfig, WorldDefinition, WorldsFile};
-use serde::Serialize;
 use serde::de::DeserializeOwned;
+use serde::Serialize;
 use serde_json::Deserializer;
 use tui::input::InputFile;
 use tui::ui::{
@@ -1034,6 +1034,7 @@ fn build_new_npc(content_dir: &Path, id: &str, name: &str, force: bool) -> Resul
             r#type: "static".to_string(),
             radius: None,
             path: None,
+            idle_chance: 0.0,
             persist: None,
         },
         interaction_range: None,

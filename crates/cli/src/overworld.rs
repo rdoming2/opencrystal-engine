@@ -1716,19 +1716,25 @@ fn update_roaming_npcs(
             "roam" => {
                 let radius = definition.behavior.radius.unwrap_or(2).max(1);
                 let origin = (npc.pos[0], npc.pos[1]);
-                let mut directions = vec![(0, -1), (0, 1), (-1, 0), (1, 0)];
-                for _ in 0..directions.len() {
-                    let index = rng.gen_range(0..directions.len());
-                    let (dx, dy) = directions.swap_remove(index);
-                    let candidate = (pos.0 + dx, pos.1 + dy);
-                    let manhattan = (candidate.0 - origin.0).abs() + (candidate.1 - origin.1).abs();
-                    if manhattan > radius {
-                        continue;
-                    }
-                    if npc_can_move_to(runtime, map_id, candidate, &occupied, player_pos) {
-                        next_pos = candidate;
-                        next_state = Some("roam".to_string());
-                        break;
+                let idle_chance = definition.behavior.idle_chance.clamp(0.0, 1.0);
+                if idle_chance > 0.0 && rng.r#gen::<f32>() < idle_chance {
+                    next_state = Some("roam".to_string());
+                } else {
+                    let mut directions = vec![(0, -1), (0, 1), (-1, 0), (1, 0)];
+                    for _ in 0..directions.len() {
+                        let index = rng.gen_range(0..directions.len());
+                        let (dx, dy) = directions.swap_remove(index);
+                        let candidate = (pos.0 + dx, pos.1 + dy);
+                        let manhattan =
+                            (candidate.0 - origin.0).abs() + (candidate.1 - origin.1).abs();
+                        if manhattan > radius {
+                            continue;
+                        }
+                        if npc_can_move_to(runtime, map_id, candidate, &occupied, player_pos) {
+                            next_pos = candidate;
+                            next_state = Some("roam".to_string());
+                            break;
+                        }
                     }
                 }
             }

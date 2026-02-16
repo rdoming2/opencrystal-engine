@@ -672,6 +672,8 @@ in a battle grid from `[0,0]` to `[9,5]` (10x6).
 Defines NPC metadata and behavior. Map placement is handled in `maps/*.json`.
 `palette` is optional and sets the terminal color for the NPC glyph.
 `interaction_range` is optional and sets the Manhattan distance at which the NPC can be interacted with (default: 1).
+`behavior.idle_chance` is optional and sets the chance (0.0-1.0) that a roaming NPC stays in place
+for a movement tick. It is ignored for non-roaming behavior types.
 
 ```json
 {
@@ -683,7 +685,7 @@ Defines NPC metadata and behavior. Map placement is handled in `maps/*.json`.
       "sprite": "wanderer",
       "palette": "bright_magenta",
       "dialog": "sky_tinker",
-      "behavior": {"type": "roam", "radius": 4, "persist": true}
+      "behavior": {"type": "roam", "radius": 4, "idle_chance": 0.35, "persist": true}
     },
     {
       "id": "innkeeper",
@@ -691,7 +693,7 @@ Defines NPC metadata and behavior. Map placement is handled in `maps/*.json`.
       "sprite": "innkeeper",
       "palette": "bright_yellow",
       "dialog": "innkeeper",
-      "behavior": {"type": "static"},
+      "behavior": {"type": "static", "idle_chance": 0.0},
       "interaction_range": 2
     }
   ]
@@ -699,6 +701,7 @@ Defines NPC metadata and behavior. Map placement is handled in `maps/*.json`.
 ```
 
 Behavior types (initial): `static`, `roam`, `patrol`. For `patrol`, use `behavior.path`.
+`behavior.idle_chance` is optional; it is used only for `roam`.
 Set `behavior.persist` to keep NPC positions in `save.json`.
 
 ## dialog/*.json

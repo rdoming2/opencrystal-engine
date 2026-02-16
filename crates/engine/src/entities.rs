@@ -469,6 +469,8 @@ pub struct NpcBehavior {
     pub r#type: String,
     pub radius: Option<i32>,
     pub path: Option<Vec<[i32; 2]>>,
+    #[serde(default)]
+    pub idle_chance: f32,
     pub persist: Option<bool>,
 }
 
