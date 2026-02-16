@@ -123,7 +123,6 @@ fn run_build_upgrade(args: &[String]) {
     targets.extend(dir_upgrade_targets(&content_dir.join("maps"), "map"));
     targets.extend(dir_upgrade_targets(&content_dir.join("events"), "event"));
     targets.extend(dir_upgrade_targets(&content_dir.join("dialog"), "dialog"));
-    targets.extend(dir_upgrade_targets(&content_dir.join("quests"), "quest"));
 
     for target in targets {
         match upgrade_file(&target, options.dry_run) {
@@ -195,7 +194,6 @@ fn create_project_structure(target_dir: &Path, title: &str) -> Result<(), String
     fs::create_dir_all(target_dir.join("maps")).map_err(|err| err.to_string())?;
     fs::create_dir_all(target_dir.join("events")).map_err(|err| err.to_string())?;
     fs::create_dir_all(target_dir.join("dialog")).map_err(|err| err.to_string())?;
-    fs::create_dir_all(target_dir.join("quests")).map_err(|err| err.to_string())?;
     fs::create_dir_all(target_dir.join("ui")).map_err(|err| err.to_string())?;
 
     let rules = RulesFile {
@@ -686,6 +684,12 @@ fn create_project_structure(target_dir: &Path, title: &str) -> Result<(), String
         }],
     };
 
+    let quests = QuestsFile {
+        version: 1,
+        categories: Vec::new(),
+        quests: Vec::new(),
+    };
+
     write_json_pretty(target_dir.join("rules.json"), &rules)?;
     write_json_pretty(target_dir.join("effects.json"), &effects)?;
     write_json_pretty(target_dir.join("worlds.json"), &worlds)?;
@@ -701,6 +705,7 @@ fn create_project_structure(target_dir: &Path, title: &str) -> Result<(), String
     write_json_pretty(target_dir.join("entities/shops.json"), &shops)?;
     write_json_pretty(target_dir.join("entities/npcs.json"), &npcs)?;
     write_json_pretty(target_dir.join("entities/encounters.json"), &encounters)?;
+    write_json_pretty(target_dir.join("entities/quests.json"), &quests)?;
     write_json_pretty(
         target_dir.join("maps").join("starting_map.json"),
         &starting_map,
@@ -1513,6 +1518,10 @@ fn base_upgrade_targets(content_dir: &Path) -> Vec<UpgradeTarget> {
         UpgradeTarget {
             path: content_dir.join("entities").join("encounters.json"),
             kind: UpgradeKind::Encounters,
+        },
+        UpgradeTarget {
+            path: content_dir.join("entities").join("quests.json"),
+            kind: UpgradeKind::Quest,
         },
         UpgradeTarget {
             path: content_dir.join("ui").join("title.json"),

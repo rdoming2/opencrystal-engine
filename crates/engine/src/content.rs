@@ -254,12 +254,13 @@ impl Content {
             &mut errors,
             "dialog",
         );
-        let quests = load_dir(
-            content_dir.join("quests"),
+        let quests = load_single(
+            content_dir.join("entities").join("quests.json"),
             QuestsFile::load,
             &mut errors,
-            "quests",
-        );
+        )
+        .map(|file| vec![file])
+        .unwrap_or_default();
         let cooking = load_optional(content_dir.join("cooking.json"), CookingFile::load);
 
         if !errors.is_empty() {

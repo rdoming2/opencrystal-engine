@@ -1220,7 +1220,7 @@ Example steps:
 }
 ```
 
-## quests/*.json
+## entities/quests.json
 
 Quest definitions for the Journal system. Quests are organized by categories with
 configurable sort order. Each quest has a title, category reference, and a tree of

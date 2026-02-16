@@ -104,7 +104,7 @@ All runtime data is loaded from JSON. Files are organized into top-level categor
 - `worlds.json`: world list, world-to-world travel rules, zoom config.
 - `maps/*.json`: map tiles, entities, triggers, encounter zones, per-map encounter rate.
 - `party.json`: predefined party roster (optional in create mode).
-- `entities/*.json`: jobs (including battle sprites, starting gear, and optional magic tier charge tables), spells, abilities (optional costs), items, equipment, enemies, vehicles, shops, encounters, npcs.
+- `entities/*.json`: jobs (including battle sprites, starting gear, and optional magic tier charge tables), spells, abilities (optional costs), items, equipment, enemies, vehicles, shops, encounters, npcs, quests.
 - `events/*.json`: scripted events and cutscenes.
 - `dialog/*.json`: NPC dialog trees.
 - `cooking.json`: campfire recipe sets and cooking outputs.
@@ -276,7 +276,7 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
 ### Journal system
 
 - Optional journaling/quest tracking via rules.json (`systems.journal`).
-- Quest definitions loaded from `quests/*.json` with categories and step trees.
+- Quest definitions loaded from `entities/quests.json` with categories and step trees.
 - Categories define display labels and sort order (e.g., main, side, faction, bounty).
 - Quests reference a category and contain ordered steps with optional substeps.
 - Quest progress tracked via flags using `quest.<quest_id>.<step_id>` naming convention.
