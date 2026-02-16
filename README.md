@@ -32,7 +32,6 @@ See `SCHEMAS.md` and `CONTENT_AUTHORING_GUIDE.md` for schema-level details and a
 - `crates/engine/`: runtime systems, loaders, validation.
 - `crates/tui/`: UI configs and rendering scaffolding.
 - `crates/cli/`: `cryst` command.
-- `content/`: content packs (`content/demo` is tracked, includes `dialog/`).
 - `SCHEMAS.md`: JSON schema drafts.
 - `ARCHITECTURE.md`: architecture overview.
 
