@@ -504,6 +504,9 @@ pub fn build_map_view(runtime: &GameRuntime, map_id: &str) -> Option<MapView> {
         .npcs
         .iter()
         .filter_map(|npc| {
+            if !requires_flags_met(runtime, &npc.requires_flags) {
+                return None;
+            }
             let mut pos = (npc.pos[0], npc.pos[1]);
             let mut visible = true;
             if let Some(state) = map_state.and_then(|state| state.entities.get(&npc.id)) {
@@ -1026,6 +1029,9 @@ fn npc_at(runtime: &GameRuntime, map_id: &str, pos: (i32, i32)) -> bool {
     };
     let map_state = runtime.map_states.get(map_id);
     map.npcs.iter().any(|npc| {
+        if !requires_flags_met(runtime, &npc.requires_flags) {
+            return false;
+        }
         let mut npc_pos = (npc.pos[0], npc.pos[1]);
         let mut visible = true;
         if let Some(state) = map_state.and_then(|state| state.entities.get(&npc.id)) {
@@ -1118,6 +1124,9 @@ fn find_npc_dialog(runtime: &GameRuntime, map_id: &str, pos: (i32, i32)) -> Opti
     let map = runtime.content.maps.get(*index)?;
     let map_state = runtime.map_states.get(map_id);
     let target = map.npcs.iter().find(|npc| {
+        if !requires_flags_met(runtime, &npc.requires_flags) {
+            return false;
+        }
         let mut npc_pos = (npc.pos[0], npc.pos[1]);
         let mut visible = true;
         if let Some(state) = map_state.and_then(|state| state.entities.get(&npc.id)) {

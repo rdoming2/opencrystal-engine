@@ -63,6 +63,7 @@ Content packs live under `content/<pack_name>/` and typically include:
 - `encounters` describe zones by rectangle and link to encounter tables by ID.
 - `allow_save` and `save_points` define where saving is permitted.
 - `transitions` should include `target_map` and `target_pos` for deterministic travel.
+- `npcs.requires_flags` hides NPCs (rendering/collision/interaction) until all flags are set.
 
 ## Events and dialog
 

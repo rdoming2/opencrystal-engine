@@ -407,7 +407,9 @@ Map data for overworlds, towns, and dungeons.
 
 NPCs reference `entities/npcs.json` by ID. `script` is optional; if omitted, the NPC
 uses its dialog tree. Boss encounters can be triggered via NPC dialog actions that
-start an event, then the event can `npc_hide` to prevent re-triggering.
+start an event, then the event can `npc_hide` to prevent re-triggering. Map NPCs can
+include `requires_flags` to hide the NPC (rendering, collision, interaction) until all
+flags are set.
 
 `hide_name` controls whether the map name tooltip is shown on entry. Defaults to false.
 
@@ -492,9 +494,6 @@ start an event, then the event can `npc_hide` to prevent re-triggering.
         "currency": [{"id": "gold", "amount": 50}]
       }
     }
-  ],
-  "shops": [
-    {"id": "corner_store", "pos": [8, 6]}
   ],
   "allow_save": true,
   "save_points": [[12, 9]],

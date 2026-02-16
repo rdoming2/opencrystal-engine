@@ -25,7 +25,6 @@ pub struct MapFile {
     pub signs: Vec<MapSign>,
     #[serde(default)]
     pub chests: Vec<MapChest>,
-    pub shops: Vec<MapShop>,
     #[serde(default = "default_allow_save")]
     pub allow_save: bool,
     #[serde(default)]
@@ -117,12 +116,6 @@ pub struct MapNpc {
     #[serde(default)]
     pub script: Option<String>,
     pub requires_flags: Option<Vec<String>>,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct MapShop {
-    pub id: String,
-    pub pos: [i32; 2],
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

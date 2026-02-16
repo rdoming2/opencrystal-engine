@@ -544,17 +544,6 @@ pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
         }
     }
 
-    if let Some(shops) = &shops {
-        let shop_ids: HashSet<&str> = shops.shops.iter().map(|shop| shop.id.as_str()).collect();
-        for map in &maps {
-            for shop in &map.shops {
-                if !shop_ids.contains(shop.id.as_str()) {
-                    errors.push(format!("maps/{}: shop '{}' not found", map.id, shop.id));
-                }
-            }
-        }
-    }
-
     let event_ids: HashSet<String> = events.iter().map(|event| event.id.clone()).collect();
     for map in &maps {
         if !(0.0..=1.0).contains(&map.encounter_rate) {

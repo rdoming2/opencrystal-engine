@@ -155,6 +155,7 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
 
 - NPC interaction uses Manhattan distance (dx + dy) with a configurable `interaction_range` (default: 1).
 - NPCs can be placed behind counters or other obstacles by setting `interaction_range` to 2 or higher.
+- Map NPCs with `requires_flags` are hidden from rendering, collision, and interaction until all flags are set.
 - Roaming NPCs may idle each tick based on `behavior.idle_chance` (0.0-1.0).
 - Interaction range must be >= 1; values < 1 are rejected by validation.
 

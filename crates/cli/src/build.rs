@@ -410,7 +410,6 @@ fn create_project_structure(target_dir: &Path, title: &str) -> Result<(), String
         doors: Vec::new(),
         puzzles: Vec::new(),
         campfires: Vec::new(),
-        shops: Vec::new(),
         allow_save: true,
         save_points: Vec::new(),
         transitions: Vec::new(),
