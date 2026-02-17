@@ -27,6 +27,9 @@ It is a design reference meant to guide initial implementation.
 - `cryst build new-project <name> [--path path]`
 - `cryst build docs [-s|--schemas] [-a|--architecture] [-c|--content-authoring] [-j|--jobs]`
 
+`cryst build new` kinds: `spell`, `ability`, `item`, `equipment`, `enemy`, `vehicle`, `shop`,
+`npc`, `encounter`, `job`.
+
 `cryst play` opens a content chooser when `--content` is omitted, listing subfolders under
 `--content-dir` (defaults to `~/.local/share/opencrystal/content` or `XDG_DATA_HOME/opencrystal/content`)
 and showing `rules.json` metadata (title, optional description/author).

@@ -45,9 +45,17 @@ Content packs live under `content/<pack_name>/` and typically include:
 
 ## Builder commands
 
-- `cryst build new <kind> <id> --content <pack_path>` adds a schema stub (spells, items, jobs, etc.).
+- `cryst build new <kind> <id> --content <pack_path>` adds a schema stub.
+  - Kinds: `spell`, `ability`, `item`, `equipment`, `enemy`, `vehicle`, `shop`, `npc`, `encounter`, `job`.
 - `cryst build upgrade --content <pack_path>` fills in missing defaults and reports extra fields.
 - `cryst build docs` prints reference documentation to stdout.
+
+Examples:
+
+```bash
+cryst build new item potion --content content/demo
+cryst build new encounter grasslands_skirmish --content content/demo
+```
 
 ## Core conventions
 

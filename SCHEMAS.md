@@ -25,6 +25,15 @@ compatibility.
 pack. It does not invent missing required context; for example, spell creation requires at least
 one magic school in `entities/spells.json`.
 
+Supported kinds: `spell`, `ability`, `item`, `equipment`, `enemy`, `vehicle`, `shop`, `npc`,
+`encounter`, `job`.
+
+Example:
+
+```bash
+cryst build new job ranger --content content/demo
+```
+
 `cryst build docs` prints schema and design references to stdout for automation and LLM workflows.
 
 ## input.json

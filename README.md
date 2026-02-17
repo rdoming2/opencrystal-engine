@@ -64,6 +64,17 @@ cargo run -- play --content content/demo
 - `cryst build new-project <name> [--path path]`
 - `cryst build docs [-s|--schemas] [-a|--architecture] [-c|--content-authoring] [-j|--jobs]`
 
+`cryst build new` kinds:
+
+- `spell`, `ability`, `item`, `equipment`, `enemy`, `vehicle`, `shop`, `npc`, `encounter`, `job`
+
+Examples:
+
+```bash
+cryst build new spell cure --content content/demo
+cryst build new npc innkeeper --content content/demo --name "Coral Innkeeper"
+```
+
 ## Documentation
 
 - `CONTENT_AUTHORING_GUIDE.md`: content pack workflow and conventions.
