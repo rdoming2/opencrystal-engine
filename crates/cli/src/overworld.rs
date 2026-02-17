@@ -39,6 +39,7 @@ pub fn run_overworld_loop(
     let mut last_map_id = String::new();
     let mut area_name_active = false;
     let mut rng = rand::thread_rng();
+    let mut encounter_meter: f32 = 0.0;
 
     let mut running = true;
     while running {
@@ -56,6 +57,7 @@ pub fn run_overworld_loop(
         if current_map_id != last_map_id {
             area_name_active = !map.hide_name && !map.name.is_empty();
             last_map_id = current_map_id.clone();
+            encounter_meter = 0.0;
         }
 
         if area_name_active {
@@ -460,6 +462,7 @@ pub fn run_overworld_loop(
                 session,
                 &current_map_id,
                 player_pos,
+                &mut encounter_meter,
                 &mut rng,
             )? {
                 if matches!(outcome, BattleOutcome::Defeat) {

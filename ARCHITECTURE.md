@@ -156,6 +156,13 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
 - Manages state changes (flag setting, item grants, warps to new maps).
 - Returns `EventExecutionResult` for UI requests (dialogs, battles, shops).
 
+### Random encounters
+
+- Each movement step inside an encounter zone adds `encounter_rate` to an encounter meter.
+- Each step applies a random jitter (0.5 to 1.5) to the rate before adding it to the meter.
+- When the encounter meter reaches 1.0, a random battle triggers.
+- After a battle, the encounter meter is reduced by 1.0 (remaining overflow is kept, clamped to 1.0).
+
 ### NPC interactions
 
 - NPC interaction uses Manhattan distance (dx + dy) with a configurable `interaction_range` (default: 1).
@@ -269,6 +276,7 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
 - Default right pane shows party/status summary until a submenu is confirmed.
 - Confirm moves focus to the right pane (submenu content); Cancel returns to list.
 - Menu is modal and pauses overworld updates.
+- The stats strip shows playtime, currency, and the current map coordinates.
 - Menu entries are optional and can be gated by rules `systems` toggles and optional
   unlock flags (e.g., Summons, Job Change, Journal, Save).
 - Party submenu exposes actions per member (reorder, swap with reserve, switch row). Swap actions are

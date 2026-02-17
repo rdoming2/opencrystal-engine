@@ -1631,6 +1631,7 @@ pub fn try_start_random_battle(
     session: &mut TuiSession,
     map_id: &str,
     player_pos: (i32, i32),
+    encounter_meter: &mut f32,
     rng: &mut impl Rng,
 ) -> std::io::Result<Option<BattleOutcome>> {
     let map_index = match runtime.content.map_index.get(map_id) {
@@ -1642,14 +1643,19 @@ pub fn try_start_random_battle(
         None => return Ok(None),
     };
     if map.encounter_rate <= 0.0 || map.encounters.is_empty() {
+        *encounter_meter = 0.0;
         return Ok(None);
     }
     let Some(zone) = encounter_zone_for_pos(map, player_pos) else {
         return Ok(None);
     };
-    if rng.r#gen::<f32>() > map.encounter_rate {
+    let rate = map.encounter_rate.clamp(0.0, 1.0);
+    let jitter = 0.5 + rng.r#gen::<f32>();
+    *encounter_meter += rate * jitter;
+    if *encounter_meter < 1.0 {
         return Ok(None);
     }
+    *encounter_meter = (*encounter_meter - 1.0).clamp(0.0, 1.0);
     let entry = match select_encounter_entry(&runtime.content.encounters, &zone.table, rng) {
         Some(entry) => entry,
         None => return Ok(None),

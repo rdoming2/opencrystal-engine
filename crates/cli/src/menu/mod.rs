@@ -1471,12 +1471,14 @@ fn build_menu_stats_view(runtime: &GameRuntime) -> MenuPanelView {
     let currency_id = &runtime.content.rules.game.currency.id;
     let currency_symbol = &runtime.content.rules.game.currency.symbol;
     let currency_amount = runtime.inventory.currency_amount(currency_id);
+    let (pos_x, pos_y) = runtime.world.position;
 
     MenuPanelView {
         title: String::new(),
         lines: vec![
             panel_line(format!("Time: {:02}:{:02}:{:02}", hours, minutes, seconds)),
             panel_line(format!("{}: {}", currency_symbol, currency_amount)),
+            panel_line(format!("Pos: {},{}", pos_x, pos_y)),
         ],
     }
 }

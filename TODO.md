@@ -39,6 +39,7 @@
 - [x] Implement runtime map transitions.
   - [x] Step on transition triggers map load.
   - [x] Preserve player position on target map.
+- [x] Add encounter meter to smooth random encounter streaks.
 - [ ] Implement NPC interaction runtime.
   - [ ] Dialog vs event selection.
   - [x] Shop opening via dialog actions.
@@ -79,6 +80,7 @@
   - [x] Two-pane layout (left list, right detail pane).
   - [x] Default party summary panel.
   - [x] Playtime and currency display.
+  - [x] Display current map coordinates in main menu stats.
   - [x] Focus switching (confirm enters right pane, cancel returns).
   - [x] Optional menu entries (rules systems + unlock flag gating).
   - [x] Items/equipment/magic/abilities/status submenus (stub views).
