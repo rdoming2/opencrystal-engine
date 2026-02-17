@@ -1857,7 +1857,7 @@ fn apply_battle_rewards(
     let rules = Ruleset::from_file(runtime.content.rules.clone());
 
     if result.rewards.exp > 0 {
-        for actor_id in runtime.party.active.clone() {
+        for actor_id in runtime.party.active_ids() {
             if let Some(actor) = runtime.party.roster.get_mut(&actor_id) {
                 let old_level = actor.level;
                 let old_stats = actor.derived_stats.clone();
@@ -1888,7 +1888,7 @@ fn apply_battle_rewards(
     }
 
     if result.rewards.jp > 0 {
-        for actor_id in runtime.party.active.clone() {
+        for actor_id in runtime.party.active_ids() {
             if let Some(actor) = runtime.party.roster.get_mut(&actor_id) {
                 engine::party::gain_jp(&runtime.content, &rules, actor, result.rewards.jp);
             }

@@ -895,7 +895,7 @@ fn movement_speed(runtime: &GameRuntime) -> i32 {
 }
 
 fn apply_overworld_poison(runtime: &mut GameRuntime) {
-    let active_ids = runtime.party.active.clone();
+    let active_ids = runtime.party.active_ids();
     for actor_id in active_ids {
         if let Some(actor) = runtime.party.roster.get_mut(&actor_id) {
             engine::battle::apply_overworld_poison_tick(&runtime.content, actor);

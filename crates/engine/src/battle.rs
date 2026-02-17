@@ -132,7 +132,7 @@ pub fn build_battle_state(
     formation: &[EncounterMember],
     battle_mode: crate::rules::BattleMode,
 ) -> BattleState {
-    let party_order = party.active.clone();
+    let party_order = party.active_ids();
     let enemies = formation
         .iter()
         .filter_map(|member| {

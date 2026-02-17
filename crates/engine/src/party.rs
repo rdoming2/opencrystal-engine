@@ -87,7 +87,7 @@ pub struct Actor {
 #[derive(Clone, Debug)]
 pub struct PartyState {
     pub roster: HashMap<String, Actor>,
-    pub active: Vec<String>,
+    pub active: Vec<Option<String>>,
     pub reserve: Vec<String>,
 }
 
@@ -98,6 +98,21 @@ impl PartyState {
             active: Vec::new(),
             reserve: Vec::new(),
         }
+    }
+
+    pub fn active_ids(&self) -> Vec<String> {
+        self.active
+            .iter()
+            .filter_map(|id| id.as_ref().cloned())
+            .collect()
+    }
+
+    pub fn active_count(&self) -> usize {
+        self.active.iter().filter(|id| id.is_some()).count()
+    }
+
+    pub fn first_active_id(&self) -> Option<String> {
+        self.active.iter().find_map(|id| id.as_ref().cloned())
     }
 
     pub fn from_content(content: &Content, rules: &Ruleset) -> Self {
@@ -174,6 +189,90 @@ pub fn learn_spell_event(party: &mut PartyState, member: &str, spell: &str) {
     }
 }
 
+pub fn add_party_member_event(
+    party: &mut PartyState,
+    content: &Content,
+    rules: &RulesFile,
+    member_id: &str,
+) -> Result<(), String> {
+    if member_id.trim().is_empty() {
+        return Err("party_add: missing member".to_string());
+    }
+    if party
+        .active
+        .iter()
+        .filter_map(|id| id.as_ref())
+        .any(|id| id == member_id)
+        || party.reserve.iter().any(|id| id == member_id)
+    {
+        return Err(format!("party_add: '{}' already in party", member_id));
+    }
+
+    if !party.roster.contains_key(member_id) {
+        let party_file = content
+            .party
+            .as_ref()
+            .ok_or_else(|| "party_add: party.json missing".to_string())?;
+        let actor_def = party_file
+            .roster
+            .iter()
+            .find(|actor| actor.id == member_id)
+            .ok_or_else(|| format!("party_add: '{}' not found in roster", member_id))?;
+        let mut actor = build_actor_from_definition(content, actor_def);
+        init_actor_magic_tier_charges(content, rules, &mut actor);
+        party.roster.insert(actor.id.clone(), actor);
+    }
+
+    if let Some(slot) = party.active.iter_mut().find(|slot| slot.is_none()) {
+        *slot = Some(member_id.to_string());
+        return Ok(());
+    }
+
+    if party.active.len() < rules.game.party_size {
+        party.active.push(Some(member_id.to_string()));
+        return Ok(());
+    }
+
+    if party.reserve.len() < rules.game.party_reserve_size {
+        party.reserve.push(member_id.to_string());
+        return Ok(());
+    }
+
+    Err(format!("party_add: '{}' no available slots", member_id))
+}
+
+pub fn remove_party_member_event(party: &mut PartyState, member_id: &str) -> Result<(), String> {
+    if member_id.trim().is_empty() {
+        return Err("party_remove: missing member".to_string());
+    }
+
+    let mut removed = false;
+    if let Some(index) = party
+        .active
+        .iter()
+        .position(|id| id.as_deref() == Some(member_id))
+    {
+        if party.active_count() <= 1 {
+            return Err(format!(
+                "party_remove: '{}' would leave no active members",
+                member_id
+            ));
+        }
+        party.active[index] = None;
+        removed = true;
+    }
+    if let Some(index) = party.reserve.iter().position(|id| id == member_id) {
+        party.reserve.remove(index);
+        removed = true;
+    }
+
+    if removed {
+        Ok(())
+    } else {
+        Err(format!("party_remove: '{}' not in party", member_id))
+    }
+}
+
 impl PartyFile {
     pub fn load(path: impl AsRef<Path>) -> Result<Self, String> {
         crate::io::load_json(path)
@@ -207,8 +306,18 @@ fn build_predefined_party(content: &Content, party_size: usize) -> PartyState {
     active.retain(|id| roster.contains_key(id));
     active.truncate(party_size);
 
+    let active = active
+        .into_iter()
+        .map(Some)
+        .collect::<Vec<Option<String>>>();
+
     let mut reserve = party_file.reserve.clone();
-    reserve.retain(|id| roster.contains_key(id) && !active.contains(id));
+    reserve.retain(|id| {
+        roster.contains_key(id)
+            && !active
+                .iter()
+                .any(|active_id| active_id.as_deref() == Some(id.as_str()))
+    });
 
     PartyState {
         roster,
@@ -250,7 +359,7 @@ fn build_created_party(
         };
         let built = build_actor(content, &actor, job, &equipment_lookup);
         roster.insert(actor_id.clone(), built);
-        active.push(actor_id);
+        active.push(Some(actor_id));
     }
 
     PartyState {
@@ -358,6 +467,28 @@ fn build_actor(
     learn_job_spells(content, &mut built);
     learn_job_abilities(content, &mut built);
     built
+}
+
+pub fn build_actor_from_definition(content: &Content, actor: &ActorDefinition) -> Actor {
+    let job_lookup = build_job_lookup(content);
+    let equipment_lookup = build_equipment_lookup(content);
+    let job = job_lookup.get(actor.job_id.as_str()).copied();
+    build_actor(content, actor, job, &equipment_lookup)
+}
+
+fn init_actor_magic_tier_charges(content: &Content, rules: &RulesFile, actor: &mut Actor) {
+    if rules.game.magic_system != MagicSystem::TierCharges {
+        return;
+    }
+    let tiers = actor_magic_tiers(content, actor);
+    let mut charges = HashMap::new();
+    for tier in tiers {
+        let max_charges = get_actor_max_charges(content, actor, tier);
+        if max_charges > 0 {
+            charges.insert(tier, max_charges);
+        }
+    }
+    actor.magic_tier_charges = charges;
 }
 
 pub fn actor_traits(content: &Content, actor: &Actor) -> Vec<String> {

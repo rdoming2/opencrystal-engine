@@ -71,7 +71,13 @@ pub fn run_preset_rename_flow(
     let max_len = rules.party_create.name_length;
 
     // Prompt to rename each active party member
-    for (_index, member_id) in runtime.party.active.iter().enumerate() {
+    for (_index, member_id) in runtime
+        .party
+        .active
+        .iter()
+        .filter_map(|id| id.as_ref())
+        .enumerate()
+    {
         if let Some(actor) = runtime.party.roster.get_mut(member_id) {
             let prompt = format!("Rename {}:", actor.name);
             let name = match tui::dialog::prompt_text(

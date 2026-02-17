@@ -154,6 +154,7 @@
 - [x] Implement inn rest feature (dialog action `rest_party`).
 - [x] Add configurable NPC interaction range (default 1 tile).
 - [x] Add event action to teach spells (learn_spell).
+- [x] Add event actions to add/remove party members.
 - [x] Consolidate fast travel into overworld map menu (free and paid variants).
 - [x] Add locked door support.
 - [x] Add puzzle interactions.

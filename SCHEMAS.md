@@ -1151,6 +1151,8 @@ Supported event step types:
 - `give_item` (fields: `item`, `qty`)
 - `give_equipment` (fields: `item`, `qty`)
 - `learn_spell` (fields: `member`, `spell`)
+- `party_add` (fields: `member`)
+- `party_remove` (fields: `member`)
 - `learn_recipe` (fields: `recipe`)
 - `warp` (fields: `target` with `map` and `pos`; use `map: "last_overworld"` to return to the last overworld entry)
 - `start_battle` (fields: `encounter`, `formation`)
@@ -1161,6 +1163,13 @@ Supported event step types:
 - `stat_set` (fields: `stat`, `value`)
 - `stat_add` (fields: `stat`, `value`, default 1)
 - `stat_max` (fields: `stat`, `value`)
+
+`party_add` pulls the member from `party.json` roster and places them in the active party if there is space, otherwise in reserve. `party_remove` only removes the member from active/reserve lists; the roster entry remains so the member can rejoin later. Both steps abort the event if the member cannot be added/removed.
+
+Mode notes:
+- `preset` and `preset_rename` always use `party.json`, so `party_add` is available.
+- `create` only supports `party_add` when `party.json` is present; if missing, the event will abort.
+- `party_add` does not trigger rename prompts; rename-on-join is planned separately.
 
 Event trigger types (for `maps/*/json` `events` entries):
 
@@ -1184,6 +1193,20 @@ Example steps:
   "type": "learn_spell",
   "member": "alric",
   "spell": "fire"
+}
+```
+
+```json
+{
+  "type": "party_add",
+  "member": "alric"
+}
+```
+
+```json
+{
+  "type": "party_remove",
+  "member": "alric"
 }
 ```
 

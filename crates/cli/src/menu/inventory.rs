@@ -461,7 +461,7 @@ fn build_item_targets(
     runtime: &GameRuntime,
     item: &engine::entities::ItemDefinition,
 ) -> Vec<String> {
-    let mut targets = runtime.party.active.clone();
+    let mut targets = runtime.party.active_ids();
     match item.effect.r#type.as_str() {
         "revive" => {
             targets.retain(|id| {

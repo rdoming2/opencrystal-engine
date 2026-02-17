@@ -170,8 +170,8 @@ pub fn spell_targets_for_entry(
 ) -> Vec<String> {
     let mut targets = match entry.default_target.as_str() {
         "self" => vec![actor_id.to_string()],
-        "party" => runtime.party.active.clone(),
-        "ally" => runtime.party.active.clone(),
+        "party" => runtime.party.active_ids(),
+        "ally" => runtime.party.active_ids(),
         _ => Vec::new(),
     };
     if entry.effect_type == "revive" {

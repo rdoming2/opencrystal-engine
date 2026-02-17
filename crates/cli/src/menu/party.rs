@@ -19,7 +19,7 @@ impl PartyList {
 
 #[derive(Clone, Debug)]
 pub struct PartyMenuEntry {
-    pub id: String,
+    pub id: Option<String>,
     pub name: String,
     pub row: Option<String>,
 }
@@ -42,7 +42,14 @@ pub struct PartyAction {
 pub fn party_menu_entries(runtime: &GameRuntime) -> (Vec<PartyMenuEntry>, Vec<PartyMenuEntry>) {
     let rows_enabled = runtime.content.rules.battle.rows.enabled;
     let active = build_entries(runtime, &runtime.party.active, rows_enabled);
-    let reserve = build_entries(runtime, &runtime.party.reserve, rows_enabled);
+    let reserve_ids = runtime
+        .party
+        .reserve
+        .iter()
+        .cloned()
+        .map(Some)
+        .collect::<Vec<_>>();
+    let reserve = build_entries(runtime, &reserve_ids, rows_enabled);
     (active, reserve)
 }
 
@@ -56,7 +63,7 @@ pub fn party_list_entries(runtime: &GameRuntime, list: PartyList) -> Vec<PartyMe
 
 pub fn party_member_id(runtime: &GameRuntime, list: PartyList, index: usize) -> Option<String> {
     let entries = party_list_entries(runtime, list);
-    entries.get(index).map(|entry| entry.id.clone())
+    entries.get(index).and_then(|entry| entry.id.clone())
 }
 
 pub fn party_actions(
@@ -66,6 +73,11 @@ pub fn party_actions(
     swap_allowed: bool,
 ) -> Vec<PartyAction> {
     let rows_enabled = runtime.content.rules.battle.rows.enabled;
+    let entries = party_list_entries(runtime, list);
+    let entry_has_member = entries
+        .get(member_index)
+        .and_then(|entry| entry.id.as_ref())
+        .is_some();
     let active_len = runtime.party.active.len();
     let reserve_len = runtime.party.reserve.len();
     let can_swap = swap_allowed
@@ -76,12 +88,12 @@ pub fn party_actions(
         actions.push(PartyAction {
             id: PartyActionId::MoveUp,
             label: "Move Up".to_string(),
-            enabled: member_index > 0,
+            enabled: entry_has_member && member_index > 0,
         });
         actions.push(PartyAction {
             id: PartyActionId::MoveDown,
             label: "Move Down".to_string(),
-            enabled: member_index + 1 < active_len,
+            enabled: entry_has_member && member_index + 1 < active_len,
         });
     }
     actions.push(PartyAction {
@@ -96,7 +108,7 @@ pub fn party_actions(
     actions.push(PartyAction {
         id: PartyActionId::ToggleRow,
         label: "Switch Row".to_string(),
-        enabled: rows_enabled,
+        enabled: rows_enabled && entry_has_member,
     });
     actions
 }
@@ -268,18 +280,36 @@ pub fn build_party_panel(
     }
 }
 
-fn build_entries(runtime: &GameRuntime, ids: &[String], rows_enabled: bool) -> Vec<PartyMenuEntry> {
+fn build_entries(
+    runtime: &GameRuntime,
+    ids: &[Option<String>],
+    rows_enabled: bool,
+) -> Vec<PartyMenuEntry> {
     ids.iter()
-        .filter_map(|id| {
-            runtime.party.roster.get(id).map(|actor| PartyMenuEntry {
-                id: id.clone(),
-                name: actor.name.clone(),
-                row: if rows_enabled {
-                    Some(actor_row_label(actor).to_string())
-                } else {
-                    None
-                },
-            })
+        .map(|id| match id {
+            Some(id) => runtime
+                .party
+                .roster
+                .get(id)
+                .map(|actor| PartyMenuEntry {
+                    id: Some(id.clone()),
+                    name: actor.name.clone(),
+                    row: if rows_enabled {
+                        Some(actor_row_label(actor).to_string())
+                    } else {
+                        None
+                    },
+                })
+                .unwrap_or_else(|| PartyMenuEntry {
+                    id: None,
+                    name: "(Missing)".to_string(),
+                    row: None,
+                }),
+            None => PartyMenuEntry {
+                id: None,
+                name: "(Empty)".to_string(),
+                row: None,
+            },
         })
         .collect()
 }

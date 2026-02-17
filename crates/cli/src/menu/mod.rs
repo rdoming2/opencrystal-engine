@@ -793,20 +793,28 @@ pub fn run_menu_loop(
                                     {
                                         let reserve_id =
                                             runtime.party.reserve[target_index].clone();
-                                        let active_id = runtime.party.active[member_index].clone();
-                                        runtime.party.active[member_index] = reserve_id;
-                                        runtime.party.reserve[target_index] = active_id;
+                                        let active_id = runtime.party.active[member_index].take();
+                                        runtime.party.active[member_index] = Some(reserve_id);
+                                        if let Some(active_id) = active_id {
+                                            runtime.party.reserve[target_index] = active_id;
+                                        } else {
+                                            runtime.party.reserve.remove(target_index);
+                                        }
                                     }
                                 }
                                 PartyList::Reserve => {
                                     if member_index < runtime.party.reserve.len()
                                         && target_index < runtime.party.active.len()
                                     {
-                                        let active_id = runtime.party.active[target_index].clone();
                                         let reserve_id =
                                             runtime.party.reserve[member_index].clone();
-                                        runtime.party.active[target_index] = reserve_id;
-                                        runtime.party.reserve[member_index] = active_id;
+                                        let active_id = runtime.party.active[target_index].take();
+                                        runtime.party.active[target_index] = Some(reserve_id);
+                                        if let Some(active_id) = active_id {
+                                            runtime.party.reserve[member_index] = active_id;
+                                        } else {
+                                            runtime.party.reserve.remove(member_index);
+                                        }
                                     }
                                 }
                             }
@@ -962,7 +970,7 @@ pub fn run_menu_loop(
                             runtime.menu_state.detail_selection = 0;
                         }
                     } else if matches!(focus, MenuPane::Detail) && submenu_action == "equipment" {
-                        let actor_count = runtime.party.active.len();
+                        let actor_count = runtime.party.active_ids().len();
                         if actor_count > 0 {
                             runtime.menu_state.detail_actor = if matches!(action, Action::MoveRight)
                             {
@@ -996,7 +1004,7 @@ pub fn run_menu_loop(
                             }
                         }
                     } else if matches!(focus, MenuPane::Detail) && submenu_action == "magic_equip" {
-                        let actor_count = runtime.party.active.len();
+                        let actor_count = runtime.party.active_ids().len();
                         if actor_count > 0 {
                             runtime.menu_state.detail_actor = if matches!(action, Action::MoveRight)
                             {
@@ -1010,7 +1018,7 @@ pub fn run_menu_loop(
                             runtime.menu_state.detail_selection = 0;
                         }
                     } else if matches!(focus, MenuPane::Detail) && submenu_action == "magic" {
-                        let actor_count = runtime.party.active.len();
+                        let actor_count = runtime.party.active_ids().len();
                         if actor_count > 0 {
                             runtime.menu_state.detail_actor = if matches!(action, Action::MoveRight)
                             {
@@ -1025,7 +1033,7 @@ pub fn run_menu_loop(
                             runtime.menu_state.detail_target = 0;
                         }
                     } else if matches!(focus, MenuPane::Detail) && submenu_action == "abilities" {
-                        let actor_count = runtime.party.active.len();
+                        let actor_count = runtime.party.active_ids().len();
                         if actor_count > 0 {
                             runtime.menu_state.detail_actor = if matches!(action, Action::MoveRight)
                             {
@@ -1050,7 +1058,7 @@ pub fn run_menu_loop(
                         }
                     } else if matches!(focus, MenuPane::Detail) && submenu_action == "jobs" {
                         if runtime.menu_state.detail_page == 0 {
-                            let actor_count = runtime.party.active.len();
+                            let actor_count = runtime.party.active_ids().len();
                             if actor_count > 0 {
                                 runtime.menu_state.detail_actor =
                                     if matches!(action, Action::MoveRight) {
@@ -1656,14 +1664,14 @@ fn map_name_for_save(runtime: &GameRuntime, save: &SaveFile) -> Option<String> {
 }
 
 fn build_party_summary(runtime: &GameRuntime) -> Vec<MenuPanelLine> {
-    if runtime.party.active.is_empty() {
+    if runtime.party.active_count() == 0 {
         return vec![panel_line("No party members.")];
     }
     let mut lines = Vec::new();
     let magic_system = runtime.content.rules.game.magic_system.clone();
     let rows_enabled = runtime.content.rules.battle.rows.enabled;
-    for member_id in &runtime.party.active {
-        if let Some(actor) = runtime.party.roster.get(member_id) {
+    for member_id in runtime.party.active_ids() {
+        if let Some(actor) = runtime.party.roster.get(&member_id) {
             let max_hp = actor.derived_stats.get("hp").copied().unwrap_or(0);
             let job_name = runtime
                 .content

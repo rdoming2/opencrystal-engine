@@ -18,7 +18,7 @@ use crate::world::WorldsFile;
 
 const BATTLE_POS_MAX_X: i32 = 9;
 const BATTLE_POS_MAX_Y: i32 = 5;
-const EVENT_TYPES: [&str; 19] = [
+const EVENT_TYPES: [&str; 21] = [
     "dialog",
     "narration",
     "set_flag",
@@ -33,6 +33,8 @@ const EVENT_TYPES: [&str; 19] = [
     "npc_hide",
     "npc_move",
     "npc_set_sprite",
+    "party_add",
+    "party_remove",
     "learn_recipe",
     "wait",
     "stat_set",
@@ -859,6 +861,38 @@ pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
             if step.r#type == "stat_add" {
                 if step.stat.as_deref().unwrap_or("").is_empty() {
                     errors.push(format!("events/{}: stat_add step missing stat", event.id));
+                }
+            }
+            if step.r#type == "party_add" {
+                let member_id = step.member.as_deref().unwrap_or("");
+                if member_id.trim().is_empty() {
+                    errors.push(format!(
+                        "events/{}: party_add step missing member",
+                        event.id
+                    ));
+                }
+                let Some(party) = party.as_ref() else {
+                    errors.push(format!(
+                        "events/{}: party_add '{}' requires party.json",
+                        event.id, member_id
+                    ));
+                    continue;
+                };
+                if !member_id.trim().is_empty()
+                    && !party.roster.iter().any(|actor| actor.id == member_id)
+                {
+                    errors.push(format!(
+                        "events/{}: party_add '{}' not found in party roster",
+                        event.id, member_id
+                    ));
+                }
+            }
+            if step.r#type == "party_remove" {
+                if step.member.as_deref().unwrap_or("").trim().is_empty() {
+                    errors.push(format!(
+                        "events/{}: party_remove step missing member",
+                        event.id
+                    ));
                 }
             }
             if step.r#type == "learn_recipe" {

@@ -112,11 +112,8 @@ pub fn build_equipment_panel(runtime: &GameRuntime) -> MenuPanelView {
 }
 
 pub fn detail_actor_id(runtime: &GameRuntime) -> Option<String> {
-    runtime
-        .party
-        .active
-        .get(runtime.menu_state.detail_actor)
-        .cloned()
+    let active_ids = runtime.party.active_ids();
+    active_ids.get(runtime.menu_state.detail_actor).cloned()
 }
 
 pub fn equipment_slots_for_menu(runtime: &GameRuntime) -> Vec<String> {

@@ -43,7 +43,7 @@ pub struct SaveWorld {
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SaveParty {
-    pub active: Vec<String>,
+    pub active: Vec<Option<String>>,
     pub reserve: Vec<String>,
     pub roster: HashMap<String, SaveActor>,
 }

@@ -8,13 +8,13 @@ use engine::runtime::GameRuntime;
 use tui::menu::{MenuPanelLine, MenuPanelSpan, PanelSpanStyle};
 
 pub fn build_status_panel(runtime: &GameRuntime, page: usize) -> Vec<MenuPanelLine> {
-    if runtime.party.active.is_empty() {
+    if runtime.party.active_count() == 0 {
         return vec![panel_line("No party members.")];
     }
     let mut lines = Vec::new();
     let rows_enabled = runtime.content.rules.battle.rows.enabled;
-    for member_id in &runtime.party.active {
-        if let Some(actor) = runtime.party.roster.get(member_id) {
+    for member_id in runtime.party.active_ids() {
+        if let Some(actor) = runtime.party.roster.get(&member_id) {
             let job_name = runtime
                 .content
                 .jobs

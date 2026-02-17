@@ -144,6 +144,7 @@ All runtime data is loaded from JSON. Files are organized into top-level categor
 - Dialog actions (`start_event`, `open_shop`, `rest_party`, `learn_recipe`).
 - Item effects (warp, start battle, learn_recipe).
 - Spell learn events (direct grants).
+- Party add/remove events (roster-driven joins/leaves; adds fill active slots, then reserve).
 - Recipe unlock events (direct grants).
 - Battle results (victory/defeat hooks).
 

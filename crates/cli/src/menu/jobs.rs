@@ -26,12 +26,11 @@ pub fn job_menu_options(runtime: &GameRuntime) -> Vec<JobMenuOption> {
 }
 
 pub fn build_jobs_dashboard(runtime: &GameRuntime) -> MenuPanelView {
-    let actor_id = runtime
-        .party
-        .active
+    let active_ids = runtime.party.active_ids();
+    let actor_id = active_ids
         .get(runtime.menu_state.detail_actor)
         .cloned()
-        .or_else(|| runtime.party.active.first().cloned());
+        .or_else(|| active_ids.first().cloned());
     let actor = actor_id.and_then(|actor_id| runtime.party.roster.get(&actor_id));
 
     let progression_mode = runtime.content.rules.job_system.progression_mode.clone();
@@ -98,12 +97,11 @@ pub fn build_jobs_dashboard(runtime: &GameRuntime) -> MenuPanelView {
 }
 
 pub fn build_job_picker(runtime: &GameRuntime) -> MenuPanelView {
-    let actor_id = runtime
-        .party
-        .active
+    let active_ids = runtime.party.active_ids();
+    let actor_id = active_ids
         .get(runtime.menu_state.detail_actor)
         .cloned()
-        .or_else(|| runtime.party.active.first().cloned());
+        .or_else(|| active_ids.first().cloned());
     let actor = actor_id.and_then(|actor_id| runtime.party.roster.get(&actor_id));
 
     let jobs = available_jobs(runtime);
@@ -354,15 +352,17 @@ fn resolve_ability_acquisition(runtime: &GameRuntime, job: &JobDefinition) -> Ab
 }
 
 pub fn apply_primary_change(runtime: &mut GameRuntime) {
-    if runtime.party.active.is_empty() {
+    if runtime.party.active_count() == 0 {
         return;
     }
-    let actor_id = runtime
-        .party
-        .active
+    let active_ids = runtime.party.active_ids();
+    let actor_id = active_ids
         .get(runtime.menu_state.detail_actor)
         .cloned()
-        .unwrap_or_else(|| runtime.party.active[0].clone());
+        .or_else(|| active_ids.first().cloned());
+    let Some(actor_id) = actor_id else {
+        return;
+    };
     let job_id = {
         let jobs = available_jobs(runtime);
         jobs.get(
@@ -386,15 +386,17 @@ pub fn apply_secondary_change(runtime: &mut GameRuntime) {
     if !runtime.content.rules.job_system.secondary_jobs {
         return;
     }
-    if runtime.party.active.is_empty() {
+    if runtime.party.active_count() == 0 {
         return;
     }
-    let actor_id = runtime
-        .party
-        .active
+    let active_ids = runtime.party.active_ids();
+    let actor_id = active_ids
         .get(runtime.menu_state.detail_actor)
         .cloned()
-        .unwrap_or_else(|| runtime.party.active[0].clone());
+        .or_else(|| active_ids.first().cloned());
+    let Some(actor_id) = actor_id else {
+        return;
+    };
     let job_id = {
         let jobs = available_jobs(runtime);
         jobs.get(
@@ -411,12 +413,11 @@ pub fn apply_secondary_change(runtime: &mut GameRuntime) {
 }
 
 pub fn build_learn_panel(runtime: &GameRuntime) -> MenuPanelView {
-    let actor_id = runtime
-        .party
-        .active
+    let active_ids = runtime.party.active_ids();
+    let actor_id = active_ids
         .get(runtime.menu_state.detail_actor)
         .cloned()
-        .or_else(|| runtime.party.active.first().cloned());
+        .or_else(|| active_ids.first().cloned());
     let actor = actor_id.and_then(|actor_id| runtime.party.roster.get(&actor_id));
 
     let jobs = available_jobs(runtime);
@@ -478,12 +479,11 @@ pub fn build_learn_panel(runtime: &GameRuntime) -> MenuPanelView {
 }
 
 pub fn learnable_count(runtime: &GameRuntime) -> usize {
-    let actor_id = runtime
-        .party
-        .active
+    let active_ids = runtime.party.active_ids();
+    let actor_id = active_ids
         .get(runtime.menu_state.detail_actor)
         .cloned()
-        .or_else(|| runtime.party.active.first().cloned());
+        .or_else(|| active_ids.first().cloned());
     let actor = actor_id.and_then(|actor_id| runtime.party.roster.get(&actor_id));
 
     let jobs = available_jobs(runtime);
@@ -504,18 +504,20 @@ pub fn learnable_count(runtime: &GameRuntime) -> usize {
 }
 
 pub fn apply_learn_purchase(runtime: &mut GameRuntime) {
-    if runtime.party.active.is_empty() {
+    if runtime.party.active_count() == 0 {
         return;
     }
     if runtime.content.rules.job_system.jp_mode != JpMode::Spend {
         return;
     }
-    let actor_id = runtime
-        .party
-        .active
+    let active_ids = runtime.party.active_ids();
+    let actor_id = active_ids
         .get(runtime.menu_state.detail_actor)
         .cloned()
-        .unwrap_or_else(|| runtime.party.active[0].clone());
+        .or_else(|| active_ids.first().cloned());
+    let Some(actor_id) = actor_id else {
+        return;
+    };
     let (entry, current_jp, job_id) = {
         let jobs = available_jobs(runtime);
         let selection = runtime

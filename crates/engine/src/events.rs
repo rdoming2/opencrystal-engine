@@ -217,6 +217,37 @@ pub fn apply_event_step(runtime: &mut GameRuntime, step: &EventStep) -> EventExe
             }
             EventExecutionResult::Continue
         }
+        "party_add" => {
+            if let Some(member) = &step.member {
+                if crate::party::add_party_member_event(
+                    &mut runtime.party,
+                    &runtime.content,
+                    &runtime.content.rules,
+                    member,
+                )
+                .is_err()
+                {
+                    runtime.abort_event();
+                    return EventExecutionResult::Abort;
+                }
+            } else {
+                runtime.abort_event();
+                return EventExecutionResult::Abort;
+            }
+            EventExecutionResult::Continue
+        }
+        "party_remove" => {
+            if let Some(member) = &step.member {
+                if crate::party::remove_party_member_event(&mut runtime.party, member).is_err() {
+                    runtime.abort_event();
+                    return EventExecutionResult::Abort;
+                }
+            } else {
+                runtime.abort_event();
+                return EventExecutionResult::Abort;
+            }
+            EventExecutionResult::Continue
+        }
         "learn_recipe" => {
             if let Some(recipe_id) = &step.recipe {
                 unlock_recipe(runtime, recipe_id);
