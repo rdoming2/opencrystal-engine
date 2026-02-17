@@ -47,6 +47,7 @@ Content packs live under `content/<pack_name>/` and typically include:
 
 - `cryst build new <kind> <id> --content <pack_path>` adds a schema stub (spells, items, jobs, etc.).
 - `cryst build upgrade --content <pack_path>` fills in missing defaults and reports extra fields.
+- `cryst build docs` prints reference documentation to stdout.
 
 ## Core conventions
 

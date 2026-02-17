@@ -25,6 +25,7 @@ It is a design reference meant to guide initial implementation.
 - `cryst build new <kind> <id> [--content path] [--content-dir path] [--name label] [--force]`
 - `cryst build upgrade [--content path] [--content-dir path] [--dry-run]`
 - `cryst build new-project <name> [--path path]`
+- `cryst build docs [-s|--schemas] [-a|--architecture] [-c|--content-authoring] [-j|--jobs]`
 
 `cryst play` opens a content chooser when `--content` is omitted, listing subfolders under
 `--content-dir` (defaults to `~/.local/share/opencrystal/content` or `XDG_DATA_HOME/opencrystal/content`)

@@ -62,6 +62,7 @@ cargo run -- play --content content/demo
 - `cryst build new <kind> <id> [--content path] [--content-dir path] [--name label] [--force]`
 - `cryst build upgrade [--content path] [--content-dir path] [--dry-run]`
 - `cryst build new-project <name> [--path path]`
+- `cryst build docs [-s|--schemas] [-a|--architecture] [-c|--content-authoring] [-j|--jobs]`
 
 ## Documentation
 
@@ -71,3 +72,5 @@ cargo run -- play --content content/demo
 - `BATTLE_SPECS.md`: battle UI flow and interaction rules.
 - `JOBS.md`: job system behavior and progression modes.
 - `TODO.md`: current implementation status and backlog.
+
+Use `cryst build docs` to print documentation to stdout for LLM workflows.

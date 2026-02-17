@@ -12,6 +12,8 @@ per-job growth data defined in `content/demo/entities/jobs.json`.
 - `SCHEMAS.md` for job schema details.
 - `CONTENT_AUTHORING_GUIDE.md` for content pack workflow.
 
+Use `cryst build docs -j` to print this file to stdout.
+
 ## Progression Modes
 
 The job progression mode is configured under `rules.json -> job_system ->
