@@ -563,6 +563,9 @@ fn default_content_base_dir() -> PathBuf {
     if let Ok(path) = env::var("XDG_DATA_HOME") {
         return PathBuf::from(path).join("opencrystal").join("content");
     }
+    if let Ok(path) = env::var("LOCALAPPDATA") {
+        return PathBuf::from(path).join("opencrystal").join("content");
+    }
     if let Ok(home) = env::var("HOME") {
         return PathBuf::from(home)
             .join(".local")
@@ -575,6 +578,8 @@ fn default_content_base_dir() -> PathBuf {
 
 fn default_save_dir(content_dir: &PathBuf) -> PathBuf {
     let base_dir = if let Ok(path) = env::var("XDG_DATA_HOME") {
+        PathBuf::from(path)
+    } else if let Ok(path) = env::var("LOCALAPPDATA") {
         PathBuf::from(path)
     } else if let Ok(home) = env::var("HOME") {
         PathBuf::from(home).join(".local").join("share")

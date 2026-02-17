@@ -41,7 +41,7 @@ Content packs live under `content/<pack_name>/` and typically include:
 7. Configure UI layouts in `ui/` only when you need changes from defaults.
 8. Run `cryst validate` frequently and fix all schema warnings/errors.
 9. Playtest with `cryst play --content <pack_path>` and iterate.
-   - Use `--content-dir <path>` to point at the directory that contains your packs (defaults to `~/.local/share/opencrystal/content` or `XDG_DATA_HOME/opencrystal/content`).
+   - Use `--content-dir <path>` to point at the directory that contains your packs (defaults to `~/.local/share/opencrystal/content`, `XDG_DATA_HOME/opencrystal/content`, or `%LOCALAPPDATA%\opencrystal\content` on Windows).
 
 ## Builder commands
 

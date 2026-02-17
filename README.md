@@ -52,7 +52,7 @@ cargo run -- play --content content/demo
 
 - Content packs live under `content/<pack_name>/`.
 - `content/demo` is a working reference pack with dialog, events, and UI overrides.
-- `--content-dir` defaults to `~/.local/share/opencrystal/content` (or `XDG_DATA_HOME/opencrystal/content`).
+- `--content-dir` defaults to `~/.local/share/opencrystal/content` (or `XDG_DATA_HOME/opencrystal/content`, or `%LOCALAPPDATA%\opencrystal\content` on Windows).
 
 ## CLI commands
 
