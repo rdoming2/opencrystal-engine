@@ -9,7 +9,7 @@
 - [x] Create runtime state machine.
   - [x] Title state.
   - [x] Overworld state.
-- [x] Global stat tracking (playtime, currency).
+- [x] Global stat tracking (playtime, currency balances).
 - [x] Battle state.
 - [x] Menu state.
   - [x] Store menu focus (left list vs right pane).
@@ -79,7 +79,7 @@
 - [x] Main menu UI.
   - [x] Two-pane layout (left list, right detail pane).
   - [x] Default party summary panel.
-  - [x] Playtime and currency display.
+- [x] Playtime and currency balance display.
   - [x] Display current map coordinates in main menu stats.
   - [x] Focus switching (confirm enters right pane, cancel returns).
   - [x] Optional menu entries (rules systems + unlock flag gating).

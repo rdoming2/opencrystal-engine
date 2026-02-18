@@ -119,7 +119,7 @@ only; autosave uses slot 0 and never reduces the manual slot total.
       "x": 20,
       "y": 14
     },
-    "currency": {"id": "gold", "name": "G", "symbol": "G"}
+    "currencies": [{"id": "gold", "name": "Gold", "symbol": "G"}]
   },
   "battle": {
     "global_commands": ["attack", "defend", "items", "run"],
@@ -948,6 +948,7 @@ Ability costs (optional):
 - `type`: `mp`, `hp`, `currency`, `item`, `death`, `random`
 - `value`: numeric cost amount (ignored for `death`)
 - `item_id`: required when `type` is `item`
+- `currency_id`: required when `type` is `currency`
 
 Ability command grouping:
 
@@ -1102,7 +1103,7 @@ Equipment spells:
         "palette": "enemy"
       },
       "exp": 6,
-      "currency": 8,
+      "currency": [{"id": "gold", "amount": 8}],
       "loot": [{"item": "potion", "chance": 0.1}]
     }
   ]
@@ -1111,7 +1112,7 @@ Equipment spells:
 
 Traits are used by effects (e.g., `undead` can invert healing).
 
-`exp` and `currency` are rewarded per enemy and summed at victory.
+`exp` and `currency` stacks are rewarded per enemy and summed at victory.
 
 ## entities/vehicles.json
 
@@ -1811,7 +1812,7 @@ Vehicle fields:
     }
   },
   "inventory": {
-    "currency": {"id": "gold", "amount": 250},
+    "currency": {"gold": 250},
     "items": [{"id": "potion", "qty": 3}],
     "equipment": [{"id": "bronze_sword", "qty": 1}]
   },
@@ -1936,7 +1937,7 @@ to the schemas defined above and consolidate the former `BATTLE_MOCK.md` example
       "sprite": {"glyph": "i", "palette": "enemy"},
       "art": {"lines": [" /\\ ", "( ..)", " /__\\"], "palette": "enemy"},
       "exp": 6,
-      "currency": 8,
+      "currency": [{"id": "gold", "amount": 8}],
       "loot": [{"item": "potion", "chance": 0.2}]
     },
     {
@@ -1947,7 +1948,7 @@ to the schemas defined above and consolidate the former `BATTLE_MOCK.md` example
       "sprite": {"glyph": "*", "palette": "enemy_magic"},
       "art": {"lines": [" .*. ", "( * )", " ' ' "], "palette": "enemy_magic"},
       "exp": 8,
-      "currency": 12,
+      "currency": [{"id": "gold", "amount": 12}],
       "loot": [{"item": "ether", "chance": 0.1}]
     }
   ]
@@ -2037,7 +2038,7 @@ to the schemas defined above and consolidate the former `BATTLE_MOCK.md` example
     "party_reserve_size": 4,
     "battle_mode": "turn",
     "magic_system": "mp",
-    "currency": {"id": "gold", "name": "G", "symbol": "G"}
+    "currencies": [{"id": "gold", "name": "Gold", "symbol": "G"}]
   },
   "party_mode": "create",
   "systems": {

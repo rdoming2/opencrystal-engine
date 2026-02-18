@@ -323,13 +323,7 @@ pub fn build_battle_command_panel(
 }
 
 fn ability_cost_label_for_battle(runtime: &GameRuntime, entry: &AbilityEntry) -> String {
-    match entry.cost_type.as_str() {
-        "currency" => format!(
-            " {} {}",
-            runtime.content.rules.game.currency.symbol, entry.cost_value
-        ),
-        _ => ability_cost_label(entry),
-    }
+    ability_cost_label(runtime, entry)
 }
 
 pub fn battle_focus(menu_state: &BattleMenuState) -> BattleFocus {

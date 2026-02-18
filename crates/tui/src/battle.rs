@@ -171,10 +171,9 @@ fn draw_pause_overlay(frame: &mut Frame, title: &str, hint: &str) {
 pub fn draw_victory_summary(
     session: &mut TuiSession,
     exp: i32,
-    currency: i32,
     jp: i32,
     show_jp: bool,
-    currency_label: &str,
+    currency_lines: &[String],
     items: &HashMap<String, i32>,
     victory_title: &str,
     items_label: &str,
@@ -202,14 +201,13 @@ pub fn draw_victory_summary(
                 },
                 Style::default(),
             )));
-            lines.push(Line::from(Span::styled(
-                if currency > 0 {
-                    format!("{}: {}", currency_label, currency)
-                } else {
-                    String::new()
-                },
-                Style::default(),
-            )));
+            if currency_lines.is_empty() {
+                lines.push(Line::from(Span::raw("")));
+            } else {
+                for line in currency_lines {
+                    lines.push(Line::from(Span::styled(line.as_str(), Style::default())));
+                }
+            }
             lines.push(Line::from(Span::styled(
                 if show_jp {
                     format!("JP: {}", jp)

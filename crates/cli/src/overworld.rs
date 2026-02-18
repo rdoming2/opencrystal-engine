@@ -1636,8 +1636,12 @@ fn format_currency_stack(
     rules: &engine::rules::RulesFile,
     currency: &engine::maps::MapCurrencyStack,
 ) -> String {
-    if currency.id == rules.game.currency.id {
-        format!("{}{}", rules.game.currency.symbol, currency.amount)
+    if let Some(definition) = rules.game.currency(&currency.id) {
+        if definition.symbol.trim().is_empty() {
+            format!("{} {}", currency.amount, definition.name)
+        } else {
+            format!("{}{}", definition.symbol, currency.amount)
+        }
     } else {
         format!("{} {}", currency.amount, currency.id)
     }

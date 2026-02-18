@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
 
+use crate::maps::MapCurrencyStack;
 use crate::rules::{AbilityAcquisition, MagicAcquisition};
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -308,6 +309,8 @@ pub struct AbilityCost {
     pub value: i32,
     #[serde(default)]
     pub item_id: Option<String>,
+    #[serde(default)]
+    pub currency_id: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -396,7 +399,7 @@ pub struct EnemyDefinition {
     #[serde(default)]
     pub exp: i32,
     #[serde(default)]
-    pub currency: i32,
+    pub currency: Vec<MapCurrencyStack>,
     #[serde(default)]
     pub jp: i32,
     pub loot: Vec<EnemyLoot>,

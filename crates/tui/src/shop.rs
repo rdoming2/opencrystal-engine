@@ -15,7 +15,10 @@ use crate::utils::centered_rect;
 
 pub struct ShopView {
     pub name: String,
-    pub currency: i32,
+    pub currency_id: String,
+    pub currency_name: String,
+    pub currency_symbol: String,
+    pub currency_amount: i32,
     pub items: Vec<ShopItem>,
 }
 
@@ -26,6 +29,14 @@ pub struct ShopItem {
     pub details: MenuPanelView,
     pub owned: i32,
     pub max: i32,
+}
+
+fn format_currency_amount(shop: &ShopView, amount: i32) -> String {
+    if shop.currency_symbol.trim().is_empty() {
+        format!("{} {}", amount, shop.currency_name)
+    } else {
+        format!("{}{}", shop.currency_symbol, amount)
+    }
 }
 
 pub fn draw_shop_frame(frame: &mut Frame, shop: &ShopView, selected: usize) {
@@ -67,7 +78,10 @@ pub fn draw_shop_frame(frame: &mut Frame, shop: &ShopView, selected: usize) {
 
     let mut list_lines = Vec::new();
     list_lines.push(Line::from(Span::styled(
-        format!("Currency: {} G", shop.currency),
+        format!(
+            "Currency: {}",
+            format_currency_amount(shop, shop.currency_amount)
+        ),
         Style::default()
             .fg(Color::Yellow)
             .add_modifier(Modifier::BOLD),
@@ -84,8 +98,12 @@ pub fn draw_shop_frame(frame: &mut Frame, shop: &ShopView, selected: usize) {
         }
 
         let text = format!(
-            "{}{:<16} {:>4} G ({}/{})",
-            prefix, item.name, item.price, item.owned, item.max
+            "{}{:<16} {:>5} ({}/{})",
+            prefix,
+            item.name,
+            format_currency_amount(shop, item.price),
+            item.owned,
+            item.max
         );
         list_lines.push(Line::from(Span::styled(text, style)));
     }
@@ -168,10 +186,7 @@ pub fn show_quantity_picker(
             let area = centered_rect(frame.size(), 40, 12);
             frame.render_widget(Clear, area);
 
-            let block = Block::default()
-                .borders(Borders::ALL)
-                .title("Purchase")
-                .style(Style::default().bg(Color::Black));
+            let block = Block::default().borders(Borders::ALL).title("Purchase");
 
             frame.render_widget(block.clone(), area);
 
@@ -187,7 +202,10 @@ pub fn show_quantity_picker(
                             .add_modifier(Modifier::BOLD),
                     ),
                 ]),
-                Line::from(format!("Price: {} G", item.price)),
+                Line::from(format!(
+                    "Price: {}",
+                    format_currency_amount(shop, item.price)
+                )),
                 Line::from(""),
                 Line::from(vec![
                     Span::raw("Quantity: < "),
@@ -203,7 +221,7 @@ pub fn show_quantity_picker(
                 Line::from(vec![
                     Span::raw("Total: "),
                     Span::styled(
-                        format!("{} G", item.price * quantity),
+                        format_currency_amount(shop, item.price * quantity),
                         Style::default()
                             .fg(Color::Yellow)
                             .add_modifier(Modifier::BOLD),
@@ -274,10 +292,7 @@ pub fn show_info_popup(
             let area = centered_rect(frame.size(), 50, 10);
             frame.render_widget(Clear, area);
 
-            let block = Block::default()
-                .borders(Borders::ALL)
-                .title(title)
-                .style(Style::default().bg(Color::Black));
+            let block = Block::default().borders(Borders::ALL).title(title);
             frame.render_widget(block.clone(), area);
 
             let inner = block.inner(area);

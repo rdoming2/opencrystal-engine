@@ -284,11 +284,11 @@ fn create_project_structure(target_dir: &Path, title: &str) -> Result<(), String
                 x: 0,
                 y: 0,
             },
-            currency: Currency {
+            currencies: vec![Currency {
                 id: "gold".to_string(),
-                name: "G".to_string(),
+                name: "Gold".to_string(),
                 symbol: "G".to_string(),
-            },
+            }],
             readiness_speed: 2.0,
         },
         battle: engine::rules::BattleRules::default(),
@@ -1007,7 +1007,10 @@ fn build_new_enemy(
         },
         art: None,
         exp: 1,
-        currency: 1,
+        currency: vec![engine::maps::MapCurrencyStack {
+            id: "gold".to_string(),
+            amount: 1,
+        }],
         jp: 0,
         loot: Vec::new(),
     });

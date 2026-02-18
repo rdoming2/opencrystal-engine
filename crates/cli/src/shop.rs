@@ -26,7 +26,7 @@ pub fn open_shop(
         match tui::shop::show_shop(session, &shop, bindings)? {
             Some(index) => {
                 let item = &shop.items[index];
-                let currency_id = &runtime.content.rules.game.currency.id;
+                let currency_id = shop.currency_id.as_str();
                 let price = item.price;
                 let max_stack = runtime.content.rules.inventory.max_stack;
 
@@ -89,8 +89,9 @@ pub fn build_shop_view(runtime: &GameRuntime, shop_id: &str) -> Option<ShopView>
         .iter()
         .find(|shop| shop.id == shop_id)?;
 
-    let currency_id = &runtime.content.rules.game.currency.id;
+    let currency_id = shop.currency.as_str();
     let currency_amount = runtime.inventory.currency_amount(currency_id);
+    let (currency_name, currency_symbol) = currency_display(&runtime.content.rules, currency_id);
     let max_stack = runtime.content.rules.inventory.max_stack;
 
     let items = shop
@@ -159,7 +160,10 @@ pub fn build_shop_view(runtime: &GameRuntime, shop_id: &str) -> Option<ShopView>
                 0,
                 panel_line_spans(vec![
                     panel_span("Price: ", PanelSpanStyle::Normal),
-                    panel_span(format!("{} G", entry.price), PanelSpanStyle::Accent),
+                    panel_span(
+                        format_currency_amount(&runtime.content.rules, currency_id, entry.price),
+                        PanelSpanStyle::Accent,
+                    ),
                 ]),
             );
 
@@ -181,9 +185,33 @@ pub fn build_shop_view(runtime: &GameRuntime, shop_id: &str) -> Option<ShopView>
 
     Some(ShopView {
         name: shop.name.clone(),
-        currency: currency_amount,
+        currency_id: currency_id.to_string(),
+        currency_name,
+        currency_symbol,
+        currency_amount,
         items,
     })
+}
+
+fn currency_display(rules: &engine::rules::RulesFile, currency_id: &str) -> (String, String) {
+    if let Some(currency) = rules.game.currency(currency_id) {
+        (currency.name.clone(), currency.symbol.clone())
+    } else {
+        (currency_id.to_string(), String::new())
+    }
+}
+
+fn format_currency_amount(
+    rules: &engine::rules::RulesFile,
+    currency_id: &str,
+    amount: i32,
+) -> String {
+    let (name, symbol) = currency_display(rules, currency_id);
+    if symbol.trim().is_empty() {
+        format!("{} {}", amount, name)
+    } else {
+        format!("{}{}", symbol, amount)
+    }
 }
 
 pub fn lookup_item_name(runtime: &GameRuntime, item_id: &str) -> String {

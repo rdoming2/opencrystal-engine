@@ -105,10 +105,44 @@ pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
         crate::content::CookingFile::load(path)
     });
     let strings = load_optional(&strings_path, |path| StringsFile::load(path));
+    let currency_ids: HashSet<&str> = rules
+        .as_ref()
+        .map(|rules| {
+            rules
+                .game
+                .currencies
+                .iter()
+                .map(|currency| currency.id.as_str())
+                .collect()
+        })
+        .unwrap_or_default();
 
     if let Some(rules) = &rules {
         if rules.game.party_size > 4 {
             errors.push("rules.json: party_size must be <= 4".to_string());
+        }
+        if rules.game.currencies.is_empty() {
+            errors
+                .push("rules.json: game.currencies must define at least one currency".to_string());
+        }
+        let mut seen_currency_ids = HashSet::new();
+        for currency in &rules.game.currencies {
+            if currency.id.trim().is_empty() {
+                errors.push("rules.json: game.currencies has currency with empty id".to_string());
+                continue;
+            }
+            if !seen_currency_ids.insert(currency.id.as_str()) {
+                errors.push(format!(
+                    "rules.json: game.currencies has duplicate currency id '{}'",
+                    currency.id
+                ));
+            }
+            if currency.name.trim().is_empty() {
+                errors.push(format!(
+                    "rules.json: game.currencies '{}' missing name",
+                    currency.id
+                ));
+            }
         }
         if rules.save.slots_max == 0 {
             errors.push("rules.json: save.slots_max must be > 0".to_string());
@@ -786,6 +820,12 @@ pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
                         map.id, transition.id
                     ));
                 }
+                if !cost.id.trim().is_empty() && !currency_ids.contains(cost.id.as_str()) {
+                    errors.push(format!(
+                        "maps/{}: transition '{}' references unknown currency '{}'",
+                        map.id, transition.id, cost.id
+                    ));
+                }
             }
             if transition.pos[0] < 0 || transition.pos[1] < 0 {
                 errors.push(format!(
@@ -1114,6 +1154,21 @@ pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
                     ));
                 }
             }
+            if let Some(cost) = &ability.cost {
+                if cost.r#type == "currency" {
+                    match cost.currency_id.as_deref() {
+                        Some(id) if currency_ids.contains(id) => {}
+                        Some(id) => errors.push(format!(
+                            "abilities.json: ability '{}' references unknown currency '{}'",
+                            ability.id, id
+                        )),
+                        None => errors.push(format!(
+                            "abilities.json: ability '{}' currency cost missing currency_id",
+                            ability.id
+                        )),
+                    }
+                }
+            }
         }
     }
 
@@ -1252,6 +1307,14 @@ pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
             }
         }
         for shop in &shops.shops {
+            if shop.currency.trim().is_empty() {
+                errors.push(format!("shops.json: shop '{}' missing currency", shop.id));
+            } else if !currency_ids.contains(shop.currency.as_str()) {
+                errors.push(format!(
+                    "shops.json: shop '{}' references unknown currency '{}'",
+                    shop.id, shop.currency
+                ));
+            }
             for entry in &shop.inventory {
                 if !item_ids.contains(entry.item.as_str())
                     && !equipment_ids.contains(entry.item.as_str())
@@ -1395,12 +1458,6 @@ pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
                     .collect()
             })
             .unwrap_or_default();
-        let currency_ids: HashSet<&str> = rules
-            .as_ref()
-            .map(|rules| rules.game.currency.id.as_str())
-            .into_iter()
-            .collect();
-
         for recipe in &cooking.recipes {
             if !recipe_ids.insert(recipe.id.as_str()) {
                 errors.push(format!("cooking.json: duplicate recipe id '{}'", recipe.id));
@@ -1626,6 +1683,27 @@ pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
                     ));
                 }
             }
+            for currency in &enemy.currency {
+                if currency.id.trim().is_empty() {
+                    errors.push(format!(
+                        "enemies.json: enemy '{}' has currency with empty id",
+                        enemy.id
+                    ));
+                    continue;
+                }
+                if currency.amount <= 0 {
+                    errors.push(format!(
+                        "enemies.json: enemy '{}' currency '{}' must have amount > 0",
+                        enemy.id, currency.id
+                    ));
+                }
+                if !currency_ids.contains(currency.id.as_str()) {
+                    errors.push(format!(
+                        "enemies.json: enemy '{}' references unknown currency '{}'",
+                        enemy.id, currency.id
+                    ));
+                }
+            }
         }
     }
 
@@ -1783,6 +1861,12 @@ pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
                     if stack.amount <= 0 {
                         errors.push(format!(
                             "maps/{}: chest '{}' has currency '{}' with non-positive amount",
+                            map.id, chest.id, stack.id
+                        ));
+                    }
+                    if !stack.id.trim().is_empty() && !currency_ids.contains(stack.id.as_str()) {
+                        errors.push(format!(
+                            "maps/{}: chest '{}' has unknown currency '{}'",
                             map.id, chest.id, stack.id
                         ));
                     }

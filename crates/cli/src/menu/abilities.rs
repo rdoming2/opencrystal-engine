@@ -45,7 +45,12 @@ pub fn build_abilities_panel(runtime: &GameRuntime) -> MenuPanelView {
         .min(entries.len().saturating_sub(1));
     let width = ability_list_width(&entries);
     for (index, entry) in entries.iter().enumerate() {
-        lines.push(build_ability_line(entry, index == selection, width));
+        lines.push(build_ability_line(
+            runtime,
+            entry,
+            index == selection,
+            width,
+        ));
     }
     lines.push(panel_line("------------------------------"));
     if runtime.menu_state.detail_page == 1 {
@@ -95,17 +100,24 @@ pub fn build_ability_entries(runtime: &GameRuntime) -> Vec<AbilityEntry> {
         else {
             continue;
         };
-        let (cost_type, cost_value, cost_item_id) = if let Some(cost) = &ability.cost {
-            (cost.r#type.clone(), cost.value, cost.item_id.clone())
-        } else {
-            ("none".to_string(), 0, None)
-        };
+        let (cost_type, cost_value, cost_item_id, cost_currency_id) =
+            if let Some(cost) = &ability.cost {
+                (
+                    cost.r#type.clone(),
+                    cost.value,
+                    cost.item_id.clone(),
+                    cost.currency_id.clone(),
+                )
+            } else {
+                ("none".to_string(), 0, None, None)
+            };
         let (usable, reason) = ability_cost_available(
             runtime,
             actor,
             &cost_type,
             cost_value,
             cost_item_id.as_deref(),
+            cost_currency_id.as_deref(),
         );
         entries.push(AbilityEntry {
             id: ability.id.clone(),
@@ -119,6 +131,7 @@ pub fn build_ability_entries(runtime: &GameRuntime) -> Vec<AbilityEntry> {
             cost_type,
             cost_value,
             cost_item_id,
+            cost_currency_id,
             usable,
             reason,
         });
@@ -196,6 +209,7 @@ pub fn ability_cost_available(
     cost_type: &str,
     cost_value: i32,
     cost_item_id: Option<&str>,
+    cost_currency_id: Option<&str>,
 ) -> (bool, Option<String>) {
     match cost_type {
         "none" => (true, None),
@@ -214,7 +228,9 @@ pub fn ability_cost_available(
             }
         }
         "currency" => {
-            let currency_id = &runtime.content.rules.game.currency.id;
+            let Some(currency_id) = cost_currency_id else {
+                return (false, Some("No currency specified.".to_string()));
+            };
             let amount = runtime.inventory.currency_amount(currency_id);
             if cost_value <= 0 || amount >= cost_value {
                 (true, None)
@@ -267,7 +283,9 @@ pub fn consume_ability_cost(
             }
         }
         "currency" => {
-            let currency_id = &runtime.content.rules.game.currency.id;
+            let Some(currency_id) = entry.cost_currency_id.as_deref() else {
+                return false;
+            };
             let amount = runtime.inventory.currency_amount(currency_id);
             if amount < entry.cost_value {
                 return false;
@@ -332,17 +350,24 @@ pub fn build_battle_ability_entries(
                 continue;
             }
         }
-        let (cost_type, cost_value, cost_item_id) = if let Some(cost) = &ability.cost {
-            (cost.r#type.clone(), cost.value, cost.item_id.clone())
-        } else {
-            ("none".to_string(), 0, None)
-        };
+        let (cost_type, cost_value, cost_item_id, cost_currency_id) =
+            if let Some(cost) = &ability.cost {
+                (
+                    cost.r#type.clone(),
+                    cost.value,
+                    cost.item_id.clone(),
+                    cost.currency_id.clone(),
+                )
+            } else {
+                ("none".to_string(), 0, None, None)
+            };
         let (usable, reason) = ability_cost_available(
             runtime,
             actor,
             &cost_type,
             cost_value,
             cost_item_id.as_deref(),
+            cost_currency_id.as_deref(),
         );
         entries.push(AbilityEntry {
             id: ability.id.clone(),
@@ -356,6 +381,7 @@ pub fn build_battle_ability_entries(
             cost_type,
             cost_value,
             cost_item_id,
+            cost_currency_id,
             usable,
             reason,
         });
@@ -443,10 +469,15 @@ fn ability_list_width(entries: &[AbilityEntry]) -> usize {
         + 2
 }
 
-fn build_ability_line(entry: &AbilityEntry, is_selected: bool, width: usize) -> MenuPanelLine {
+fn build_ability_line(
+    runtime: &GameRuntime,
+    entry: &AbilityEntry,
+    is_selected: bool,
+    width: usize,
+) -> MenuPanelLine {
     let prefix = if is_selected { "> " } else { "  " };
     let label = format!("{:width$}", entry.name, width = width);
-    let cost_text = ability_cost_label(entry);
+    let cost_text = ability_cost_label(runtime, entry);
     let base_style = if entry.usable {
         PanelSpanStyle::Normal
     } else {
@@ -464,11 +495,11 @@ fn build_ability_line(entry: &AbilityEntry, is_selected: bool, width: usize) -> 
     ])
 }
 
-pub fn ability_cost_label(entry: &AbilityEntry) -> String {
+pub fn ability_cost_label(runtime: &GameRuntime, entry: &AbilityEntry) -> String {
     match entry.cost_type.as_str() {
         "mp" => format!(" MP {}", entry.cost_value),
         "hp" => format!(" HP {}", entry.cost_value),
-        "currency" => format!(" Currency {}", entry.cost_value),
+        "currency" => format_currency_cost(runtime, entry),
         "item" => {
             if let Some(item_id) = &entry.cost_item_id {
                 format!(" {} x{}", item_id, entry.cost_value)
@@ -479,6 +510,21 @@ pub fn ability_cost_label(entry: &AbilityEntry) -> String {
         "death" => " Death".to_string(),
         "random" => " Random".to_string(),
         _ => "".to_string(),
+    }
+}
+
+fn format_currency_cost(runtime: &GameRuntime, entry: &AbilityEntry) -> String {
+    let Some(currency_id) = entry.cost_currency_id.as_deref() else {
+        return "".to_string();
+    };
+    if let Some(currency) = runtime.content.rules.game.currency(currency_id) {
+        if currency.symbol.trim().is_empty() {
+            format!(" {} {}", entry.cost_value, currency.name)
+        } else {
+            format!(" {}{}", currency.symbol, entry.cost_value)
+        }
+    } else {
+        format!(" {} {}", entry.cost_value, currency_id)
     }
 }
 
@@ -592,16 +638,33 @@ fn build_ability_description(
             ]));
         }
         "currency" => {
-            let currency_id = &runtime.content.rules.game.currency.id;
-            let currency_symbol = &runtime.content.rules.game.currency.symbol;
+            let Some(currency_id) = entry.cost_currency_id.as_deref() else {
+                return lines;
+            };
             let currency_amount = runtime.inventory.currency_amount(currency_id);
+            let (currency_label, cost_label) =
+                if let Some(currency) = runtime.content.rules.game.currency(currency_id) {
+                    if currency.symbol.trim().is_empty() {
+                        (
+                            currency.name.clone(),
+                            format!("{} {}", entry.cost_value, currency.name),
+                        )
+                    } else {
+                        (
+                            currency.symbol.clone(),
+                            format!("{}{}", currency.symbol, entry.cost_value),
+                        )
+                    }
+                } else {
+                    (
+                        currency_id.to_string(),
+                        format!("{} {}", entry.cost_value, currency_id),
+                    )
+                };
             lines.push(panel_line_spans(vec![
                 panel_span("Cost: ", PanelSpanStyle::Normal),
-                panel_span(
-                    format!("{} {}", currency_symbol, entry.cost_value),
-                    PanelSpanStyle::Accent,
-                ),
-                panel_span(format!("  {}: ", currency_symbol), PanelSpanStyle::Normal),
+                panel_span(cost_label, PanelSpanStyle::Accent),
+                panel_span(format!("  {}: ", currency_label), PanelSpanStyle::Normal),
                 panel_span(format!("{}", currency_amount), PanelSpanStyle::Accent),
             ]));
         }

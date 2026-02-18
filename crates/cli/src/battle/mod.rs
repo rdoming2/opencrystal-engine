@@ -3,7 +3,7 @@ pub mod logic;
 pub mod render;
 pub mod state;
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::thread::sleep;
 use std::time::{Duration, Instant};
 
@@ -61,6 +61,37 @@ pub fn format_ui_text(
         text = text.replace(&format!("{{{}}}", name), value);
     }
     text
+}
+
+fn format_currency_rewards(
+    rules: &engine::rules::RulesFile,
+    rewards: &HashMap<String, i32>,
+) -> Vec<String> {
+    let mut lines = Vec::new();
+    let mut seen = HashSet::new();
+    for currency in &rules.game.currencies {
+        let amount = rewards.get(currency.id.as_str()).copied().unwrap_or(0);
+        if amount <= 0 {
+            continue;
+        }
+        seen.insert(currency.id.as_str());
+        if currency.symbol.trim().is_empty() {
+            lines.push(format!("{} {}", amount, currency.name));
+        } else {
+            lines.push(format!("{}{}", currency.symbol, amount));
+        }
+    }
+
+    let mut extras: Vec<_> = rewards
+        .iter()
+        .filter(|(id, amount)| **amount > 0 && !seen.contains(id.as_str()))
+        .collect();
+    extras.sort_by(|left, right| left.0.cmp(right.0));
+    for (currency_id, amount) in extras {
+        lines.push(format!("{} {}", amount, currency_id));
+    }
+
+    lines
 }
 
 pub fn run_battle(
@@ -403,14 +434,17 @@ pub fn run_battle(
             match victory_state {
                 Some(VictoryState::Summary) => {
                     if let Some(ref result) = battle_result {
+                        let currency_lines = format_currency_rewards(
+                            &runtime.content.rules,
+                            &result.rewards.currency,
+                        );
                         tui::battle::draw_victory_summary(
                             session,
                             result.rewards.exp,
-                            result.rewards.currency,
                             result.rewards.jp,
                             runtime.content.rules.job_system.progression_mode
                                 == JobProgressionMode::JobPoints,
-                            &runtime.content.rules.game.currency.symbol,
+                            &currency_lines,
                             &result.rewards.items,
                             &ui_text(runtime, "battle.victory_title", "Victory!"),
                             &ui_text(runtime, "battle.items_found", "Items found:"),
@@ -1901,11 +1935,12 @@ fn apply_battle_rewards(
         }
     }
 
-    if result.rewards.currency > 0 {
-        let currency = &runtime.content.rules.game.currency;
-        runtime
-            .inventory
-            .add_currency(currency.id.as_str(), result.rewards.currency);
+    for (currency_id, amount) in &result.rewards.currency {
+        if *amount > 0 {
+            runtime
+                .inventory
+                .add_currency(currency_id.as_str(), *amount);
+        }
     }
 
     if !result.rewards.items.is_empty() {

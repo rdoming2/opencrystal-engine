@@ -51,7 +51,7 @@ pub struct GameRules {
     pub ability_acquisition: AbilityAcquisition,
     pub start_event: Option<String>,
     pub start_location: StartLocation,
-    pub currency: Currency,
+    pub currencies: Vec<Currency>,
     #[serde(default = "default_readiness_speed")]
     pub readiness_speed: f32,
 }
@@ -61,6 +61,12 @@ pub struct Currency {
     pub id: String,
     pub name: String,
     pub symbol: String,
+}
+
+impl GameRules {
+    pub fn currency(&self, id: &str) -> Option<&Currency> {
+        self.currencies.iter().find(|currency| currency.id == id)
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

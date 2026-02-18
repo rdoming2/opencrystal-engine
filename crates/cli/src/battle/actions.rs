@@ -513,6 +513,7 @@ pub fn execute_ability_action(
             &entry.cost_type,
             entry.cost_value,
             entry.cost_item_id.as_deref(),
+            entry.cost_currency_id.as_deref(),
         );
         if !usable {
             super::logic::push_battle_log(

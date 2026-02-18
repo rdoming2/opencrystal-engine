@@ -250,7 +250,7 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
 - Battle pause toggles a PAUSED overlay and freezes battle progression until resumed.
 - Enemy selection tied to list on the left column.
 - Visual feedback highlights enemy in battlefield and list simultaneously.
-- Victory flow grants EXP/loot/currency summed from enemies.
+- Victory flow grants EXP/loot/currency stacks summed from enemies.
 - Battle commands come from `rules.json` `battle.commands` plus job/secondary-job additions.
 - The global command list defines the base menu; job commands augment it without duplicates.
 - Command ordering follows `sort_order`, and the command panel pages when the list overflows.
@@ -276,7 +276,7 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
 - Default right pane shows party/status summary until a submenu is confirmed.
 - Confirm moves focus to the right pane (submenu content); Cancel returns to list.
 - Menu is modal and pauses overworld updates.
-- The stats strip shows playtime, currency, and the current map coordinates.
+- The stats strip shows playtime, non-zero currency balances, and the current map coordinates.
 - Menu entries are optional and can be gated by rules `systems` toggles and optional
   unlock flags (e.g., Summons, Job Change, Journal, Save).
 - Party submenu exposes actions per member (reorder, swap with reserve, switch row). Swap actions are
@@ -383,7 +383,7 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
       "x": 20,
       "y": 14
     },
-    "currency": {"id": "gold", "name": "G", "symbol": "G"}
+    "currencies": [{"id": "gold", "name": "Gold", "symbol": "G"}]
   },
   "party_mode": "create",
   "exp_curve": {

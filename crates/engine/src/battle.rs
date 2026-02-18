@@ -5,6 +5,7 @@ use crate::content::Content;
 use crate::encounters::EncounterMember;
 use crate::entities::{EnemyArt, EnemyDefinition, EnemyLoot, EnemySprite};
 use crate::expr::eval_expression;
+use crate::maps::MapCurrencyStack;
 use crate::party::{Actor, PartyState, StatusInstance};
 use crate::rules::BattleRules;
 
@@ -36,7 +37,7 @@ pub struct BattleEnemy {
     pub art: Option<EnemyArt>,
     pub loot: Vec<EnemyLoot>,
     pub exp: i32,
-    pub currency: i32,
+    pub currency: Vec<MapCurrencyStack>,
     pub jp: i32,
     pub pos: (i32, i32),
     pub current_hp: i32,
@@ -48,7 +49,7 @@ pub struct BattleEnemy {
 #[derive(Clone, Debug, Default)]
 pub struct BattleRewards {
     pub exp: i32,
-    pub currency: i32,
+    pub currency: HashMap<String, i32>,
     pub jp: i32,
     pub items: HashMap<String, i32>,
 }
@@ -323,7 +324,13 @@ pub fn collect_rewards(enemies: &[BattleEnemy], rng: &mut impl Rng) -> BattleRew
     let mut rewards = BattleRewards::default();
     for enemy in enemies {
         rewards.exp += enemy.exp.max(0);
-        rewards.currency += enemy.currency.max(0);
+        for currency in &enemy.currency {
+            if currency.amount <= 0 {
+                continue;
+            }
+            let entry = rewards.currency.entry(currency.id.clone()).or_insert(0);
+            *entry = entry.saturating_add(currency.amount);
+        }
         rewards.jp += enemy.jp.max(0);
         for loot in &enemy.loot {
             if loot.chance <= 0.0 {
@@ -352,7 +359,7 @@ fn build_enemy(content: &Content, enemy: &EnemyDefinition, pos: [i32; 2]) -> Bat
         art: enemy.art.clone(),
         loot: enemy.loot.clone(),
         exp: enemy.exp,
-        currency: enemy.currency,
+        currency: enemy.currency.clone(),
         jp: enemy.jp,
         pos: (pos[0], pos[1]),
         current_hp: max_hp.max(1),

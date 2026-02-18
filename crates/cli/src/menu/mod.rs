@@ -10,7 +10,7 @@ pub mod party;
 pub mod settings;
 pub mod status;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
 use engine::maps::MapFile;
@@ -1468,18 +1468,52 @@ fn build_menu_stats_view(runtime: &GameRuntime) -> MenuPanelView {
     let minutes = (total_seconds % 3600) / 60;
     let seconds = total_seconds % 60;
 
-    let currency_id = &runtime.content.rules.game.currency.id;
-    let currency_symbol = &runtime.content.rules.game.currency.symbol;
-    let currency_amount = runtime.inventory.currency_amount(currency_id);
     let (pos_x, pos_y) = runtime.world.position;
+    let mut lines = Vec::new();
+    lines.push(panel_line(format!(
+        "Time: {:02}:{:02}:{:02}",
+        hours, minutes, seconds
+    )));
+
+    let mut seen_currency_ids = HashSet::new();
+    for currency in &runtime.content.rules.game.currencies {
+        let amount = runtime.inventory.currency_amount(currency.id.as_str());
+        if amount <= 0 {
+            continue;
+        }
+        seen_currency_ids.insert(currency.id.as_str());
+        let label = if currency.symbol.trim().is_empty() {
+            currency.name.as_str()
+        } else {
+            currency.symbol.as_str()
+        };
+        lines.push(panel_line(format!("{}: {}", label, amount)));
+    }
+
+    let mut extra_currency_ids: Vec<_> = runtime
+        .inventory
+        .currency
+        .iter()
+        .filter_map(|(id, amount)| {
+            if *amount > 0 && !seen_currency_ids.contains(id.as_str()) {
+                Some(id.as_str())
+            } else {
+                None
+            }
+        })
+        .collect();
+    extra_currency_ids.sort();
+    for currency_id in extra_currency_ids {
+        let amount = runtime.inventory.currency_amount(currency_id);
+        lines.push(panel_line(format!("{}: {}", currency_id, amount)));
+    }
 
     MenuPanelView {
         title: String::new(),
-        lines: vec![
-            panel_line(format!("Time: {:02}:{:02}:{:02}", hours, minutes, seconds)),
-            panel_line(format!("{}: {}", currency_symbol, currency_amount)),
-            panel_line(format!("Pos: {},{}", pos_x, pos_y)),
-        ],
+        lines: {
+            lines.push(panel_line(format!("Pos: {},{}", pos_x, pos_y)));
+            lines
+        },
     }
 }
 
@@ -2175,8 +2209,12 @@ fn format_currency_amount(
     rules: &engine::rules::RulesFile,
     cost: &engine::maps::MapCurrencyStack,
 ) -> String {
-    if cost.id == rules.game.currency.id {
-        format!("{}{}", rules.game.currency.symbol, cost.amount)
+    if let Some(currency) = rules.game.currency(&cost.id) {
+        if currency.symbol.trim().is_empty() {
+            format!("{} {}", cost.amount, currency.name)
+        } else {
+            format!("{}{}", currency.symbol, cost.amount)
+        }
     } else {
         format!("{} {}", cost.amount, cost.id)
     }
