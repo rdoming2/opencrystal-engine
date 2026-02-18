@@ -1,0 +1,128 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+env:
+  APP_NAME: cryst
+  PACKAGE_NAME: cryst
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            archive_ext: tar.gz
+
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            archive_ext: tar.gz
+
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            archive_ext: tar.gz
+
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            archive_ext: zip
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build CLI (release)
+        run: cargo build --release --locked -p ${{ env.PACKAGE_NAME }} --target ${{ matrix.target }}
+
+      - name: Smoke test (Linux/macOS)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          BIN="target/${{ matrix.target }}/release/${APP_NAME}"
+          "$BIN" --help >/dev/null
+
+      - name: Smoke test (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $bin = "target\${{ matrix.target }}\release\${{ env.APP_NAME }}.exe"
+          & $bin --help | Out-Null
+
+      - name: Package (Linux/macOS)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          OUTDIR="dist"
+          mkdir -p "$OUTDIR"
+
+          BIN_PATH="target/${{ matrix.target }}/release/${APP_NAME}"
+          chmod +x "$BIN_PATH"
+
+          PKG="${APP_NAME}-${VERSION}-${{ matrix.target }}"
+          mkdir -p "$PKG"
+          cp "$BIN_PATH" "$PKG/"
+
+          # Optional docs
+          [ -f README.md ] && cp README.md "$PKG/" || true
+          [ -f LICENSE ] && cp LICENSE "$PKG/" || true
+          [ -f NOTICE ] && cp NOTICE "$PKG/" || true
+
+          tar -czf "$OUTDIR/${PKG}.tar.gz" "$PKG"
+
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $version = $env:GITHUB_REF_NAME.Substring(1)  # strip leading 'v'
+          $outdir = "dist"
+          New-Item -ItemType Directory -Force -Path $outdir | Out-Null
+
+          $binPath = "target\${{ matrix.target }}\release\${{ env.APP_NAME }}.exe"
+          $pkg = "${{ env.APP_NAME }}-$version-${{ matrix.target }}"
+          New-Item -ItemType Directory -Force -Path $pkg | Out-Null
+          Copy-Item $binPath "$pkg\"
+
+          if (Test-Path "README.md") { Copy-Item "README.md" "$pkg\" }
+          if (Test-Path "LICENSE")   { Copy-Item "LICENSE"   "$pkg\" }
+          if (Test-Path "NOTICE")    { Copy-Item "NOTICE"    "$pkg\" }
+
+          Compress-Archive -Path "$pkg\*" -DestinationPath "$outdir\$pkg.zip" -Force
+
+      - name: Upload artifact (to release job)
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ matrix.target }}
+          path: dist/*
+          if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+
+      - name: Create GitHub Release and upload assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/**/*
+          generate_release_notes: true
