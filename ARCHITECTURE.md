@@ -150,7 +150,8 @@ All runtime data is loaded from JSON. Files are organized into top-level categor
 - Spell learn events (direct grants).
 - Party add/remove events (roster-driven joins/leaves; adds fill active slots, then reserve).
 - Recipe unlock events (direct grants).
-- Battle results (victory/defeat hooks).
+- Battle results (victory/defeat hooks) including a gameover flow that can retry the last battle
+  or load recent saves before returning to the title screen.
 
 Event execution is handled by `GameRuntime.apply_event_step`, which:
 - Manages state changes (flag setting, item grants, warps to new maps).

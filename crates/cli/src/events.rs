@@ -5,11 +5,19 @@ use tui::overworld::{show_dialog_on_map, MapView};
 use tui::session::TuiSession;
 use tui::ui::{BattleUiFile, DialogUiFile};
 
-use crate::battle::{run_event_battle_with_result, BattleOutcome};
+use crate::battle::{
+    run_event_battle_with_result, BattleOutcome, BattleSnapshot, BattleSource, LastBattleContext,
+};
 use crate::dialog::{run_dialog, run_dialog_on_map, show_dialog_console};
 use crate::overworld::build_map_view;
 use crate::shop::open_shop;
 use std::time::Duration;
+
+#[derive(Clone, Debug)]
+pub enum EventLoopOutcome {
+    Continue,
+    Defeat(LastBattleContext),
+}
 
 pub fn run_event_loop(
     runtime: &mut GameRuntime,
@@ -18,7 +26,7 @@ pub fn run_event_loop(
     bindings: &InputBindings,
     session: &mut TuiSession,
     initial_map_view: Option<MapView>,
-) -> std::io::Result<()> {
+) -> std::io::Result<EventLoopOutcome> {
     let mut current_map_id = runtime.world.map_id.clone();
     let mut map_view = initial_map_view;
 
@@ -32,7 +40,7 @@ pub fn run_event_loop(
         match runtime.next_event_step() {
             Some(step) => {
                 let result = runtime.apply_event_step(&step);
-                handle_event_result(
+                let outcome = handle_event_result(
                     runtime,
                     dialog_ui,
                     battle_ui,
@@ -40,12 +48,15 @@ pub fn run_event_loop(
                     session,
                     result,
                     map_view.as_ref(),
-                )?
+                )?;
+                if let EventLoopOutcome::Defeat(context) = outcome {
+                    return Ok(EventLoopOutcome::Defeat(context));
+                }
             }
             None => {}
         }
     }
-    Ok(())
+    Ok(EventLoopOutcome::Continue)
 }
 
 pub fn run_event_loop_console(runtime: &mut GameRuntime, dialog_ui: &DialogUiFile) {
@@ -65,7 +76,7 @@ fn handle_event_result(
     session: &mut TuiSession,
     result: engine::events::EventExecutionResult,
     map_view: Option<&MapView>,
-) -> std::io::Result<()> {
+) -> std::io::Result<EventLoopOutcome> {
     match result {
         engine::events::EventExecutionResult::Continue => {}
         engine::events::EventExecutionResult::Dialog { speaker, text } => {
@@ -117,65 +128,27 @@ fn handle_event_result(
             encounter,
             formation,
         } => {
-            let outcome = run_event_battle_with_result(
-                runtime, battle_ui, bindings, session, &encounter, &formation,
+            let event_id = runtime.active_event.clone();
+            let event_step = runtime.event_step.saturating_sub(1);
+            let snapshot = BattleSnapshot::capture(runtime);
+            let report = run_event_battle_with_result(
+                runtime, battle_ui, bindings, session, &encounter, &formation, snapshot,
             )?;
-            if matches!(outcome, BattleOutcome::Defeat) {
-                if let Some(map) = map_view {
-                    show_dialog_on_map(
-                        session,
-                        map,
-                        runtime.world.position,
-                        dialog_ui,
-                        bindings,
-                        "",
-                        &crate::battle::ui_text(
-                            runtime,
-                            "battle.defeat_message",
-                            "The party was defeated.",
-                        ),
-                    )?;
-                    show_dialog_on_map(
-                        session,
-                        map,
-                        runtime.world.position,
-                        dialog_ui,
-                        bindings,
-                        "",
-                        &crate::battle::ui_text(
-                            runtime,
-                            "battle.defeat_return",
-                            "Returning to the main menu.",
-                        ),
-                    )?;
-                } else {
-                    show_dialog(
-                        session,
-                        dialog_ui,
-                        bindings,
-                        "",
-                        &crate::battle::ui_text(
-                            runtime,
-                            "battle.defeat_message",
-                            "The party was defeated.",
-                        ),
-                    )?;
-                    show_dialog(
-                        session,
-                        dialog_ui,
-                        bindings,
-                        "",
-                        &crate::battle::ui_text(
-                            runtime,
-                            "battle.defeat_return",
-                            "Returning to the main menu.",
-                        ),
-                    )?;
+            if matches!(report.outcome, BattleOutcome::Defeat) {
+                if let Some(event_id) = event_id {
+                    let context = LastBattleContext::new(
+                        report.formation,
+                        report.snapshot,
+                        BattleSource::Event {
+                            event_id,
+                            event_step,
+                        },
+                    );
+                    return Ok(EventLoopOutcome::Defeat(context));
                 }
-                return Err(std::io::Error::new(
-                    std::io::ErrorKind::Interrupted,
-                    "defeat",
-                ));
+                let context =
+                    LastBattleContext::new(report.formation, report.snapshot, BattleSource::Random);
+                return Ok(EventLoopOutcome::Defeat(context));
             }
         }
         engine::events::EventExecutionResult::OpenShop { shop_id } => {
@@ -195,7 +168,7 @@ fn handle_event_result(
             // Intentionally silent to avoid UI spam.
         }
     }
-    Ok(())
+    Ok(EventLoopOutcome::Continue)
 }
 
 fn handle_event_step_console(

@@ -25,15 +25,24 @@ use tui::input::{InputBindings, InputFile};
 use tui::menu::{run_content_menu, ContentMenuEntry};
 use tui::renderer::RenderMode;
 use tui::session::TuiSession;
-use tui::title::{run_load_menu, run_title, LoadSlotEntry, TitleAction};
+use tui::title::{
+    run_gameover, run_load_menu, run_title, GameOverAction, GameOverOptions, LoadSlotEntry,
+    TitleAction,
+};
 use tui::ui::{BattleUiFile, DialogUiFile, MenuUiFile, ProgressUiFile, TitleUiFile};
 
+use crate::battle::{run_battle, BattleOutcome, BattleSource, LastBattleContext};
 use crate::dialog::default_dialog_ui;
-use crate::events::{run_event_loop, run_event_loop_console};
-use crate::overworld::{build_map_view, find_spawn, run_overworld_loop};
+use crate::events::{run_event_loop, run_event_loop_console, EventLoopOutcome};
+use crate::overworld::{build_map_view, find_spawn, run_overworld_loop, OverworldOutcome};
 use crate::party::{default_party_names, run_party_create_flow};
 
 struct SessionGuard(Option<TuiSession>);
+
+enum SessionExit {
+    ReturnTitle,
+    Exit,
+}
 
 impl SessionGuard {
     fn start() -> Self {
@@ -201,120 +210,118 @@ fn run_play(args: Vec<String>) {
         }
     }
 
-    let action = if let Some(session) = session_guard.as_mut() {
-        if let Err(err) = session.terminal_mut().clear() {
-            eprintln!("Failed to clear TUI: {}", err);
-        }
-        let load_enabled = has_loadable_saves(&runtime, &save_dir);
-        let default_selected = if load_enabled {
-            menu_index(&title_ui, "load_game").or_else(|| menu_index(&title_ui, "new_game"))
-        } else {
-            menu_index(&title_ui, "new_game")
-        }
-        .unwrap_or(0);
-        match run_title(
-            session,
-            &title_ui,
-            &input_bindings,
-            load_enabled,
-            default_selected,
-        ) {
-            Ok(action) => action,
-            Err(err) => {
-                eprintln!("Failed to run title UI: {}", err);
-                TitleAction::Exit
+    let mut running = true;
+    while running {
+        let action = if let Some(session) = session_guard.as_mut() {
+            if let Err(err) = session.terminal_mut().clear() {
+                eprintln!("Failed to clear TUI: {}", err);
             }
-        }
-    } else {
-        TitleAction::NewGame
-    };
-
-    match action {
-        TitleAction::NewGame => {
-            if let Some(session) = session_guard.as_mut() {
-                match rules.party_mode {
-                    PartyMode::Create => {
-                        if let Err(err) =
-                            run_party_create_flow(session, &mut runtime, &rules, &input_bindings)
-                        {
-                            if err.kind() == std::io::ErrorKind::Interrupted {
-                                return;
-                            }
-                        }
-                    }
-                    PartyMode::Preset => {
-                        runtime.party = PartyState::from_content(&runtime.content, &rules);
-                    }
-                    PartyMode::PresetRename => {
-                        runtime.party = PartyState::from_content(&runtime.content, &rules);
-                        if let Err(err) = party::run_preset_rename_flow(
-                            session,
-                            &mut runtime,
-                            &rules,
-                            &input_bindings,
-                        ) {
-                            if err.kind() == std::io::ErrorKind::Interrupted {
-                                return;
-                            }
-                        }
-                    }
-                }
-
-                runtime.start_new_game(&rules);
-                let initial_map_view = build_map_view(&runtime, &runtime.world.map_id);
-                if let Err(err) = run_event_loop(
-                    &mut runtime,
-                    &dialog_ui,
-                    &battle_ui,
-                    &input_bindings,
-                    session,
-                    initial_map_view,
-                ) {
-                    if err.kind() == std::io::ErrorKind::Interrupted {
-                        return;
-                    }
-                }
-                let spawn = find_spawn(&runtime, &world.map_id, world.position);
-                if let Err(err) = run_overworld_loop(
-                    session,
-                    &mut runtime,
-                    &dialog_ui,
-                    &battle_ui,
-                    &menu_ui,
-                    &progress_ui,
-                    &input_bindings,
-                    &world.map_id,
-                    spawn,
-                    &save_dir,
-                ) {
-                    if err.kind() == std::io::ErrorKind::Interrupted {
-                        return;
-                    }
-                }
+            let load_enabled = has_loadable_saves(&runtime, &save_dir);
+            let default_selected = if load_enabled {
+                menu_index(&title_ui, "load_game").or_else(|| menu_index(&title_ui, "new_game"))
             } else {
-                match rules.party_mode {
-                    PartyMode::Create => {
-                        runtime.party = PartyState::from_created(
-                            &runtime.content,
-                            &rules,
-                            default_party_names(&runtime, &rules),
-                        );
-                    }
-                    PartyMode::Preset | PartyMode::PresetRename => {
-                        runtime.party = PartyState::from_content(&runtime.content, &rules);
-                    }
-                }
-                runtime.start_new_game(&rules);
-                run_event_loop_console(&mut runtime, &dialog_ui);
+                menu_index(&title_ui, "new_game")
             }
-        }
-        TitleAction::Load => {
-            if let Some(session) = session_guard.as_mut() {
-                match run_load_flow(session, &mut runtime, &title_ui, &input_bindings, &save_dir) {
-                    Ok(true) => {
-                        let spawn = runtime.world.position;
-                        let map_id = runtime.world.map_id.clone();
-                        if let Err(err) = run_overworld_loop(
+            .unwrap_or(0);
+            match run_title(
+                session,
+                &title_ui,
+                &input_bindings,
+                load_enabled,
+                default_selected,
+            ) {
+                Ok(action) => action,
+                Err(err) => {
+                    eprintln!("Failed to run title UI: {}", err);
+                    TitleAction::Exit
+                }
+            }
+        } else {
+            TitleAction::NewGame
+        };
+
+        match action {
+            TitleAction::NewGame => {
+                if let Some(session) = session_guard.as_mut() {
+                    match rules.party_mode {
+                        PartyMode::Create => {
+                            if let Err(err) = run_party_create_flow(
+                                session,
+                                &mut runtime,
+                                &rules,
+                                &input_bindings,
+                            ) {
+                                if err.kind() == std::io::ErrorKind::Interrupted {
+                                    return;
+                                }
+                            }
+                        }
+                        PartyMode::Preset => {
+                            runtime.party = PartyState::from_content(&runtime.content, &rules);
+                        }
+                        PartyMode::PresetRename => {
+                            runtime.party = PartyState::from_content(&runtime.content, &rules);
+                            if let Err(err) = party::run_preset_rename_flow(
+                                session,
+                                &mut runtime,
+                                &rules,
+                                &input_bindings,
+                            ) {
+                                if err.kind() == std::io::ErrorKind::Interrupted {
+                                    return;
+                                }
+                            }
+                        }
+                    }
+
+                    runtime.start_new_game(&rules);
+                    match run_session_with_gameover(
+                        session,
+                        &mut runtime,
+                        &dialog_ui,
+                        &battle_ui,
+                        &menu_ui,
+                        &progress_ui,
+                        &input_bindings,
+                        &title_ui,
+                        &save_dir,
+                    ) {
+                        Ok(SessionExit::ReturnTitle) => {}
+                        Ok(SessionExit::Exit) => return,
+                        Err(err) => {
+                            if err.kind() == std::io::ErrorKind::Interrupted {
+                                return;
+                            }
+                        }
+                    }
+                } else {
+                    match rules.party_mode {
+                        PartyMode::Create => {
+                            runtime.party = PartyState::from_created(
+                                &runtime.content,
+                                &rules,
+                                default_party_names(&runtime, &rules),
+                            );
+                        }
+                        PartyMode::Preset | PartyMode::PresetRename => {
+                            runtime.party = PartyState::from_content(&runtime.content, &rules);
+                        }
+                    }
+                    runtime.start_new_game(&rules);
+                    run_event_loop_console(&mut runtime, &dialog_ui);
+                    running = false;
+                }
+            }
+            TitleAction::Load => {
+                if let Some(session) = session_guard.as_mut() {
+                    match run_load_flow(
+                        session,
+                        &mut runtime,
+                        &title_ui,
+                        &input_bindings,
+                        &save_dir,
+                    ) {
+                        Ok(true) => match run_session_with_gameover(
                             session,
                             &mut runtime,
                             &dialog_ui,
@@ -322,26 +329,29 @@ fn run_play(args: Vec<String>) {
                             &menu_ui,
                             &progress_ui,
                             &input_bindings,
-                            &map_id,
-                            spawn,
+                            &title_ui,
                             &save_dir,
                         ) {
-                            if err.kind() == std::io::ErrorKind::Interrupted {
-                                return;
+                            Ok(SessionExit::ReturnTitle) => {}
+                            Ok(SessionExit::Exit) => return,
+                            Err(err) => {
+                                if err.kind() == std::io::ErrorKind::Interrupted {
+                                    return;
+                                }
                             }
+                        },
+                        Ok(false) => {}
+                        Err(err) => {
+                            eprintln!("Failed to load save: {}", err);
                         }
                     }
-                    Ok(false) => {}
-                    Err(err) => {
-                        eprintln!("Failed to load save: {}", err);
-                    }
+                } else {
+                    println!("Load not implemented.");
                 }
-            } else {
-                println!("Load not implemented.");
             }
+            TitleAction::Settings => println!("Settings not implemented."),
+            TitleAction::Exit => running = false,
         }
-        TitleAction::Settings => println!("Settings not implemented."),
-        TitleAction::Exit => println!("Exit."),
     }
 }
 
@@ -614,16 +624,231 @@ fn run_load_flow(
         .get(index)
         .filter(|entry| entry.enabled)
         .ok_or_else(|| "Selected slot is empty".to_string())?;
-    let save = SaveFile::load(save_slot_path(save_dir, entry.slot))?;
+    load_save_slot(runtime, save_dir, entry.slot)?;
+    Ok(true)
+}
+
+fn run_session_with_gameover(
+    session: &mut TuiSession,
+    runtime: &mut GameRuntime,
+    dialog_ui: &DialogUiFile,
+    battle_ui: &BattleUiFile,
+    menu_ui: &MenuUiFile,
+    progress_ui: &ProgressUiFile,
+    bindings: &InputBindings,
+    title_ui: &TitleUiFile,
+    save_dir: &PathBuf,
+) -> std::io::Result<SessionExit> {
+    let mut pending_defeat: Option<LastBattleContext> = None;
+
+    loop {
+        if let Some(context) = pending_defeat.take() {
+            let latest_slot = latest_manual_save_slot(runtime, save_dir);
+            let autosave_available =
+                runtime.effective_autosave_enabled() && loadable_save_exists(save_dir, 0);
+            let options = GameOverOptions {
+                retry_enabled: true,
+                load_latest_enabled: latest_slot.is_some(),
+                load_autosave_enabled: autosave_available,
+            };
+            let localized_title_ui = localize_gameover_ui(runtime, title_ui);
+            let action = run_gameover(session, &localized_title_ui, bindings, options)?;
+            match action {
+                GameOverAction::RetryBattle => {
+                    apply_battle_snapshot(runtime, &context.snapshot);
+                    match context.source {
+                        BattleSource::Random => {
+                            let mut rng = rand::thread_rng();
+                            let outcome = run_battle(
+                                runtime,
+                                battle_ui,
+                                bindings,
+                                session,
+                                &context.formation,
+                                &mut rng,
+                            )?;
+                            if matches!(outcome, BattleOutcome::Defeat) {
+                                pending_defeat = Some(context);
+                            }
+                        }
+                        BattleSource::Event {
+                            event_id,
+                            event_step,
+                        } => {
+                            runtime.state = GameState::Event;
+                            runtime.active_event = Some(event_id.clone());
+                            runtime.event_step = event_step;
+                            if runtime
+                                .event_queue
+                                .first()
+                                .map(|id| id != &event_id)
+                                .unwrap_or(true)
+                            {
+                                runtime.event_queue.insert(0, event_id.clone());
+                            }
+                            let initial_map_view = build_map_view(runtime, &runtime.world.map_id);
+                            let outcome = run_event_loop(
+                                runtime,
+                                dialog_ui,
+                                battle_ui,
+                                bindings,
+                                session,
+                                initial_map_view,
+                            )?;
+                            if let EventLoopOutcome::Defeat(context) = outcome {
+                                pending_defeat = Some(context);
+                            }
+                        }
+                    }
+                }
+                GameOverAction::LoadLatest => {
+                    if let Some(slot) = latest_slot {
+                        if let Err(err) = load_save_slot(runtime, save_dir, slot) {
+                            eprintln!("Failed to load save: {}", err);
+                            pending_defeat = Some(context);
+                        }
+                    } else {
+                        pending_defeat = Some(context);
+                    }
+                }
+                GameOverAction::LoadAutosave => {
+                    if autosave_available {
+                        if let Err(err) = load_save_slot(runtime, save_dir, 0) {
+                            eprintln!("Failed to load autosave: {}", err);
+                            pending_defeat = Some(context);
+                        }
+                    } else {
+                        pending_defeat = Some(context);
+                    }
+                }
+                GameOverAction::ReturnTitle => return Ok(SessionExit::ReturnTitle),
+                GameOverAction::Exit => return Ok(SessionExit::Exit),
+            }
+            continue;
+        }
+
+        if runtime.state == GameState::Event {
+            let initial_map_view = build_map_view(runtime, &runtime.world.map_id);
+            let outcome = run_event_loop(
+                runtime,
+                dialog_ui,
+                battle_ui,
+                bindings,
+                session,
+                initial_map_view,
+            )?;
+            if let EventLoopOutcome::Defeat(context) = outcome {
+                pending_defeat = Some(context);
+                continue;
+            }
+        }
+
+        let map_id = runtime.world.map_id.clone();
+        let spawn = find_spawn(runtime, &map_id, runtime.world.position);
+        match run_overworld_loop(
+            session,
+            runtime,
+            dialog_ui,
+            battle_ui,
+            menu_ui,
+            progress_ui,
+            bindings,
+            &map_id,
+            spawn,
+            save_dir,
+        )? {
+            OverworldOutcome::Defeat(context) => {
+                pending_defeat = Some(context);
+            }
+            OverworldOutcome::Quit => return Ok(SessionExit::Exit),
+            OverworldOutcome::Continue => {}
+        }
+    }
+}
+
+fn load_save_slot(runtime: &mut GameRuntime, save_dir: &PathBuf, slot: u8) -> Result<(), String> {
+    let save = SaveFile::load(save_slot_path(save_dir, slot))?;
     save.apply_to_runtime(runtime);
-    if entry.slot > 0 {
-        runtime.last_manual_save_slot = Some(entry.slot);
+    if slot > 0 {
+        runtime.last_manual_save_slot = Some(slot);
     }
     runtime.state = GameState::Overworld;
     runtime.event_queue.clear();
     runtime.active_event = None;
     runtime.event_step = 0;
-    Ok(true)
+    Ok(())
+}
+
+fn apply_battle_snapshot(runtime: &mut GameRuntime, snapshot: &crate::battle::BattleSnapshot) {
+    snapshot.save.apply_to_runtime(runtime);
+    runtime.event_queue = snapshot.event_queue.clone();
+    runtime.active_event = snapshot.active_event.clone();
+    runtime.event_step = snapshot.event_step;
+    runtime.state = snapshot.state.clone();
+}
+
+fn localize_gameover_ui(runtime: &GameRuntime, title_ui: &TitleUiFile) -> TitleUiFile {
+    let mut localized = title_ui.clone();
+    let Some(gameover) = localized.gameover.as_mut() else {
+        return localized;
+    };
+
+    let fallback_title = gameover
+        .title
+        .clone()
+        .unwrap_or_else(|| "Game Over".to_string());
+    let title = runtime
+        .content
+        .ui_text("gameover.title")
+        .unwrap_or(fallback_title.as_str())
+        .to_string();
+    gameover.title = Some(title);
+
+    if let Some(subtitle) = runtime.content.ui_text("gameover.subtitle") {
+        gameover.subtitle = Some(subtitle.to_string());
+    }
+
+    for item in &mut gameover.menu {
+        if let Some(key) = gameover_menu_key(item.id.as_str()) {
+            if let Some(label) = runtime.content.ui_text(key) {
+                item.label = label.to_string();
+            }
+        }
+    }
+
+    localized
+}
+
+fn gameover_menu_key(id: &str) -> Option<&'static str> {
+    match id {
+        "retry_battle" => Some("gameover.retry_battle"),
+        "load_latest" => Some("gameover.load_latest"),
+        "load_autosave" => Some("gameover.load_autosave"),
+        "return_title" => Some("gameover.return_title"),
+        "exit" => Some("gameover.exit"),
+        _ => None,
+    }
+}
+
+fn latest_manual_save_slot(runtime: &GameRuntime, save_dir: &PathBuf) -> Option<u8> {
+    let max_slots = runtime.content.rules.save.slots_max.max(1) as u8;
+    let mut latest_slot: Option<(u8, u64)> = None;
+    for slot in 1..=max_slots {
+        let Ok(save) = SaveFile::load(save_slot_path(save_dir, slot)) else {
+            continue;
+        };
+        if save.version == 0 {
+            continue;
+        }
+        let timestamp = save.metadata.timestamp_seconds;
+        if latest_slot
+            .map(|(_, latest_timestamp)| timestamp > latest_timestamp)
+            .unwrap_or(true)
+        {
+            latest_slot = Some((slot, timestamp));
+        }
+    }
+    latest_slot.map(|(slot, _)| slot)
 }
 
 fn menu_index(title_ui: &TitleUiFile, id: &str) -> Option<usize> {

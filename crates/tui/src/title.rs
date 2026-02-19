@@ -10,7 +10,7 @@ use ratatui::Frame;
 use crate::dialog::confirm_quit;
 use crate::input::{is_actionable_key, Action, InputBindings};
 use crate::session::TuiSession;
-use crate::ui::{TitleLogo, TitleUiFile};
+use crate::ui::{MenuItem, TitleLogo, TitleUiFile};
 use crate::utils::{centered_rect, palette_style};
 
 pub enum TitleAction {
@@ -20,10 +20,24 @@ pub enum TitleAction {
     Exit,
 }
 
+pub enum GameOverAction {
+    RetryBattle,
+    LoadLatest,
+    LoadAutosave,
+    ReturnTitle,
+    Exit,
+}
+
 pub struct LoadSlotEntry {
     pub slot: u8,
     pub label: String,
     pub enabled: bool,
+}
+
+pub struct GameOverOptions {
+    pub retry_enabled: bool,
+    pub load_latest_enabled: bool,
+    pub load_autosave_enabled: bool,
 }
 
 pub fn run_title(
@@ -128,6 +142,60 @@ pub fn run_load_menu(
                             draw_load_frame(frame, title_ui, slots, selected)
                         })? {
                             return Ok(None);
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+}
+
+pub fn run_gameover(
+    session: &mut TuiSession,
+    title_ui: &TitleUiFile,
+    bindings: &InputBindings,
+    options: GameOverOptions,
+) -> io::Result<GameOverAction> {
+    let mut menu_items = gameover_menu_items(title_ui);
+    if menu_items.is_empty() {
+        menu_items = vec![MenuItem {
+            id: "return_title".to_string(),
+            label: "Return to Title".to_string(),
+        }];
+    }
+    let mut selected = first_enabled_gameover_item(&menu_items, &options).unwrap_or(0);
+
+    loop {
+        session.terminal_mut().draw(|frame| {
+            draw_gameover_frame(frame, title_ui, &menu_items, selected, &options);
+        })?;
+
+        if let Event::Key(key) = event::read()? {
+            if !is_actionable_key(&key) {
+                continue;
+            }
+            if let Some(action) = bindings.action_for(key.code) {
+                match action {
+                    Action::MoveUp => {
+                        selected = move_gameover_selection(selected, &menu_items, &options, -1);
+                    }
+                    Action::MoveDown => {
+                        selected = move_gameover_selection(selected, &menu_items, &options, 1);
+                    }
+                    Action::Confirm => {
+                        if let Some(item) = menu_items.get(selected) {
+                            if gameover_item_enabled(item, &options) {
+                                return Ok(map_gameover_action(&item.id));
+                            }
+                        }
+                    }
+                    Action::Cancel | Action::Menu => return Ok(GameOverAction::ReturnTitle),
+                    Action::Quit => {
+                        if confirm_quit(session, |frame| {
+                            draw_gameover_frame(frame, title_ui, &menu_items, selected, &options)
+                        })? {
+                            return Ok(GameOverAction::Exit);
                         }
                     }
                     _ => {}
@@ -297,6 +365,105 @@ fn draw_load_frame(
     frame.render_widget(footer, layout[4]);
 }
 
+fn draw_gameover_frame(
+    frame: &mut Frame,
+    title_ui: &TitleUiFile,
+    menu_items: &[MenuItem],
+    selected: usize,
+    options: &GameOverOptions,
+) {
+    let size = frame.size();
+    let gameover = title_ui.gameover.as_ref();
+    let title_text = gameover
+        .and_then(|entry| entry.title.clone())
+        .unwrap_or_else(|| "Game Over".to_string());
+    let subtitle_text = gameover.and_then(|entry| entry.subtitle.clone());
+    let footer = gameover
+        .and_then(|entry| entry.footer.clone())
+        .unwrap_or_else(|| title_ui.footer.clone());
+
+    let mut constraints = vec![
+        Constraint::Length(title_ui.logo.lines.len() as u16 + 2),
+        Constraint::Length(1),
+    ];
+    if subtitle_text.is_some() {
+        constraints.push(Constraint::Length(1));
+    }
+    constraints.push(Constraint::Min(8));
+    constraints.push(Constraint::Length(2));
+
+    let layout = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints(constraints)
+        .split(size);
+
+    let logo_lines: Vec<Line> = title_ui
+        .logo
+        .lines
+        .iter()
+        .enumerate()
+        .map(|(index, line)| {
+            let style = logo_line_style(&title_ui.logo, index);
+            Line::from(Span::styled(line.as_str(), style))
+        })
+        .collect();
+    let logo_width = logo_block_width(&title_ui.logo);
+    let logo_height = title_ui.logo.lines.len().max(1) as u16;
+    let logo_area = centered_rect(layout[0], logo_width, logo_height);
+    let logo = Paragraph::new(logo_lines)
+        .alignment(Alignment::Left)
+        .block(Block::default().borders(Borders::NONE));
+    frame.render_widget(logo, logo_area);
+
+    let title_width = line_width(title_text.as_str());
+    let title_area = centered_rect(layout[1], title_width, 1);
+    let title = Paragraph::new(title_text.as_str())
+        .alignment(Alignment::Left)
+        .block(Block::default().borders(Borders::NONE));
+    frame.render_widget(title, title_area);
+
+    let mut menu_index = 2;
+    if let Some(subtitle) = subtitle_text.as_ref() {
+        let subtitle_width = line_width(subtitle.as_str());
+        let subtitle_area = centered_rect(layout[2], subtitle_width, 1);
+        let subtitle = Paragraph::new(subtitle.as_str())
+            .alignment(Alignment::Left)
+            .block(Block::default().borders(Borders::NONE))
+            .style(Style::default().fg(Color::Gray));
+        frame.render_widget(subtitle, subtitle_area);
+        menu_index = 3;
+    }
+
+    let menu_items: Vec<Line> = menu_items
+        .iter()
+        .enumerate()
+        .map(|(index, item)| {
+            let mut style = Style::default().fg(Color::White);
+            if !gameover_item_enabled(item, options) {
+                style = style.fg(Color::Gray);
+            } else if index == selected {
+                style = style.fg(Color::Yellow).add_modifier(Modifier::BOLD);
+            }
+            Line::from(Span::styled(item.label.as_str(), style))
+        })
+        .collect();
+
+    let menu = Paragraph::new(menu_items)
+        .alignment(Alignment::Center)
+        .block(Block::default().borders(Borders::NONE));
+    frame.render_widget(menu, layout[menu_index]);
+
+    let footer = Paragraph::new(Line::from(vec![
+        Span::raw(footer.left.as_str()),
+        Span::raw("  "),
+        Span::styled(footer.right.as_str(), Style::default().fg(Color::Gray)),
+    ]))
+    .alignment(Alignment::Center)
+    .block(Block::default().borders(Borders::NONE));
+    let footer_area = layout[menu_index + 1];
+    frame.render_widget(footer, footer_area);
+}
+
 fn map_action(id: &str) -> TitleAction {
     match id {
         "load_game" => TitleAction::Load,
@@ -306,11 +473,30 @@ fn map_action(id: &str) -> TitleAction {
     }
 }
 
+fn map_gameover_action(id: &str) -> GameOverAction {
+    match id {
+        "retry_battle" => GameOverAction::RetryBattle,
+        "load_latest" => GameOverAction::LoadLatest,
+        "load_autosave" => GameOverAction::LoadAutosave,
+        "exit" => GameOverAction::Exit,
+        _ => GameOverAction::ReturnTitle,
+    }
+}
+
 fn menu_item_enabled(item: &crate::ui::MenuItem, load_enabled: bool) -> bool {
     if item.id == "load_game" {
         load_enabled
     } else {
         true
+    }
+}
+
+fn gameover_item_enabled(item: &MenuItem, options: &GameOverOptions) -> bool {
+    match item.id.as_str() {
+        "retry_battle" => options.retry_enabled,
+        "load_latest" => options.load_latest_enabled,
+        "load_autosave" => options.load_autosave_enabled,
+        _ => true,
     }
 }
 
@@ -323,6 +509,15 @@ fn first_enabled_menu_item(title_ui: &TitleUiFile, load_enabled: bool) -> Option
         .menu
         .iter()
         .position(|item| menu_item_enabled(item, load_enabled))
+}
+
+fn first_enabled_gameover_item(
+    menu_items: &[MenuItem],
+    options: &GameOverOptions,
+) -> Option<usize> {
+    menu_items
+        .iter()
+        .position(|item| gameover_item_enabled(item, options))
 }
 
 fn move_menu_selection(
@@ -358,6 +553,38 @@ fn move_menu_selection(
     }
 }
 
+fn move_gameover_selection(
+    current: usize,
+    menu_items: &[MenuItem],
+    options: &GameOverOptions,
+    direction: i32,
+) -> usize {
+    if menu_items.is_empty() {
+        return 0;
+    }
+    let mut index = current.min(menu_items.len().saturating_sub(1));
+    loop {
+        if direction < 0 {
+            if index == 0 {
+                return current;
+            }
+            index = index.saturating_sub(1);
+        } else {
+            if index + 1 >= menu_items.len() {
+                return current;
+            }
+            index = (index + 1).min(menu_items.len().saturating_sub(1));
+        }
+        if menu_items
+            .get(index)
+            .map(|item| gameover_item_enabled(item, options))
+            .unwrap_or(false)
+        {
+            return index;
+        }
+    }
+}
+
 fn move_slot_selection(current: usize, slots: &[LoadSlotEntry], direction: i32) -> usize {
     if slots.is_empty() {
         return 0;
@@ -376,6 +603,14 @@ fn move_slot_selection(current: usize, slots: &[LoadSlotEntry], direction: i32) 
         remaining -= 1;
     }
     current
+}
+
+fn gameover_menu_items(title_ui: &TitleUiFile) -> Vec<MenuItem> {
+    title_ui
+        .gameover
+        .as_ref()
+        .map(|gameover| gameover.menu.clone())
+        .unwrap_or_default()
 }
 
 fn logo_line_style(logo: &TitleLogo, index: usize) -> Style {

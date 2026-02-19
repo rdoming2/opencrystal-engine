@@ -8,6 +8,20 @@ pub struct TitleUiFile {
     pub logo: TitleLogo,
     pub menu: Vec<MenuItem>,
     pub footer: FooterConfig,
+    #[serde(default)]
+    pub gameover: Option<GameOverUi>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct GameOverUi {
+    #[serde(default)]
+    pub title: Option<String>,
+    #[serde(default)]
+    pub subtitle: Option<String>,
+    #[serde(default)]
+    pub menu: Vec<MenuItem>,
+    #[serde(default)]
+    pub footer: Option<FooterConfig>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

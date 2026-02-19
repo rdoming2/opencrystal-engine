@@ -94,7 +94,7 @@
 - [x] Equipment swap flow with stat preview.
 - [x] Add startup content chooser when `--content` is omitted.
 - [x] Show campfire recipe ingredient requirements with inventory counts.
-- [ ] Gameover screen and optional restart logic (last battle, last save, fallback to main menu)
+- [x] Gameover screen and optional restart logic (last battle, last save, fallback to main menu)
 
 ## Battle System
 - [x] Turn-based flow (command selection, targeting, resolve action).

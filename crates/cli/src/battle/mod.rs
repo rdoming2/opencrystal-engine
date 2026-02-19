@@ -46,6 +46,61 @@ pub enum BattleOutcome {
     Escaped,
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub enum BattleSource {
+    Random,
+    Event { event_id: String, event_step: usize },
+}
+
+#[derive(Clone, Debug)]
+pub struct BattleSnapshot {
+    pub save: engine::save::SaveFile,
+    pub event_queue: Vec<String>,
+    pub active_event: Option<String>,
+    pub event_step: usize,
+    pub state: engine::runtime::GameState,
+}
+
+impl BattleSnapshot {
+    pub fn capture(runtime: &GameRuntime) -> Self {
+        Self {
+            save: engine::save::SaveFile::from_runtime(runtime, 0),
+            event_queue: runtime.event_queue.clone(),
+            active_event: runtime.active_event.clone(),
+            event_step: runtime.event_step,
+            state: runtime.state.clone(),
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct LastBattleContext {
+    pub formation: Vec<engine::encounters::EncounterMember>,
+    pub snapshot: BattleSnapshot,
+    pub source: BattleSource,
+}
+
+impl LastBattleContext {
+    pub fn new(
+        formation: Vec<engine::encounters::EncounterMember>,
+        snapshot: BattleSnapshot,
+        source: BattleSource,
+    ) -> Self {
+        Self {
+            formation,
+            snapshot,
+            source,
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct BattleReport {
+    pub outcome: BattleOutcome,
+    pub formation: Vec<engine::encounters::EncounterMember>,
+    pub snapshot: BattleSnapshot,
+}
+
 pub fn ui_text(runtime: &GameRuntime, key: &str, default: &str) -> String {
     runtime.content.ui_text(key).unwrap_or(default).to_string()
 }
@@ -1667,7 +1722,7 @@ pub fn try_start_random_battle(
     player_pos: (i32, i32),
     encounter_meter: &mut f32,
     rng: &mut impl Rng,
-) -> std::io::Result<Option<BattleOutcome>> {
+) -> std::io::Result<Option<BattleReport>> {
     let map_index = match runtime.content.map_index.get(map_id) {
         Some(index) => *index,
         None => return Ok(None),
@@ -1694,8 +1749,14 @@ pub fn try_start_random_battle(
         Some(entry) => entry,
         None => return Ok(None),
     };
-    let outcome = run_battle(runtime, battle_ui, bindings, session, &entry.formation, rng)?;
-    Ok(Some(outcome))
+    let formation = entry.formation.clone();
+    let snapshot = BattleSnapshot::capture(runtime);
+    let outcome = run_battle(runtime, battle_ui, bindings, session, &formation, rng)?;
+    Ok(Some(BattleReport {
+        outcome,
+        formation,
+        snapshot,
+    }))
 }
 
 pub fn run_event_battle_with_result(
@@ -1705,7 +1766,8 @@ pub fn run_event_battle_with_result(
     session: &mut TuiSession,
     encounter_id: &str,
     formation: &[engine::events::FormationMember],
-) -> std::io::Result<BattleOutcome> {
+    snapshot: BattleSnapshot,
+) -> std::io::Result<BattleReport> {
     let mut rng = rand::thread_rng();
     let formation = if formation.is_empty() {
         if encounter_id.is_empty() {
@@ -1726,9 +1788,18 @@ pub fn run_event_battle_with_result(
             .collect()
     };
     if formation.is_empty() {
-        return Ok(BattleOutcome::Victory);
+        return Ok(BattleReport {
+            outcome: BattleOutcome::Victory,
+            formation,
+            snapshot,
+        });
     }
-    run_battle(runtime, battle_ui, bindings, session, &formation, &mut rng)
+    let outcome = run_battle(runtime, battle_ui, bindings, session, &formation, &mut rng)?;
+    Ok(BattleReport {
+        outcome,
+        formation,
+        snapshot,
+    })
 }
 
 fn pause_after_action(

@@ -13,13 +13,20 @@ use tui::overworld::{
 use tui::session::TuiSession;
 use tui::ui::{BattleUiFile, DialogUiFile, MenuUiFile, ProgressUiFile};
 
-use crate::battle::{try_start_random_battle, BattleOutcome};
+use crate::battle::{try_start_random_battle, BattleOutcome, BattleSource, LastBattleContext};
 use crate::dialog::run_dialog_on_map;
-use crate::events::run_event_loop;
+use crate::events::{run_event_loop, EventLoopOutcome};
 use crate::menu::inventory::{panel_line_spans, panel_span};
 use crate::menu::run_menu_loop;
 use crate::shop::lookup_item_name;
 use crate::utils::read_action;
+
+#[derive(Clone, Debug)]
+pub enum OverworldOutcome {
+    Continue,
+    Defeat(LastBattleContext),
+    Quit,
+}
 
 pub fn run_overworld_loop(
     session: &mut TuiSession,
@@ -32,7 +39,7 @@ pub fn run_overworld_loop(
     map_id: &str,
     start_pos: (i32, i32),
     save_dir: &std::path::Path,
-) -> std::io::Result<()> {
+) -> std::io::Result<OverworldOutcome> {
     let mut current_map_id = map_id.to_string();
     let mut player_pos = start_pos;
     let mut return_positions: HashMap<String, (String, (i32, i32))> = HashMap::new();
@@ -249,14 +256,16 @@ pub fn run_overworld_loop(
                         if door_locked(runtime, &door) {
                             if let Some(event_id) = door.locked_event.as_ref() {
                                 runtime.queue_event(event_id);
-                                run_pending_events(
+                                if let OverworldOutcome::Defeat(context) = run_pending_events(
                                     runtime,
                                     dialog_ui,
                                     battle_ui,
                                     bindings,
                                     session,
                                     Some(map.clone()),
-                                )?;
+                                )? {
+                                    return Ok(OverworldOutcome::Defeat(context));
+                                }
                             } else {
                                 let text =
                                     door.locked_text.as_deref().unwrap_or("The door is locked.");
@@ -310,14 +319,16 @@ pub fn run_overworld_loop(
                         }
                         if let Some(event_id) = puzzle.event.as_ref() {
                             runtime.queue_event(event_id);
-                            run_pending_events(
+                            if let OverworldOutcome::Defeat(context) = run_pending_events(
                                 runtime,
                                 dialog_ui,
                                 battle_ui,
                                 bindings,
                                 session,
                                 Some(map.clone()),
-                            )?;
+                            )? {
+                                return Ok(OverworldOutcome::Defeat(context));
+                            }
                         } else if let Some(text) = puzzle.text.as_ref() {
                             show_centered_dialog_on_map(
                                 session, &map, player_pos, dialog_ui, bindings, text,
@@ -335,14 +346,16 @@ pub fn run_overworld_loop(
                         run_dialog_on_map(
                             runtime, dialog_ui, bindings, session, &dialog_id, &map, player_pos,
                         )?;
-                        run_pending_events(
+                        if let OverworldOutcome::Defeat(context) = run_pending_events(
                             runtime,
                             dialog_ui,
                             battle_ui,
                             bindings,
                             session,
                             Some(map.clone()),
-                        )?;
+                        )? {
+                            return Ok(OverworldOutcome::Defeat(context));
+                        }
                     } else if let Some((vehicle_id, vehicle_pos)) =
                         find_adjacent_vehicle(runtime, &current_map_id, player_pos)
                     {
@@ -381,7 +394,7 @@ pub fn run_overworld_loop(
                     if tui::dialog::confirm_quit(session, |frame| {
                         tui::overworld::draw_overworld_frame(frame, &map, player_pos);
                     })? {
-                        return Err(std::io::Error::new(std::io::ErrorKind::Interrupted, "quit"));
+                        return Ok(OverworldOutcome::Quit);
                     }
                 }
                 _ => {}
@@ -412,17 +425,16 @@ pub fn run_overworld_loop(
             if !runtime.event_queue.is_empty() {
                 runtime.state = GameState::Event;
                 runtime.start_next_event();
-                if let Err(err) = run_event_loop(
+                let outcome = run_event_loop(
                     runtime,
                     dialog_ui,
                     battle_ui,
                     bindings,
                     session,
                     Some(map.clone()),
-                ) {
-                    if err.kind() == std::io::ErrorKind::Interrupted {
-                        return Err(err);
-                    }
+                )?;
+                if let EventLoopOutcome::Defeat(context) = outcome {
+                    return Ok(OverworldOutcome::Defeat(context));
                 }
             }
         }
@@ -440,22 +452,21 @@ pub fn run_overworld_loop(
             if !runtime.event_queue.is_empty() {
                 runtime.state = GameState::Event;
                 runtime.start_next_event();
-                if let Err(err) = run_event_loop(
+                let outcome = run_event_loop(
                     runtime,
                     dialog_ui,
                     battle_ui,
                     bindings,
                     session,
                     Some(map.clone()),
-                ) {
-                    if err.kind() == std::io::ErrorKind::Interrupted {
-                        return Err(err);
-                    }
+                )?;
+                if let EventLoopOutcome::Defeat(context) = outcome {
+                    return Ok(OverworldOutcome::Defeat(context));
                 }
             }
             apply_overworld_poison(runtime);
             update_roaming_npcs(runtime, &current_map_id, player_pos, &mut rng);
-            if let Some(outcome) = try_start_random_battle(
+            if let Some(report) = try_start_random_battle(
                 runtime,
                 battle_ui,
                 bindings,
@@ -465,38 +476,18 @@ pub fn run_overworld_loop(
                 &mut encounter_meter,
                 &mut rng,
             )? {
-                if matches!(outcome, BattleOutcome::Defeat) {
-                    tui::dialog::show_dialog(
-                        session,
-                        dialog_ui,
-                        bindings,
-                        "",
-                        &crate::battle::ui_text(
-                            runtime,
-                            "battle.defeat_message",
-                            "The party was defeated.",
-                        ),
-                    )?;
-                    tui::dialog::show_dialog(
-                        session,
-                        dialog_ui,
-                        bindings,
-                        "",
-                        &crate::battle::ui_text(
-                            runtime,
-                            "battle.defeat_return",
-                            "Returning to the main menu.",
-                        ),
-                    )?;
-                    return Err(std::io::Error::new(
-                        std::io::ErrorKind::Interrupted,
-                        "defeat",
-                    ));
+                if matches!(report.outcome, BattleOutcome::Defeat) {
+                    let context = LastBattleContext::new(
+                        report.formation,
+                        report.snapshot,
+                        BattleSource::Random,
+                    );
+                    return Ok(OverworldOutcome::Defeat(context));
                 }
             }
         }
     }
-    Ok(())
+    Ok(OverworldOutcome::Quit)
 }
 
 pub fn build_map_view(runtime: &GameRuntime, map_id: &str) -> Option<MapView> {
@@ -1544,18 +1535,17 @@ fn run_pending_events(
     bindings: &InputBindings,
     session: &mut TuiSession,
     map_view: Option<MapView>,
-) -> std::io::Result<()> {
+) -> std::io::Result<OverworldOutcome> {
     if runtime.event_queue.is_empty() {
-        return Ok(());
+        return Ok(OverworldOutcome::Continue);
     }
     runtime.state = GameState::Event;
     runtime.start_next_event();
-    if let Err(err) = run_event_loop(runtime, dialog_ui, battle_ui, bindings, session, map_view) {
-        if err.kind() == std::io::ErrorKind::Interrupted {
-            return Err(err);
-        }
+    let outcome = run_event_loop(runtime, dialog_ui, battle_ui, bindings, session, map_view)?;
+    if let EventLoopOutcome::Defeat(context) = outcome {
+        return Ok(OverworldOutcome::Defeat(context));
     }
-    Ok(())
+    Ok(OverworldOutcome::Continue)
 }
 
 fn is_on_save_point(runtime: &GameRuntime, map_id: &str, pos: (i32, i32)) -> bool {

@@ -1494,6 +1494,7 @@ Runtime notes:
 
 Defines the title screen layout and content. This is a lightweight, templatable
 configuration intended to support ASCII logos, attribution, and menu items.
+The optional `gameover` block configures the gameover screen menu.
 
 Logo fields:
 
@@ -1501,6 +1502,21 @@ Logo fields:
 - `palette`: optional palette name applied to every logo row.
 - `line_palettes`: optional array of palette names applied per row (falls back to
   `palette` if an entry is missing).
+
+Gameover fields:
+
+- `title`: optional heading override (defaults to `Game Over`).
+- `subtitle`: optional subheading string.
+- `menu`: list of menu items (ids include `retry_battle`, `load_latest`, `load_autosave`,
+  `return_title`, `exit`).
+- `footer`: optional footer override (falls back to the title footer).
+
+Localization notes:
+
+- Gameover text can be localized via `ui/strings.json` using keys like
+  `gameover.title`, `gameover.subtitle`, `gameover.retry_battle`, `gameover.load_latest`,
+  `gameover.load_autosave`, `gameover.return_title`, and `gameover.exit`.
+- When a localization key is missing, the `ui/title.json` label is used as the fallback.
 
 ```json
 {
@@ -1536,6 +1552,21 @@ Logo fields:
     {"id": "settings", "label": "Settings"},
     {"id": "exit", "label": "Exit"}
   ],
+  "gameover": {
+    "title": "Game Over",
+    "subtitle": "The party has fallen.",
+    "menu": [
+      {"id": "retry_battle", "label": "Retry Battle"},
+      {"id": "load_latest", "label": "Load Latest Save"},
+      {"id": "load_autosave", "label": "Load Autosave"},
+      {"id": "return_title", "label": "Return to Title"},
+      {"id": "exit", "label": "Exit"}
+    ],
+    "footer": {
+      "left": "A crystal-bound journey",
+      "right": "By OpenCrystal Team"
+    }
+  },
   "footer": {
     "left": "A crystal-bound journey",
     "right": "By OpenCrystal Team"
