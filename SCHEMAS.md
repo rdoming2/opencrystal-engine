@@ -1625,8 +1625,8 @@ Battle animation fields:
     }
   },
   "log": {
-    "position": "top",
-    "height": 2,
+    "position": "pane_top",
+    "height": 3,
     "auto_advance_ms": 700,
     "allow_skip": true
   },

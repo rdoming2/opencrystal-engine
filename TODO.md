@@ -94,6 +94,7 @@
 - [x] Equipment swap flow with stat preview.
 - [x] Add startup content chooser when `--content` is omitted.
 - [x] Show campfire recipe ingredient requirements with inventory counts.
+- [ ] Gameover screen and optional restart logic (last battle, last save, fallback to main menu)
 
 ## Battle System
 - [x] Turn-based flow (command selection, targeting, resolve action).
@@ -116,6 +117,7 @@
 - [x] Define skills/abilities schema (non-spell actions).
 - [x] Add ability costs (hp/mp/currency/item/death/random).
 - [x] Add readiness speed setting to main menu.
+- [ ] Remove readiness meter from turn non-Dynamic turn mode battle UI
 - [x] Add localization support for UI strings and command labels.
 
 ## Magic System
@@ -131,6 +133,7 @@
 - [x] Implement experience + level-up pipeline.
 - [ ] Apply job growth formulas/tables on level-up.
 - [x] Recompute derived stats with `lvl` variable.
+- [ ] Ability to optionally lock job changes but allow spending of JP for progression
 
 ## Items + Equipment
 - [x] Fix equipment quantity tracking and shared equip counts.
