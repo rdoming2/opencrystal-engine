@@ -487,9 +487,29 @@ fn create_project_structure(target_dir: &Path, title: &str) -> Result<(), String
         version: 1,
         title: title.to_string(),
         logo: TitleLogo {
-            lines: vec!["OpenCrystal".to_string()],
+            lines: vec![
+                "    .   .   /#\\     .".to_string(),
+                "  *        /*##\\  .    *".to_string(),
+                "'      .  /**###\\    .  '".to_string(),
+                "    <    /***####\\      >".to_string(),
+                "  .   *  \\***####/  *   .".to_string(),
+                "*       . \\**###/   .    *".to_string(),
+                "    .      \\*##/  *      .".to_string(),
+                "  '      *  \\#/  .    '".to_string(),
+                "     OpenCrystal Engine".to_string(),
+            ],
             palette: None,
-            line_palettes: None,
+            line_palettes: Some(vec![
+                "bright_cyan".to_string(),
+                "bright_cyan".to_string(),
+                "bright_cyan".to_string(),
+                "bright_cyan".to_string(),
+                "cyan".to_string(),
+                "cyan".to_string(),
+                "cyan".to_string(),
+                "cyan".to_string(),
+                "white".to_string(),
+            ]),
         },
         menu: vec![
             MenuItem {
@@ -513,6 +533,7 @@ fn create_project_structure(target_dir: &Path, title: &str) -> Result<(), String
             left: "A crystal-bound journey".to_string(),
             right: "".to_string(),
         },
+        gameover: None,
     };
 
     let menu_ui = MenuUiFile {
@@ -640,8 +661,8 @@ fn create_project_structure(target_dir: &Path, title: &str) -> Result<(), String
             party_grid: PartyGrid { columns: 1 },
         },
         log: Some(BattleLog {
-            position: "top".to_string(),
-            height: 2,
+            position: "pane_top".to_string(),
+            height: 3,
             auto_advance_ms: 700,
             allow_skip: true,
         }),
