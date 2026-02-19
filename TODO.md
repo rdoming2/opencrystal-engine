@@ -102,7 +102,6 @@
 - [x] Battle pause toggle (freeze progression).
 - [x] Optional front/back row rules (battle + menu toggles).
 - [x] Status persistence rules and overworld poison ticks.
-- [ ] Status effects and damage formulas (derived stats).
 - [x] Status effects and damage formulas (derived stats).
   - [x] Implement critical hit calculations and messaging.
 - [x] Implement command-specific behaviors (steal, throw, counter, pray, parry, cover).

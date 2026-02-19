@@ -175,6 +175,10 @@ pub fn build_battle_render_state(
         flash_party: Vec::new(),
         acting_enemies: Vec::new(),
         acting_party: Vec::new(),
+        show_readiness: matches!(
+            battle_state.mode,
+            engine::battle::BattleMode::Dynamic | engine::battle::BattleMode::DynamicWait
+        ),
     }
 }
 

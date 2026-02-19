@@ -95,6 +95,7 @@ pub struct BattleRenderState {
     pub flash_party: Vec<usize>,
     pub acting_enemies: Vec<usize>,
     pub acting_party: Vec<usize>,
+    pub show_readiness: bool,
 }
 
 pub fn draw_battle(
@@ -646,27 +647,51 @@ fn draw_party_panel(
         } else if member.active {
             style = style.fg(Color::Cyan).add_modifier(Modifier::BOLD);
         }
-        let readiness_display = readiness_glyph(member.readiness);
         let line = if show_mp {
-            format!(
-                "{:<name_width$}  HP {:>hp_width$}/{:>hp_width$}  MP {:>mp_width$}/{:>mp_width$}  {}",
-                member.name,
-                member.hp.max(0),
-                member.max_hp.max(1),
-                member.mp.max(0),
-                member.max_mp.max(1),
-                readiness_display,
-                name_width = name_width,
-                hp_width = hp_width,
-                mp_width = mp_width,
-            )
-        } else {
+            if state.show_readiness {
+                let readiness_display = readiness_glyph(member.readiness);
+                format!(
+                    "{:<name_width$}  HP {:>hp_width$}/{:>hp_width$}  MP {:>mp_width$}/{:>mp_width$}  {}",
+                    member.name,
+                    member.hp.max(0),
+                    member.max_hp.max(1),
+                    member.mp.max(0),
+                    member.max_mp.max(1),
+                    readiness_display,
+                    name_width = name_width,
+                    hp_width = hp_width,
+                    mp_width = mp_width,
+                )
+            } else {
+                format!(
+                    "{:<name_width$}  HP {:>hp_width$}/{:>hp_width$}  MP {:>mp_width$}/{:>mp_width$}",
+                    member.name,
+                    member.hp.max(0),
+                    member.max_hp.max(1),
+                    member.mp.max(0),
+                    member.max_mp.max(1),
+                    name_width = name_width,
+                    hp_width = hp_width,
+                    mp_width = mp_width,
+                )
+            }
+        } else if state.show_readiness {
+            let readiness_display = readiness_glyph(member.readiness);
             format!(
                 "{:<name_width$}  HP {:>hp_width$}/{:>hp_width$}  {}",
                 member.name,
                 member.hp.max(0),
                 member.max_hp.max(1),
                 readiness_display,
+                name_width = name_width,
+                hp_width = hp_width,
+            )
+        } else {
+            format!(
+                "{:<name_width$}  HP {:>hp_width$}/{:>hp_width$}",
+                member.name,
+                member.hp.max(0),
+                member.max_hp.max(1),
                 name_width = name_width,
                 hp_width = hp_width,
             )
