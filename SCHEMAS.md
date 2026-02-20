@@ -1647,8 +1647,8 @@ Battle animation fields:
       "height_ratio": 0.4,
       "columns": [
         {"id": "enemies", "width_ratio": 0.3},
-        {"id": "commands", "width_ratio": 0.4},
-        {"id": "party", "width_ratio": 0.3}
+        {"id": "commands", "width_ratio": 0.3},
+        {"id": "party", "width_ratio": 0.4}
       ]
     },
     "party_grid": {

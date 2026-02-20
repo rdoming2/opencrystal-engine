@@ -650,11 +650,11 @@ fn create_project_structure(target_dir: &Path, title: &str) -> Result<(), String
                     },
                     ColumnSpec {
                         id: "commands".to_string(),
-                        width_ratio: 0.4,
+                        width_ratio: 0.3,
                     },
                     ColumnSpec {
                         id: "party".to_string(),
-                        width_ratio: 0.3,
+                        width_ratio: 0.4,
                     },
                 ],
             },
