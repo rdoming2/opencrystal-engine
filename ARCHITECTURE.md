@@ -57,6 +57,7 @@ and showing `rules.json` metadata (title, optional description/author).
 - Signs render as map objects with a glyph override (default `⚑`), block movement, and open a centered dialog on confirm.
 - Chests render with closed/open glyphs, block movement, and display loot in a centered dialog.
 - Doors, puzzles, and campfires render as map objects, block movement, and trigger interactions on confirm.
+- Puzzles can be interacted with from an adjacent tile or while standing on the puzzle tile.
 
 ### Area name popup
 

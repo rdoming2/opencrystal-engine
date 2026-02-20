@@ -579,6 +579,7 @@ Puzzle notes:
 - `puzzles.text` shows a centered dialog when interacted with.
 - `puzzles.event` queues an event when interacted with (optional alternative to `text`).
 - `puzzles.set_flag` is set when the puzzle is interacted with (useful for simple switches).
+- Puzzles can be interacted with from an adjacent tile or while standing on the puzzle tile.
 
 Campfire notes:
 

@@ -1214,7 +1214,7 @@ fn find_adjacent_puzzle(
         }
         let dx = (puzzle.pos[0] - pos.0).abs();
         let dy = (puzzle.pos[1] - pos.1).abs();
-        (dx == 1 && dy == 0) || (dx == 0 && dy == 1)
+        dx + dy <= 1
     })?;
     Some(puzzle.clone())
 }
