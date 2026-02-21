@@ -190,7 +190,12 @@ pub fn apply_event_step(runtime: &mut GameRuntime, step: &EventStep) -> EventExe
                         });
 
                 match step.r#type.as_str() {
-                    "npc_show" => entity_state.visible = Some(true),
+                    "npc_show" => {
+                        entity_state.visible = Some(true);
+                        if let Some(pos) = step.pos {
+                            entity_state.pos = Some((pos[0], pos[1]));
+                        }
+                    }
                     "npc_hide" => entity_state.visible = Some(false),
                     "npc_move" => {
                         if let Some(pos) = step.pos {

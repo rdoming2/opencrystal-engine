@@ -1181,6 +1181,8 @@ Supported event step types:
 
 `party_add` pulls the member from `party.json` roster and places them in the active party if there is space, otherwise in reserve. `party_remove` only removes the member from active/reserve lists; the roster entry remains so the member can rejoin later. Both steps abort the event if the member cannot be added/removed.
 
+`npc_show` applies `pos` when provided; `npc_move` requires `pos` to update the NPC location.
+
 Mode notes:
 - `preset` and `preset_rename` always use `party.json`, so `party_add` is available.
 - `create` only supports `party_add` when `party.json` is present; if missing, the event will abort.

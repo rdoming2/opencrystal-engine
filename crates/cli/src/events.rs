@@ -40,6 +40,12 @@ pub fn run_event_loop(
         match runtime.next_event_step() {
             Some(step) => {
                 let result = runtime.apply_event_step(&step);
+                if matches!(
+                    step.r#type.as_str(),
+                    "npc_show" | "npc_hide" | "npc_move" | "npc_set_sprite"
+                ) {
+                    map_view = build_map_view(runtime, &current_map_id);
+                }
                 let outcome = handle_event_result(
                     runtime,
                     dialog_ui,
