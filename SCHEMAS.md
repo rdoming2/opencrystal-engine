@@ -73,6 +73,8 @@ Job selection always shows unlocked jobs; `systems.jobs` only gates job-related 
 `exp_curve` defines the XP thresholds for leveling. Use `mode: "table"` with
 absolute XP totals per level or `mode: "formula"` with a formula string (use
 `lvl` in the formula). `max_level` caps progression.
+Status menu EXP uses `exp_curve` for `character`/`job_points` progression and
+`job_system.job_exp_curve` for `job` progression.
 
 `inventory` seeds starting inventory and sets `max_stack` for items/equipment.
 `magic_acquisition` defines how spells are obtained (`level`, `item`, `equip`, `jp`) and is required.
@@ -81,6 +83,7 @@ absolute XP totals per level or `mode: "formula"` with a formula string (use
 `battle` defines the command catalog and the global command set used in battle. The global set is
 the default menu for every job; job `commands` entries add to it (primary + secondary jobs are
 merged, duplicates removed). Command labels come from the catalog so UI text can be overridden.
+`battle.exp_for_fallen` toggles whether fallen party members earn EXP/JP after victory.
 `battle.formulas` configures hit, crit, and damage calculations (expressions with stat variables).
 `battle.boss_scaling` enables optional stat multipliers for enemies with the `boss` trait.
 `battle.rows` enables optional front/back row rules; when enabled, back row reduces physical attack
@@ -122,6 +125,7 @@ only; autosave uses slot 0 and never reduces the manual slot total.
     "currencies": [{"id": "gold", "name": "Gold", "symbol": "G"}]
   },
   "battle": {
+    "exp_for_fallen": false,
     "global_commands": ["attack", "defend", "items", "run"],
     "commands": [
       {"id": "attack", "label": "Attack", "kind": "attack", "sort_order": 10},
@@ -239,6 +243,7 @@ unlock automatically or need JP spending.
 
 Battle command catalog and default global command set.
 
+- `exp_for_fallen`: allow fallen party members to earn EXP/JP after victory.
 - `global_commands`: list of command IDs available to every job.
 - `commands`: list of command definitions.
 
@@ -249,6 +254,8 @@ Command definition fields:
 - `kind`: `attack`, `magic`, `abilities`, `abilities_group`, `items`, `run`, `defend`, `row`.
 - `sort_order`: order in the command list (lower values first).
 - `ability_group`: required when `kind` is `abilities_group`; matches abilities `command_group`.
+- `ability_id`: optional when `kind` is `abilities`; routes the command directly to an ability.
+- `abilities` commands hide abilities routed to available `abilities_group` commands or `ability_id` commands.
 
 Battle formula fields:
 
@@ -958,6 +965,7 @@ Ability costs (optional):
 Ability command grouping:
 
 - `command_group`: optional string used to route abilities to `abilities_group` commands.
+- `ability_id` commands bypass grouping and should omit `command_group` on the target ability.
 
 Targeting fields:
 

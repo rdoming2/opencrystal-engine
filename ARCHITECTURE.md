@@ -209,6 +209,7 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
 ### Leveling + experience
 
 - Experience thresholds are configured via `exp_curve` in `rules.json` (table or formula).
+- Status menu EXP display follows progression mode: character/job_points use `actor.exp`, job mode uses current job EXP.
 - Job growth can use formula or table modes per base stat.
 - Derived stat formulas support `lvl` for level-based scaling.
 
@@ -253,6 +254,7 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
 - Enemy selection tied to list on the left column.
 - Visual feedback highlights enemy in battlefield and list simultaneously.
 - Victory flow grants EXP/loot/currency stacks summed from enemies.
+- Fallen party members earn EXP/JP only when `battle.exp_for_fallen` is enabled.
 - Battle commands come from `rules.json` `battle.commands` plus job/secondary-job additions.
 - The global command list defines the base menu; job commands augment it without duplicates.
 - Command ordering follows `sort_order`, and the command panel pages when the list overflows.
@@ -359,6 +361,7 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
     - `logic.rs`: turn order, enemy AI, battle logging
     - `actions.rs`: action execution (attack, magic, ability, use item)
     - `render.rs`: battle UI render state construction
+    - battle command routing hides abilities assigned to available `abilities_group` or `ability_id` commands from the generic Abilities list
 - `crates/content/`
   - demo content and templates
 

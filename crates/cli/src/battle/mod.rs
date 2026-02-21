@@ -453,12 +453,35 @@ pub fn run_battle(
         }
 
         let spell_entries = build_battle_spell_entries(runtime, &actor_id);
-        let ability_entries_all = build_battle_ability_entries(runtime, &actor_id, None);
+        let mut command_entries = command_entries_for_actor(runtime, &actor_id);
+        let ability_groups = ability_groups_for_commands(&command_entries);
+        let ability_ids = ability_ids_for_commands(&command_entries);
+        let ability_entries_raw = build_battle_ability_entries(runtime, &actor_id, None);
+        let mut ability_entries_all = ability_entries_raw.clone();
+        if !ability_groups.is_empty() || !ability_ids.is_empty() {
+            ability_entries_all.retain(|entry| {
+                if ability_ids.contains(entry.id.as_str()) {
+                    return false;
+                }
+                let Some(ability) = runtime
+                    .content
+                    .abilities
+                    .abilities
+                    .iter()
+                    .find(|ability| ability.id == entry.id)
+                else {
+                    return true;
+                };
+                match ability.command_group.as_deref() {
+                    Some(group) => !ability_groups.contains(group),
+                    None => true,
+                }
+            });
+        }
         let command_group = ability_group_for_command(runtime, menu_state.command_id.as_deref());
         let ability_entries =
             build_battle_ability_entries(runtime, &actor_id, command_group.as_deref());
         let item_entries = build_battle_item_entries(runtime);
-        let mut command_entries = command_entries_for_actor(runtime, &actor_id);
         command_entries.retain(|command| {
             command_is_enabled(
                 runtime,
@@ -466,6 +489,7 @@ pub fn run_battle(
                 command,
                 &spell_entries,
                 &ability_entries_all,
+                &ability_entries_raw,
                 &item_entries,
             )
         });
@@ -662,6 +686,7 @@ pub fn run_battle(
                         command,
                         &spell_entries,
                         &ability_entries_all,
+                        &ability_entries_raw,
                         &item_entries,
                     ) {
                         push_battle_log(
@@ -698,7 +723,42 @@ pub fn run_battle(
                             }
                         }
                         CommandKind::Abilities | CommandKind::AbilitiesGroup => {
-                            if command.kind == CommandKind::AbilitiesGroup {
+                            if let Some(ability_id) = command.ability_id.as_deref() {
+                                let entry = ability_entries_raw
+                                    .iter()
+                                    .find(|entry| entry.id == ability_id)
+                                    .cloned();
+                                if let Some(entry) = entry {
+                                    if !entry.usable {
+                                        push_battle_log(
+                                            &mut battle_state.log,
+                                            ui_text(
+                                                runtime,
+                                                "battle.no_abilities",
+                                                "No abilities available.",
+                                            ),
+                                        );
+                                        continue;
+                                    }
+                                    if !begin_ability_targeting(
+                                        runtime,
+                                        &mut battle_state,
+                                        &mut menu_state,
+                                        entry,
+                                    ) {
+                                        menu_state.reset_for_actor();
+                                    }
+                                } else {
+                                    push_battle_log(
+                                        &mut battle_state.log,
+                                        ui_text(
+                                            runtime,
+                                            "battle.no_abilities",
+                                            "No abilities available.",
+                                        ),
+                                    );
+                                }
+                            } else if command.kind == CommandKind::AbilitiesGroup {
                                 let usable_group = usable_group_abilities(
                                     runtime,
                                     &actor_id,
@@ -1966,10 +2026,26 @@ fn apply_battle_rewards(
     };
 
     let rules = Ruleset::from_file(runtime.content.rules.clone());
+    let eligible_actor_ids: Vec<String> = runtime
+        .party
+        .active_ids()
+        .into_iter()
+        .filter(|actor_id| {
+            if rules.battle.exp_for_fallen {
+                return true;
+            }
+            runtime
+                .party
+                .roster
+                .get(actor_id)
+                .map(|actor| actor.current_hp > 0)
+                .unwrap_or(false)
+        })
+        .collect();
 
     if result.rewards.exp > 0 {
-        for actor_id in runtime.party.active_ids() {
-            if let Some(actor) = runtime.party.roster.get_mut(&actor_id) {
+        for actor_id in &eligible_actor_ids {
+            if let Some(actor) = runtime.party.roster.get_mut(actor_id.as_str()) {
                 let old_level = actor.level;
                 let old_stats = actor.derived_stats.clone();
 
@@ -1999,8 +2075,8 @@ fn apply_battle_rewards(
     }
 
     if result.rewards.jp > 0 {
-        for actor_id in runtime.party.active_ids() {
-            if let Some(actor) = runtime.party.roster.get_mut(&actor_id) {
+        for actor_id in &eligible_actor_ids {
+            if let Some(actor) = runtime.party.roster.get_mut(actor_id.as_str()) {
                 engine::party::gain_jp(&runtime.content, &rules, actor, result.rewards.jp);
             }
         }
@@ -2068,6 +2144,7 @@ pub struct CommandEntry {
     pub kind: CommandKind,
     pub sort_order: i32,
     pub ability_group: Option<String>,
+    pub ability_id: Option<String>,
 }
 
 fn command_kind_from_rule(kind: &str) -> Option<CommandKind> {
@@ -2132,6 +2209,7 @@ pub fn command_entries_for_actor(runtime: &GameRuntime, actor_id: &str) -> Vec<C
             kind,
             sort_order: command.sort_order,
             ability_group: command.ability_group.clone(),
+            ability_id: command.ability_id.clone(),
         });
     }
     entries.sort_by(|left, right| {
@@ -2141,6 +2219,24 @@ pub fn command_entries_for_actor(runtime: &GameRuntime, actor_id: &str) -> Vec<C
             .then_with(|| left.id.cmp(&right.id))
     });
     entries
+}
+
+fn ability_groups_for_commands(command_entries: &[CommandEntry]) -> HashSet<String> {
+    command_entries
+        .iter()
+        .filter(|command| command.kind == CommandKind::AbilitiesGroup)
+        .filter_map(|command| command.ability_group.as_deref())
+        .map(str::to_string)
+        .collect()
+}
+
+fn ability_ids_for_commands(command_entries: &[CommandEntry]) -> HashSet<String> {
+    command_entries
+        .iter()
+        .filter(|command| command.kind == CommandKind::Abilities)
+        .filter_map(|command| command.ability_id.as_deref())
+        .map(str::to_string)
+        .collect()
 }
 
 pub fn command_definition_for_id<'a>(
@@ -2252,13 +2348,24 @@ fn command_is_enabled(
     command: &CommandEntry,
     spell_entries: &[SpellEntry],
     ability_entries_all: &[AbilityEntry],
+    ability_entries_raw: &[AbilityEntry],
     item_entries: &[InventoryEntry],
 ) -> bool {
     match command.kind {
         CommandKind::Magic => {
             crate::menu::system_enabled(runtime, Some("magic")) && !spell_entries.is_empty()
         }
-        CommandKind::Abilities => ability_entries_all.iter().any(|entry| entry.usable),
+        CommandKind::Abilities => {
+            if let Some(ability_id) = command.ability_id.as_deref() {
+                ability_entries_raw
+                    .iter()
+                    .find(|entry| entry.id == ability_id)
+                    .map(|entry| entry.usable)
+                    .unwrap_or(false)
+            } else {
+                ability_entries_all.iter().any(|entry| entry.usable)
+            }
+        }
         CommandKind::AbilitiesGroup => command
             .ability_group
             .as_deref()

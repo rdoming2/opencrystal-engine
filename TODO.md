@@ -80,6 +80,10 @@
 - [x] Main menu UI.
   - [x] Two-pane layout (left list, right detail pane).
   - [x] Default party summary panel.
+  - [ ] Fix overflow on status
+  - [ ] Add paging to menu UI elements
+  - [ ] Loop menu input when reaching the top/bottom
+  - [ ] Exit menu option (take back to main menu)
 - [x] Playtime and currency balance display.
   - [x] Display current map coordinates in main menu stats.
   - [x] Focus switching (confirm enters right pane, cancel returns).
@@ -96,6 +100,7 @@
 - [x] Add startup content chooser when `--content` is omitted.
 - [x] Show campfire recipe ingredient requirements with inventory counts.
 - [x] Gameover screen and optional restart logic (last battle, last save, fallback to main menu)
+- [ ] Optional persistent death markers
 
 ## Battle System
 - [x] Turn-based flow (command selection, targeting, resolve action).
@@ -116,6 +121,8 @@
 - [x] Define elemental affinities and trait interactions.
 - [x] Define skills/abilities schema (non-spell actions).
 - [x] Add ability costs (hp/mp/currency/item/death/random).
+- [x] De-duplicate grouped abilities from the generic Abilities command list.
+- [x] Add single-ability battle commands via ability_id routing.
 - [x] Add readiness speed setting to main menu.
 - [ ] Remove readiness meter from turn non-Dynamic turn mode battle UI
 - [x] Add localization support for UI strings and command labels.
@@ -132,6 +139,8 @@
 ## Progression
 - [x] Implement experience + level-up pipeline.
 - [ ] Apply job growth formulas/tables on level-up.
+- [x] Fallen character EXP earn option
+- [ ] Expand status panel JP display (earned/spent/available).
 - [x] Recompute derived stats with `lvl` variable.
 - [ ] Ability to optionally lock job changes but allow spending of JP for progression
 

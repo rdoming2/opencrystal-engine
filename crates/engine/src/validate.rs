@@ -262,6 +262,31 @@ pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
                     command.id, command.kind
                 ));
             }
+            if command.ability_id.is_some() && kind != "abilities" {
+                errors.push(format!(
+                    "rules.json: battle.commands '{}' ability_id requires kind 'abilities'",
+                    command.id
+                ));
+            }
+            if command.ability_id.is_some() && command.ability_group.is_some() {
+                errors.push(format!(
+                    "rules.json: battle.commands '{}' cannot set both ability_id and ability_group",
+                    command.id
+                ));
+            }
+            if kind == "abilities" {
+                if command
+                    .ability_id
+                    .as_ref()
+                    .map(|id| id.trim().is_empty())
+                    .unwrap_or(false)
+                {
+                    errors.push(format!(
+                        "rules.json: battle.commands '{}' ability_id cannot be empty",
+                        command.id
+                    ));
+                }
+            }
             if kind == "abilities_group"
                 && command
                     .ability_group
@@ -1030,6 +1055,18 @@ pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
                     .collect()
             })
             .unwrap_or_default();
+        if let Some(rules) = rules.as_ref() {
+            for command in &rules.battle.commands {
+                if let Some(ability_id) = command.ability_id.as_deref() {
+                    if !ability_ids.contains(ability_id) {
+                        errors.push(format!(
+                            "rules.json: battle.commands '{}' references unknown ability '{}'",
+                            command.id, ability_id
+                        ));
+                    }
+                }
+            }
+        }
         for job in &jobs.jobs {
             match job.growth.mode.as_str() {
                 "table" => {

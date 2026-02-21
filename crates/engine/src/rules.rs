@@ -78,6 +78,8 @@ pub struct RenderRules {
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct BattleRules {
+    #[serde(default = "default_battle_exp_for_fallen")]
+    pub exp_for_fallen: bool,
     #[serde(default = "default_battle_global_commands")]
     pub global_commands: Vec<String>,
     #[serde(default = "default_battle_commands")]
@@ -139,6 +141,8 @@ pub struct BattleCommandDefinition {
     pub sort_order: i32,
     #[serde(default)]
     pub ability_group: Option<String>,
+    #[serde(default)]
+    pub ability_id: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -396,6 +400,7 @@ impl Default for SettingsRules {
 impl Default for BattleRules {
     fn default() -> Self {
         Self {
+            exp_for_fallen: default_battle_exp_for_fallen(),
             global_commands: default_battle_global_commands(),
             commands: default_battle_commands(),
             formulas: BattleFormulaRules::default(),
@@ -545,6 +550,10 @@ fn default_battle_global_commands() -> Vec<String> {
     ]
 }
 
+fn default_battle_exp_for_fallen() -> bool {
+    false
+}
+
 fn default_battle_commands() -> Vec<BattleCommandDefinition> {
     vec![
         BattleCommandDefinition {
@@ -553,6 +562,7 @@ fn default_battle_commands() -> Vec<BattleCommandDefinition> {
             kind: "attack".to_string(),
             sort_order: 10,
             ability_group: None,
+            ability_id: None,
         },
         BattleCommandDefinition {
             id: "magic".to_string(),
@@ -560,6 +570,7 @@ fn default_battle_commands() -> Vec<BattleCommandDefinition> {
             kind: "magic".to_string(),
             sort_order: 30,
             ability_group: None,
+            ability_id: None,
         },
         BattleCommandDefinition {
             id: "abilities".to_string(),
@@ -567,6 +578,7 @@ fn default_battle_commands() -> Vec<BattleCommandDefinition> {
             kind: "abilities".to_string(),
             sort_order: 40,
             ability_group: None,
+            ability_id: None,
         },
         BattleCommandDefinition {
             id: "items".to_string(),
@@ -574,6 +586,7 @@ fn default_battle_commands() -> Vec<BattleCommandDefinition> {
             kind: "items".to_string(),
             sort_order: 50,
             ability_group: None,
+            ability_id: None,
         },
         BattleCommandDefinition {
             id: "defend".to_string(),
@@ -581,6 +594,7 @@ fn default_battle_commands() -> Vec<BattleCommandDefinition> {
             kind: "defend".to_string(),
             sort_order: 60,
             ability_group: None,
+            ability_id: None,
         },
         BattleCommandDefinition {
             id: "run".to_string(),
@@ -588,6 +602,7 @@ fn default_battle_commands() -> Vec<BattleCommandDefinition> {
             kind: "run".to_string(),
             sort_order: 70,
             ability_group: None,
+            ability_id: None,
         },
     ]
 }

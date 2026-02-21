@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use engine::party::job_level;
 use engine::rules::{AbilityAcquisition, JpMode};
 use engine::runtime::GameRuntime;
@@ -86,11 +88,12 @@ pub fn build_ability_entries(runtime: &GameRuntime) -> Vec<AbilityEntry> {
         Some(actor) => actor,
         None => return Vec::new(),
     };
+    let (ability_groups, filtered_ability_ids) = ability_command_filters(runtime, actor);
     let mut entries = Vec::new();
-    let mut ability_ids = collect_ability_ids(runtime, actor);
-    ability_ids.sort();
-    ability_ids.dedup();
-    for ability_id in ability_ids {
+    let mut owned_ability_ids = collect_ability_ids(runtime, actor);
+    owned_ability_ids.sort();
+    owned_ability_ids.dedup();
+    for ability_id in owned_ability_ids {
         let Some(ability) = runtime
             .content
             .abilities
@@ -100,6 +103,14 @@ pub fn build_ability_entries(runtime: &GameRuntime) -> Vec<AbilityEntry> {
         else {
             continue;
         };
+        if let Some(group) = ability.command_group.as_deref() {
+            if ability_groups.contains(group) {
+                continue;
+            }
+        }
+        if filtered_ability_ids.contains(ability.id.as_str()) {
+            continue;
+        }
         let (cost_type, cost_value, cost_item_id, cost_currency_id) =
             if let Some(cost) = &ability.cost {
                 (
@@ -138,6 +149,60 @@ pub fn build_ability_entries(runtime: &GameRuntime) -> Vec<AbilityEntry> {
     }
     entries.sort_by(|left, right| left.name.cmp(&right.name));
     entries
+}
+
+fn ability_command_filters(
+    runtime: &GameRuntime,
+    actor: &engine::party::Actor,
+) -> (HashSet<String>, HashSet<String>) {
+    let mut command_ids: HashSet<String> = runtime
+        .content
+        .rules
+        .battle
+        .global_commands
+        .iter()
+        .cloned()
+        .collect();
+    if let Some(job) = runtime
+        .content
+        .jobs
+        .jobs
+        .iter()
+        .find(|job| job.id == actor.job_id)
+    {
+        command_ids.extend(job.commands.iter().cloned());
+    }
+    if runtime.content.rules.job_system.secondary_jobs {
+        if let Some(secondary_job_id) = actor.secondary_job_id.as_deref() {
+            if let Some(job) = runtime
+                .content
+                .jobs
+                .jobs
+                .iter()
+                .find(|job| job.id == secondary_job_id)
+            {
+                command_ids.extend(job.commands.iter().cloned());
+            }
+        }
+    }
+    let mut ability_groups = HashSet::new();
+    let mut ability_ids = HashSet::new();
+    for command in &runtime.content.rules.battle.commands {
+        if !command_ids.contains(&command.id) {
+            continue;
+        }
+        if command.kind == "abilities_group" {
+            if let Some(group) = command.ability_group.as_deref() {
+                ability_groups.insert(group.to_string());
+            }
+        }
+        if command.kind == "abilities" {
+            if let Some(ability_id) = command.ability_id.as_deref() {
+                ability_ids.insert(ability_id.to_string());
+            }
+        }
+    }
+    (ability_groups, ability_ids)
 }
 
 pub fn selected_ability_targets(runtime: &GameRuntime) -> Vec<String> {

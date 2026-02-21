@@ -26,9 +26,26 @@ pub fn build_status_panel(runtime: &GameRuntime, page: usize) -> Vec<MenuPanelLi
             if page == 0 {
                 let max_hp = actor.derived_stats.get("hp").copied().unwrap_or(0);
                 let magic_system = runtime.content.rules.game.magic_system.clone();
-                let exp_next = exp_for_level(&runtime.content.rules.exp_curve, actor.level + 1)
-                    .unwrap_or(actor.exp);
-                let exp_remaining = exp_next.saturating_sub(actor.exp);
+                let (exp_label, current_exp, exp_curve) =
+                    match &runtime.content.rules.job_system.progression_mode {
+                        JobProgressionMode::Job => {
+                            let job_exp = actor
+                                .job_progress
+                                .get(actor.job_id.as_str())
+                                .map(|progress| progress.exp)
+                                .unwrap_or(0);
+                            (
+                                "Job EXP",
+                                job_exp,
+                                &runtime.content.rules.job_system.job_exp_curve,
+                            )
+                        }
+                        JobProgressionMode::Character | JobProgressionMode::JobPoints => {
+                            ("EXP", actor.exp, &runtime.content.rules.exp_curve)
+                        }
+                    };
+                let exp_next = exp_for_level(exp_curve, actor.level + 1).unwrap_or(current_exp);
+                let exp_remaining = exp_next.saturating_sub(current_exp);
                 let status_labels = actor
                     .statuses
                     .iter()
@@ -75,8 +92,8 @@ pub fn build_status_panel(runtime: &GameRuntime, page: usize) -> Vec<MenuPanelLi
                     lines.push(panel_line(format!("JP {}", job_jp(actor, &actor.job_id))));
                 }
                 lines.push(panel_line(format!(
-                    "EXP {} (next {})",
-                    actor.exp, exp_remaining
+                    "{} {} (next {})",
+                    exp_label, current_exp, exp_remaining
                 )));
                 if status_labels.is_empty() {
                     lines.push(panel_line("Status: None"));
