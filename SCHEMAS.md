@@ -424,6 +424,9 @@ flags are set.
 
 `hide_name` controls whether the map name tooltip is shown on entry. Defaults to false.
 
+`loop` controls edge wrapping for the map. Set `loop.x` and/or `loop.y` to true to wrap
+movement across that axis. Defaults to `{ "x": false, "y": false }`.
+
 `encounter_rate` is the per-step base chance (0.0-1.0) used to build an encounter meter in encounter zones.
 Each step applies a random jitter (0.5 to 1.5) to the rate before adding it to the meter.
 When the meter reaches 1.0, a random battle triggers and the meter is reduced by 1.0.
@@ -439,6 +442,7 @@ When the meter reaches 1.0, a random battle triggers and the meter is reduced by
   "world": "gaia",
   "width": 64,
   "height": 48,
+  "loop": {"x": true, "y": false},
   "tiles": [
     "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~",
     "~~~~..^^....~~~~..^^....~~~~....",

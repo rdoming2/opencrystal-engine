@@ -11,7 +11,7 @@ use engine::entities::{
     SpellsFile, VehicleDefinition, VehiclesFile,
 };
 use engine::io::{load_json, write_json_pretty};
-use engine::maps::{MapFile, TileLegend};
+use engine::maps::{MapFile, MapLoop, TileLegend};
 use engine::quests::QuestsFile;
 use engine::rules::{
     AbilityAcquisition, BattleMode, Currency, ExpCurveRules, GameRules, JobProgressionMode,
@@ -459,6 +459,7 @@ fn create_project_structure(target_dir: &Path, title: &str) -> Result<(), String
         world: "default_world".to_string(),
         width: 1,
         height: 1,
+        loop_config: MapLoop::default(),
         tiles: vec![".".to_string()],
         legend: HashMap::from([(
             ".".to_string(),

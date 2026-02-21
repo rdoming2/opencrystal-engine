@@ -4,6 +4,14 @@ use std::path::Path;
 
 use crate::inventory::InventoryStack;
 
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+pub struct MapLoop {
+    #[serde(default)]
+    pub x: bool,
+    #[serde(default)]
+    pub y: bool,
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct MapFile {
     pub version: u32,
@@ -14,6 +22,8 @@ pub struct MapFile {
     pub world: String,
     pub width: u32,
     pub height: u32,
+    #[serde(default, rename = "loop")]
+    pub loop_config: MapLoop,
     pub tiles: Vec<String>,
     pub legend: HashMap<String, TileLegend>,
     pub encounters: Vec<EncounterZone>,

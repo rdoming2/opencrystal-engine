@@ -88,7 +88,12 @@ pub fn run_overworld_loop(
                     };
                     let speed = movement_speed(runtime);
                     for _ in 0..speed {
-                        let next_pos = (player_pos.0 + dx, player_pos.1 + dy);
+                        let raw_next_pos = (player_pos.0 + dx, player_pos.1 + dy);
+                        let Some(next_pos) =
+                            normalize_map_pos(runtime, &current_map_id, raw_next_pos)
+                        else {
+                            break;
+                        };
                         if runtime.active_vehicle.is_none() {
                             if let Some(door) = door_at(runtime, &current_map_id, next_pos) {
                                 if door_locked(runtime, &door) {
@@ -711,6 +716,8 @@ pub fn build_map_view(runtime: &GameRuntime, map_id: &str) -> Option<MapView> {
         hide_name: map.hide_name,
         width: map.width as u16,
         height: map.height as u16,
+        loop_x: map.loop_config.x,
+        loop_y: map.loop_config.y,
         tiles: map.tiles.clone(),
         legend,
         transitions,
@@ -733,6 +740,10 @@ fn mark_map_visited(runtime: &mut GameRuntime, map_id: &str) {
 }
 
 pub fn is_passable(runtime: &GameRuntime, map_id: &str, pos: (i32, i32)) -> bool {
+    let pos = match normalize_map_pos(runtime, map_id, pos) {
+        Some(pos) => pos,
+        None => return false,
+    };
     let index = match runtime.content.map_index.get(map_id) {
         Some(index) => *index,
         None => return false,
@@ -741,9 +752,6 @@ pub fn is_passable(runtime: &GameRuntime, map_id: &str, pos: (i32, i32)) -> bool
         Some(map) => map,
         None => return false,
     };
-    if pos.0 < 0 || pos.1 < 0 || pos.0 >= map.width as i32 || pos.1 >= map.height as i32 {
-        return false;
-    }
     let tile = map
         .tiles
         .get(pos.1 as usize)
@@ -757,11 +765,9 @@ pub fn is_passable(runtime: &GameRuntime, map_id: &str, pos: (i32, i32)) -> bool
 }
 
 fn tile_id_at(runtime: &GameRuntime, map_id: &str, pos: (i32, i32)) -> Option<String> {
+    let pos = normalize_map_pos(runtime, map_id, pos)?;
     let index = runtime.content.map_index.get(map_id)?;
     let map = runtime.content.maps.get(*index)?;
-    if pos.0 < 0 || pos.1 < 0 || pos.0 >= map.width as i32 || pos.1 >= map.height as i32 {
-        return None;
-    }
     let tile = map
         .tiles
         .get(pos.1 as usize)
@@ -769,6 +775,29 @@ fn tile_id_at(runtime: &GameRuntime, map_id: &str, pos: (i32, i32)) -> Option<St
     map.legend
         .get(&tile.to_string())
         .map(|entry| entry.tile.clone())
+}
+
+fn normalize_map_pos(runtime: &GameRuntime, map_id: &str, pos: (i32, i32)) -> Option<(i32, i32)> {
+    let index = runtime.content.map_index.get(map_id)?;
+    let map = runtime.content.maps.get(*index)?;
+    let width = map.width as i32;
+    let height = map.height as i32;
+    if width <= 0 || height <= 0 {
+        return None;
+    }
+    let mut x = pos.0;
+    let mut y = pos.1;
+    if map.loop_config.x {
+        x = x.rem_euclid(width);
+    } else if x < 0 || x >= width {
+        return None;
+    }
+    if map.loop_config.y {
+        y = y.rem_euclid(height);
+    } else if y < 0 || y >= height {
+        return None;
+    }
+    Some((x, y))
 }
 
 fn is_vehicle_passable(
@@ -852,6 +881,9 @@ fn vehicle_at(
 }
 
 fn can_move_to(runtime: &GameRuntime, map_id: &str, pos: (i32, i32)) -> bool {
+    let Some(pos) = normalize_map_pos(runtime, map_id, pos) else {
+        return false;
+    };
     let passable = if let Some(vehicle_id) = runtime.active_vehicle.as_deref() {
         is_vehicle_passable(runtime, map_id, pos, vehicle_id)
     } else {
@@ -961,7 +993,10 @@ fn find_adjacent_vehicle(
 fn find_disembark_pos(runtime: &GameRuntime, map_id: &str, pos: (i32, i32)) -> Option<(i32, i32)> {
     let candidates = [(0, -1), (0, 1), (-1, 0), (1, 0)];
     for (dx, dy) in candidates {
-        let target = (pos.0 + dx, pos.1 + dy);
+        let raw_target = (pos.0 + dx, pos.1 + dy);
+        let Some(target) = normalize_map_pos(runtime, map_id, raw_target) else {
+            continue;
+        };
         if is_passable(runtime, map_id, target)
             && !npc_at(runtime, map_id, target)
             && !sign_at(runtime, map_id, target)
@@ -1006,6 +1041,7 @@ fn find_transition(
 ) -> Option<engine::maps::MapTransition> {
     let index = runtime.content.map_index.get(map_id)?;
     let map = runtime.content.maps.get(*index)?;
+    let pos = normalize_map_pos(runtime, map_id, pos)?;
     map.transitions
         .iter()
         .find(|transition| transition.pos == [pos.0, pos.1])
@@ -1013,6 +1049,10 @@ fn find_transition(
 }
 
 fn npc_at(runtime: &GameRuntime, map_id: &str, pos: (i32, i32)) -> bool {
+    let pos = match normalize_map_pos(runtime, map_id, pos) {
+        Some(pos) => pos,
+        None => return false,
+    };
     let index = match runtime.content.map_index.get(map_id) {
         Some(index) => *index,
         None => return false,
@@ -1041,6 +1081,10 @@ fn npc_at(runtime: &GameRuntime, map_id: &str, pos: (i32, i32)) -> bool {
 }
 
 fn chest_at(runtime: &GameRuntime, map_id: &str, pos: (i32, i32)) -> bool {
+    let pos = match normalize_map_pos(runtime, map_id, pos) {
+        Some(pos) => pos,
+        None => return false,
+    };
     let index = match runtime.content.map_index.get(map_id) {
         Some(index) => *index,
         None => return false,
@@ -1055,6 +1099,10 @@ fn chest_at(runtime: &GameRuntime, map_id: &str, pos: (i32, i32)) -> bool {
 }
 
 fn sign_at(runtime: &GameRuntime, map_id: &str, pos: (i32, i32)) -> bool {
+    let pos = match normalize_map_pos(runtime, map_id, pos) {
+        Some(pos) => pos,
+        None => return false,
+    };
     let index = match runtime.content.map_index.get(map_id) {
         Some(index) => *index,
         None => return false,
@@ -1069,6 +1117,7 @@ fn sign_at(runtime: &GameRuntime, map_id: &str, pos: (i32, i32)) -> bool {
 }
 
 fn door_at(runtime: &GameRuntime, map_id: &str, pos: (i32, i32)) -> Option<engine::maps::MapDoor> {
+    let pos = normalize_map_pos(runtime, map_id, pos)?;
     let index = runtime.content.map_index.get(map_id)?;
     let map = runtime.content.maps.get(*index)?;
     map.doors
@@ -1085,6 +1134,10 @@ fn door_locked(runtime: &GameRuntime, door: &engine::maps::MapDoor) -> bool {
 }
 
 fn puzzle_at(runtime: &GameRuntime, map_id: &str, pos: (i32, i32)) -> bool {
+    let pos = match normalize_map_pos(runtime, map_id, pos) {
+        Some(pos) => pos,
+        None => return false,
+    };
     let index = match runtime.content.map_index.get(map_id) {
         Some(index) => *index,
         None => return false,
@@ -1099,6 +1152,10 @@ fn puzzle_at(runtime: &GameRuntime, map_id: &str, pos: (i32, i32)) -> bool {
 }
 
 fn campfire_at(runtime: &GameRuntime, map_id: &str, pos: (i32, i32)) -> bool {
+    let pos = match normalize_map_pos(runtime, map_id, pos) {
+        Some(pos) => pos,
+        None => return false,
+    };
     let index = match runtime.content.map_index.get(map_id) {
         Some(index) => *index,
         None => return false,
@@ -1811,6 +1868,9 @@ fn npc_can_move_to(
     occupied: &HashSet<(i32, i32)>,
     player_pos: (i32, i32),
 ) -> bool {
+    let Some(pos) = normalize_map_pos(runtime, map_id, pos) else {
+        return false;
+    };
     if pos == player_pos {
         return false;
     }

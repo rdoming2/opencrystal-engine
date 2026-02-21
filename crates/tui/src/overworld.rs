@@ -23,6 +23,8 @@ pub struct MapView {
     pub hide_name: bool,
     pub width: u16,
     pub height: u16,
+    pub loop_x: bool,
+    pub loop_y: bool,
     pub tiles: Vec<String>,
     pub legend: HashMap<char, TileRender>,
     pub transitions: Vec<TransitionView>,
@@ -277,83 +279,78 @@ pub fn draw_overworld_frame(frame: &mut Frame, map: &MapView, player_pos: (i32, 
         for x in 0..view_width {
             let map_x = start_x + x as i32;
             let map_y = start_y + y as i32;
-            let mut glyph = tile_at(map, map_x, map_y);
+            let wrapped_pos = wrap_map_pos(map, map_x, map_y);
+            let mut glyph = wrapped_pos
+                .map(|pos| tile_at_wrapped(map, pos))
+                .unwrap_or(' ');
             let mut palette = map
                 .legend
                 .get(&glyph)
                 .and_then(|entry| entry.palette.as_deref());
 
-            if (map_x, map_y) == player_pos {
-                if let Some(active_vehicle) = &map.active_vehicle {
-                    glyph = active_vehicle.glyph;
-                    palette = active_vehicle
+            if let Some(pos) = wrapped_pos {
+                if pos == player_pos {
+                    if let Some(active_vehicle) = &map.active_vehicle {
+                        glyph = active_vehicle.glyph;
+                        palette = active_vehicle
+                            .palette
+                            .as_deref()
+                            .or(Some(DEFAULT_VEHICLE_PALETTE));
+                    } else {
+                        glyph = '@';
+                        palette = Some(DEFAULT_PLAYER_PALETTE);
+                    }
+                } else if let Some(npc) = map.npcs.iter().find(|npc| npc.pos == pos) {
+                    glyph = npc.glyph;
+                    palette = npc.palette.as_deref().or(Some(DEFAULT_NPC_PALETTE));
+                } else if let Some(vehicle) = map.vehicles.iter().find(|vehicle| vehicle.pos == pos)
+                {
+                    glyph = vehicle.glyph;
+                    palette = vehicle.palette.as_deref().or(Some(DEFAULT_VEHICLE_PALETTE));
+                } else if let Some(chest) = map.chests.iter().find(|chest| chest.pos == pos) {
+                    glyph = if chest.opened {
+                        chest.glyph_open
+                    } else {
+                        chest.glyph_closed
+                    };
+                    palette = chest.palette.as_deref().or(Some(DEFAULT_CHEST_PALETTE));
+                } else if let Some(sign) = map.signs.iter().find(|sign| sign.pos == pos) {
+                    glyph = sign.glyph;
+                    palette = sign.palette.as_deref().or(Some(DEFAULT_SIGN_PALETTE));
+                } else if let Some(door) = map.doors.iter().find(|door| door.pos == pos) {
+                    glyph = door.glyph;
+                    if door.locked {
+                        palette = Some("bright_black");
+                    } else {
+                        palette = door.palette.as_deref().or(Some(DEFAULT_DOOR_PALETTE));
+                    }
+                } else if let Some(puzzle) = map.puzzles.iter().find(|puzzle| puzzle.pos == pos) {
+                    glyph = puzzle.glyph;
+                    palette = puzzle.palette.as_deref().or(Some(DEFAULT_PUZZLE_PALETTE));
+                } else if let Some(campfire) =
+                    map.campfires.iter().find(|campfire| campfire.pos == pos)
+                {
+                    glyph = campfire.glyph;
+                    palette = campfire
                         .palette
                         .as_deref()
-                        .or(Some(DEFAULT_VEHICLE_PALETTE));
-                } else {
-                    glyph = '@';
-                    palette = Some(DEFAULT_PLAYER_PALETTE);
+                        .or(Some(DEFAULT_CAMPFIRE_PALETTE));
+                } else if let Some(transition) = map
+                    .transitions
+                    .iter()
+                    .find(|transition| transition.pos == pos)
+                {
+                    if let Some(transition_glyph) = transition.glyph {
+                        glyph = transition_glyph;
+                    }
+                    palette = transition
+                        .palette
+                        .as_deref()
+                        .or(Some(DEFAULT_TRANSITION_PALETTE));
+                } else if map.save_points.iter().any(|entry| *entry == pos) {
+                    glyph = '♦';
+                    palette = Some(DEFAULT_SAVE_POINT_PALETTE);
                 }
-            } else if let Some(npc) = map.npcs.iter().find(|npc| npc.pos == (map_x, map_y)) {
-                glyph = npc.glyph;
-                palette = npc.palette.as_deref().or(Some(DEFAULT_NPC_PALETTE));
-            } else if let Some(vehicle) = map
-                .vehicles
-                .iter()
-                .find(|vehicle| vehicle.pos == (map_x, map_y))
-            {
-                glyph = vehicle.glyph;
-                palette = vehicle.palette.as_deref().or(Some(DEFAULT_VEHICLE_PALETTE));
-            } else if let Some(chest) = map.chests.iter().find(|chest| chest.pos == (map_x, map_y))
-            {
-                glyph = if chest.opened {
-                    chest.glyph_open
-                } else {
-                    chest.glyph_closed
-                };
-                palette = chest.palette.as_deref().or(Some(DEFAULT_CHEST_PALETTE));
-            } else if let Some(sign) = map.signs.iter().find(|sign| sign.pos == (map_x, map_y)) {
-                glyph = sign.glyph;
-                palette = sign.palette.as_deref().or(Some(DEFAULT_SIGN_PALETTE));
-            } else if let Some(door) = map.doors.iter().find(|door| door.pos == (map_x, map_y)) {
-                glyph = door.glyph;
-                if door.locked {
-                    palette = Some("bright_black");
-                } else {
-                    palette = door.palette.as_deref().or(Some(DEFAULT_DOOR_PALETTE));
-                }
-            } else if let Some(puzzle) = map
-                .puzzles
-                .iter()
-                .find(|puzzle| puzzle.pos == (map_x, map_y))
-            {
-                glyph = puzzle.glyph;
-                palette = puzzle.palette.as_deref().or(Some(DEFAULT_PUZZLE_PALETTE));
-            } else if let Some(campfire) = map
-                .campfires
-                .iter()
-                .find(|campfire| campfire.pos == (map_x, map_y))
-            {
-                glyph = campfire.glyph;
-                palette = campfire
-                    .palette
-                    .as_deref()
-                    .or(Some(DEFAULT_CAMPFIRE_PALETTE));
-            } else if let Some(transition) = map
-                .transitions
-                .iter()
-                .find(|transition| transition.pos == (map_x, map_y))
-            {
-                if let Some(transition_glyph) = transition.glyph {
-                    glyph = transition_glyph;
-                }
-                palette = transition
-                    .palette
-                    .as_deref()
-                    .or(Some(DEFAULT_TRANSITION_PALETTE));
-            } else if map.save_points.iter().any(|pos| *pos == (map_x, map_y)) {
-                glyph = '♦';
-                palette = Some(DEFAULT_SAVE_POINT_PALETTE);
             }
 
             row.push(Span::styled(
@@ -540,13 +537,37 @@ pub fn choose_dialog_option_with_details_on_map(
 }
 
 pub fn tile_at(map: &MapView, x: i32, y: i32) -> char {
-    if x < 0 || y < 0 || x >= map.width as i32 || y >= map.height as i32 {
-        return ' ';
-    }
-    map.tiles
-        .get(y as usize)
-        .and_then(|row| row.chars().nth(x as usize))
+    wrap_map_pos(map, x, y)
+        .map(|pos| tile_at_wrapped(map, pos))
         .unwrap_or(' ')
+}
+
+fn tile_at_wrapped(map: &MapView, pos: (i32, i32)) -> char {
+    map.tiles
+        .get(pos.1 as usize)
+        .and_then(|row| row.chars().nth(pos.0 as usize))
+        .unwrap_or(' ')
+}
+
+fn wrap_map_pos(map: &MapView, x: i32, y: i32) -> Option<(i32, i32)> {
+    let width = map.width as i32;
+    let height = map.height as i32;
+    if width <= 0 || height <= 0 {
+        return None;
+    }
+    let mut wrapped_x = x;
+    let mut wrapped_y = y;
+    if map.loop_x {
+        wrapped_x = wrapped_x.rem_euclid(width);
+    } else if wrapped_x < 0 || wrapped_x >= width {
+        return None;
+    }
+    if map.loop_y {
+        wrapped_y = wrapped_y.rem_euclid(height);
+    } else if wrapped_y < 0 || wrapped_y >= height {
+        return None;
+    }
+    Some((wrapped_x, wrapped_y))
 }
 
 pub fn viewport_origin(
@@ -560,7 +581,9 @@ pub fn viewport_origin(
     let map_width = map.width as i32;
     let map_height = map.height as i32;
 
-    let start_x = if map_width <= view_width {
+    let start_x = if map.loop_x {
+        player_pos.0 - (view_width / 2)
+    } else if map_width <= view_width {
         -((view_width - map_width) / 2)
     } else {
         let half_width = view_width / 2;
@@ -568,7 +591,9 @@ pub fn viewport_origin(
         clamp(player_pos.0 - half_width, 0, max_x.max(0))
     };
 
-    let start_y = if map_height <= view_height {
+    let start_y = if map.loop_y {
+        player_pos.1 - (view_height / 2)
+    } else if map_height <= view_height {
         -((view_height - map_height) / 2)
     } else {
         let half_height = view_height / 2;

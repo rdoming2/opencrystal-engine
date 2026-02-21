@@ -39,6 +39,7 @@
 - [x] Implement runtime map transitions.
   - [x] Step on transition triggers map load.
   - [x] Preserve player position on target map.
+- [x] Add per-map edge looping (loop x/y).
 - [x] Add encounter meter to smooth random encounter streaks.
 - [ ] Implement NPC interaction runtime.
   - [ ] Dialog vs event selection.
