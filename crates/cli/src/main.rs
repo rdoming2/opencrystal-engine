@@ -426,11 +426,13 @@ fn run_validate() {
 
     if errors.is_empty() {
         println!("Content validation passed.");
+        std::process::exit(0);
     } else {
         eprintln!("Content validation failed ({} errors):", errors.len());
         for error in errors {
             eprintln!("- {}", error);
         }
+        std::process::exit(1);
     }
 }
 
