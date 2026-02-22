@@ -25,6 +25,23 @@ pub struct BattleState {
     pub readiness_party: HashMap<String, f32>,
     pub readiness_enemy: Vec<f32>,
     pub mode: BattleMode,
+    pub turns: u32,
+    pub floor_depth: u32,
+    pub growth: HashMap<String, BattleGrowthAccumulator>,
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct BattleGrowthAccumulator {
+    pub damage_taken: f32,
+    pub damage_dealt_physical: f32,
+    pub damage_dealt_magic: f32,
+    pub mp_spent: f32,
+    pub status_inflicted: f32,
+    pub crits: f32,
+    pub dodges: f32,
+    pub turns_targeted: f32,
+    pub turns_acted: f32,
+    pub hp_below_25: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -56,6 +73,7 @@ pub struct BattleRewards {
 
 #[derive(Clone, Debug, Default)]
 pub struct LevelUpDiff {
+    pub actor_id: String,
     pub actor_name: String,
     pub old_level: u32,
     pub new_level: u32,
@@ -63,9 +81,26 @@ pub struct LevelUpDiff {
 }
 
 #[derive(Clone, Debug, Default)]
+pub struct LearnedDiff {
+    pub actor_id: String,
+    pub actor_name: String,
+    pub spells: Vec<String>,
+    pub abilities: Vec<String>,
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct ActivityGrowthDiff {
+    pub actor_id: String,
+    pub actor_name: String,
+    pub stat_changes: HashMap<String, (i32, i32)>,
+}
+
+#[derive(Clone, Debug, Default)]
 pub struct BattleResult {
     pub rewards: BattleRewards,
     pub level_ups: Vec<LevelUpDiff>,
+    pub learned: Vec<LearnedDiff>,
+    pub activity_growth: Vec<ActivityGrowthDiff>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -170,6 +205,9 @@ pub fn build_battle_state(
         readiness_party,
         readiness_enemy,
         mode,
+        turns: 0,
+        floor_depth: 1,
+        growth: HashMap::new(),
     }
 }
 
@@ -245,6 +283,39 @@ pub fn enemy_combat_stats(content: &Content, enemy: &BattleEnemy) -> CombatantSt
         eva: derived.get("eva").copied().unwrap_or(0),
         lvl: stat_value(&enemy.stats, "lvl").max(1),
     }
+}
+
+pub fn actor_power(_content: &Content, actor: &Actor) -> f32 {
+    let stats = &actor.derived_stats;
+    let hp = stats.get("hp").copied().unwrap_or(0) as f32;
+    let mp = stats.get("mp").copied().unwrap_or(0) as f32;
+    let atk = stats.get("atk").copied().unwrap_or(0) as f32;
+    let def = stats.get("def").copied().unwrap_or(0) as f32;
+    let matk = stats.get("matk").copied().unwrap_or(0) as f32;
+    let mdef = stats.get("mdef").copied().unwrap_or(0) as f32;
+    let agi = actor.base_stats.get("agi").copied().unwrap_or(0) as f32;
+    let lck = actor.base_stats.get("lck").copied().unwrap_or(0) as f32;
+    hp + mp + atk + def + matk + mdef + agi + lck
+}
+
+pub fn enemy_power(content: &Content, enemy: &BattleEnemy) -> f32 {
+    let derived = derived_stats_for_enemy(content, &enemy.stats);
+    let hp = derived.get("hp").copied().unwrap_or(0) as f32;
+    let mp = derived.get("mp").copied().unwrap_or(0) as f32;
+    let atk = derived.get("atk").copied().unwrap_or_else(|| enemy.atk()) as f32;
+    let def = derived.get("def").copied().unwrap_or_else(|| enemy.def()) as f32;
+    let matk = derived
+        .get("matk")
+        .copied()
+        .unwrap_or_else(|| stat_value(&enemy.stats, "int") * 2) as f32;
+    let mdef = derived
+        .get("mdef")
+        .copied()
+        .unwrap_or_else(|| stat_value(&enemy.stats, "int") + stat_value(&enemy.stats, "vit"))
+        as f32;
+    let agi = stat_value(&enemy.stats, "agi") as f32;
+    let lck = stat_value(&enemy.stats, "lck") as f32;
+    hp + mp + atk + def + matk + mdef + agi + lck
 }
 
 pub fn roll_attack(

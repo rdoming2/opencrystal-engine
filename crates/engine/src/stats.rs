@@ -12,6 +12,8 @@ pub struct StatsDefinition {
     pub base: Vec<StatEntry>,
     pub derived: Vec<StatEntry>,
     pub formulas: std::collections::HashMap<String, String>,
+    #[serde(default)]
+    pub growth_formulas: std::collections::HashMap<String, String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

@@ -10,9 +10,17 @@ use engine::party::{
 use engine::rules::{MagicSystem, ProgressionMode};
 use engine::runtime::GameRuntime;
 use rand::Rng;
+use std::collections::HashMap;
 
 use super::state::{enemy_target_indices, BattleMenuState, TargetMode, TargetSide};
 use crate::menu::common::{AbilityEntry, SpellEntry};
+
+fn growth_entry<'a>(
+    growth: &'a mut HashMap<String, engine::battle::BattleGrowthAccumulator>,
+    actor_id: &str,
+) -> &'a mut engine::battle::BattleGrowthAccumulator {
+    growth.entry(actor_id.to_string()).or_default()
+}
 
 fn activity_weapon_id(runtime: &GameRuntime, actor: &engine::party::Actor) -> Option<String> {
     let rules = &runtime.content.rules.activity_progression;
@@ -54,6 +62,9 @@ pub fn execute_attack_action(
         return;
     };
     let actor_name = actor.name.clone();
+    if runtime.content.rules.progression_mode == ProgressionMode::Activity {
+        growth_entry(&mut battle_state.growth, actor_id).turns_acted += 1.0;
+    }
     let weapon_id = if runtime.content.rules.progression_mode == ProgressionMode::Activity {
         activity_weapon_id(runtime, actor)
     } else {
@@ -68,57 +79,67 @@ pub fn execute_attack_action(
     } else {
         (0.0, 1.0)
     };
-    let Some(enemy) = battle_state.enemies.get_mut(enemy_index) else {
-        return;
+    let (enemy_name, damage, crit) = {
+        let Some(enemy) = battle_state.enemies.get_mut(enemy_index) else {
+            return;
+        };
+        if !enemy.is_alive() {
+            super::logic::push_battle_log(
+                &mut battle_state.log,
+                crate::battle::ui_text(runtime, "battle.no_target", "No target."),
+            );
+            return;
+        }
+        let attacker_stats = actor_combat_stats(actor);
+        let defender_stats = enemy_combat_stats(&runtime.content, enemy);
+        let roll = roll_attack(
+            &runtime.content,
+            &runtime.content.rules.battle,
+            &attacker_stats,
+            &defender_stats,
+            DamageKind::Physical,
+            0,
+            activity_hit_bonus,
+            rng,
+        );
+        if !roll.hit {
+            super::logic::push_battle_log(
+                &mut battle_state.log,
+                crate::battle::format_ui_text(
+                    runtime,
+                    "battle.log.miss",
+                    "{actor} misses {target}.",
+                    &[
+                        ("actor", actor_name.clone()),
+                        ("target", enemy.name.clone()),
+                    ],
+                ),
+            );
+            return;
+        }
+        let mut damage = roll.base_damage;
+        let row_multiplier = row_attack_multiplier(&runtime.content, actor);
+        damage = ((damage as f32) * row_multiplier * activity_damage_multiplier)
+            .round()
+            .max(0.0) as i32;
+        let multiplier = damage_multiplier(
+            &runtime.content,
+            &enemy.statuses,
+            &enemy.traits,
+            DamageKind::Physical,
+            None,
+        );
+        damage = ((damage as f32) * multiplier).round().max(0.0) as i32;
+        apply_damage_to_enemy(enemy, damage);
+        (enemy.name.clone(), damage, roll.crit)
     };
-    if !enemy.is_alive() {
-        super::logic::push_battle_log(
-            &mut battle_state.log,
-            crate::battle::ui_text(runtime, "battle.no_target", "No target."),
-        );
-        return;
+    if runtime.content.rules.progression_mode == ProgressionMode::Activity {
+        let growth = growth_entry(&mut battle_state.growth, actor_id);
+        growth.damage_dealt_physical += damage.max(0) as f32;
+        if crit {
+            growth.crits += 1.0;
+        }
     }
-    let attacker_stats = actor_combat_stats(actor);
-    let defender_stats = enemy_combat_stats(&runtime.content, enemy);
-    let roll = roll_attack(
-        &runtime.content,
-        &runtime.content.rules.battle,
-        &attacker_stats,
-        &defender_stats,
-        DamageKind::Physical,
-        0,
-        activity_hit_bonus,
-        rng,
-    );
-    if !roll.hit {
-        super::logic::push_battle_log(
-            &mut battle_state.log,
-            crate::battle::format_ui_text(
-                runtime,
-                "battle.log.miss",
-                "{actor} misses {target}.",
-                &[
-                    ("actor", actor_name.clone()),
-                    ("target", enemy.name.clone()),
-                ],
-            ),
-        );
-        return;
-    }
-    let mut damage = roll.base_damage;
-    let row_multiplier = row_attack_multiplier(&runtime.content, actor);
-    damage = ((damage as f32) * row_multiplier * activity_damage_multiplier)
-        .round()
-        .max(0.0) as i32;
-    let multiplier = damage_multiplier(
-        &runtime.content,
-        &enemy.statuses,
-        &enemy.traits,
-        DamageKind::Physical,
-        None,
-    );
-    damage = ((damage as f32) * multiplier).round().max(0.0) as i32;
-    apply_damage_to_enemy(enemy, damage);
     if let Some(weapon_id) = weapon_id.as_deref() {
         if let Some(actor) = runtime.party.roster.get_mut(actor_id) {
             apply_activity_gain(
@@ -135,7 +156,7 @@ pub fn execute_attack_action(
         }
     }
     runtime.track_max_stat("max_damage", damage);
-    if roll.crit {
+    if crit {
         super::logic::push_battle_log(
             &mut battle_state.log,
             crate::battle::ui_text(runtime, "battle.log.critical", "Critical hit!"),
@@ -149,7 +170,7 @@ pub fn execute_attack_action(
             "{actor} attacks {target} for {damage} HP.",
             &[
                 ("actor", actor_name),
-                ("target", enemy.name.clone()),
+                ("target", enemy_name),
                 ("damage", damage.to_string()),
             ],
         ),
@@ -251,6 +272,13 @@ pub fn execute_magic_action(
         }
         actor.name.clone()
     };
+    if runtime.content.rules.progression_mode == ProgressionMode::Activity {
+        let growth = growth_entry(&mut battle_state.growth, actor_id);
+        growth.turns_acted += 1.0;
+        if entry.cost_type == "mp" {
+            growth.mp_spent += entry.cost_value.max(0) as f32;
+        }
+    }
     let magic_id = if runtime.content.rules.progression_mode == ProgressionMode::Activity {
         activity_magic_id(runtime, entry.id.as_str())
     } else {
@@ -298,49 +326,59 @@ pub fn execute_magic_action(
                     }
                     match entry.effect_type.as_str() {
                         "damage" => {
-                            let attacker_stats = actor_stats.clone();
-                            let defender_stats = enemy_combat_stats(&runtime.content, enemy);
-                            let roll = roll_attack(
-                                &runtime.content,
-                                &runtime.content.rules.battle,
-                                &attacker_stats,
-                                &defender_stats,
-                                DamageKind::Magic,
-                                entry.effect_power,
-                                activity_hit_bonus,
-                                rng,
-                            );
-                            if !roll.hit {
-                                super::logic::push_battle_log(
-                                    &mut battle_state.log,
-                                    crate::battle::format_ui_text(
-                                        runtime,
-                                        "battle.log.miss",
-                                        "{actor} misses {target}.",
-                                        &[
-                                            ("actor", actor_name.clone()),
-                                            ("target", enemy.name.clone()),
-                                        ],
-                                    ),
+                            let (enemy_name, damage, crit) = {
+                                let attacker_stats = actor_stats.clone();
+                                let defender_stats = enemy_combat_stats(&runtime.content, enemy);
+                                let roll = roll_attack(
+                                    &runtime.content,
+                                    &runtime.content.rules.battle,
+                                    &attacker_stats,
+                                    &defender_stats,
+                                    DamageKind::Magic,
+                                    entry.effect_power,
+                                    activity_hit_bonus,
+                                    rng,
                                 );
-                                continue;
-                            }
-                            let mut damage = roll.base_damage;
-                            let multiplier = damage_multiplier(
-                                &runtime.content,
-                                &enemy.statuses,
-                                &enemy.traits,
-                                DamageKind::Magic,
-                                element.as_deref(),
-                            );
-                            damage = ((damage as f32)
-                                * multiplier
-                                * attenuation
-                                * activity_damage_multiplier)
-                                .round()
-                                .max(1.0) as i32;
-                            apply_damage_to_enemy(enemy, damage);
+                                if !roll.hit {
+                                    super::logic::push_battle_log(
+                                        &mut battle_state.log,
+                                        crate::battle::format_ui_text(
+                                            runtime,
+                                            "battle.log.miss",
+                                            "{actor} misses {target}.",
+                                            &[
+                                                ("actor", actor_name.clone()),
+                                                ("target", enemy.name.clone()),
+                                            ],
+                                        ),
+                                    );
+                                    continue;
+                                }
+                                let mut damage = roll.base_damage;
+                                let multiplier = damage_multiplier(
+                                    &runtime.content,
+                                    &enemy.statuses,
+                                    &enemy.traits,
+                                    DamageKind::Magic,
+                                    element.as_deref(),
+                                );
+                                damage = ((damage as f32)
+                                    * multiplier
+                                    * attenuation
+                                    * activity_damage_multiplier)
+                                    .round()
+                                    .max(1.0) as i32;
+                                apply_damage_to_enemy(enemy, damage);
+                                (enemy.name.clone(), damage, roll.crit)
+                            };
                             runtime.track_max_stat("max_damage", damage);
+                            if runtime.content.rules.progression_mode == ProgressionMode::Activity {
+                                let growth = growth_entry(&mut battle_state.growth, actor_id);
+                                growth.damage_dealt_magic += damage.max(0) as f32;
+                                if crit {
+                                    growth.crits += 1.0;
+                                }
+                            }
                             if !applied_gain {
                                 if let Some(magic_id) = magic_id.as_deref() {
                                     if let Some(actor) = runtime.party.roster.get_mut(actor_id) {
@@ -359,7 +397,7 @@ pub fn execute_magic_action(
                                     }
                                 }
                             }
-                            if roll.crit {
+                            if crit {
                                 super::logic::push_battle_log(
                                     &mut battle_state.log,
                                     crate::battle::ui_text(
@@ -378,7 +416,7 @@ pub fn execute_magic_action(
                                     &[
                                         ("actor", actor_name.clone()),
                                         ("spell", entry.name.clone()),
-                                        ("target", enemy.name.clone()),
+                                        ("target", enemy_name),
                                         ("damage", damage.to_string()),
                                     ],
                                 ),
@@ -492,16 +530,22 @@ pub fn execute_magic_action(
                             &mut enemy.statuses,
                             rng,
                         );
-                        for label in applied {
+                        for label in &applied {
                             super::logic::push_battle_log(
                                 &mut battle_state.log,
                                 crate::battle::format_ui_text(
                                     runtime,
                                     "battle.log.status",
                                     "{target} is affected by {status}.",
-                                    &[("target", enemy.name.clone()), ("status", label)],
+                                    &[("target", enemy.name.clone()), ("status", label.clone())],
                                 ),
                             );
+                        }
+                        if runtime.content.rules.progression_mode == ProgressionMode::Activity
+                            && !applied.is_empty()
+                        {
+                            growth_entry(&mut battle_state.growth, actor_id).status_inflicted +=
+                                applied.len() as f32;
                         }
                         if !applied_gain {
                             if let Some(magic_id) = magic_id.as_deref() {
@@ -551,16 +595,22 @@ pub fn execute_magic_action(
                             );
                             (actor.name.clone(), applied)
                         };
-                        for label in applied {
+                        for label in &applied {
                             super::logic::push_battle_log(
                                 &mut battle_state.log,
                                 crate::battle::format_ui_text(
                                     runtime,
                                     "battle.log.status",
                                     "{target} is affected by {status}.",
-                                    &[("target", actor_name.clone()), ("status", label)],
+                                    &[("target", actor_name.clone()), ("status", label.clone())],
                                 ),
                             );
+                        }
+                        if runtime.content.rules.progression_mode == ProgressionMode::Activity
+                            && !applied.is_empty()
+                        {
+                            growth_entry(&mut battle_state.growth, actor_id).status_inflicted +=
+                                applied.len() as f32;
                         }
                         if !applied_gain {
                             applied_gain = true;
@@ -706,6 +756,9 @@ pub fn execute_ability_action(
         }
         actor.name.clone()
     };
+    if runtime.content.rules.progression_mode == ProgressionMode::Activity {
+        growth_entry(&mut battle_state.growth, actor_id).turns_acted += 1.0;
+    }
     let weapon_id = if runtime.content.rules.progression_mode == ProgressionMode::Activity {
         runtime
             .party
@@ -764,49 +817,59 @@ pub fn execute_ability_action(
                     }
                     match entry.effect_type.as_str() {
                         "damage" => {
-                            let attacker_stats = actor_stats.clone();
-                            let defender_stats = enemy_combat_stats(&runtime.content, enemy);
-                            let roll = roll_attack(
-                                &runtime.content,
-                                &runtime.content.rules.battle,
-                                &attacker_stats,
-                                &defender_stats,
-                                DamageKind::Physical,
-                                entry.effect_power,
-                                activity_hit_bonus,
-                                rng,
-                            );
-                            if !roll.hit {
-                                super::logic::push_battle_log(
-                                    &mut battle_state.log,
-                                    crate::battle::format_ui_text(
-                                        runtime,
-                                        "battle.log.miss",
-                                        "{actor} misses {target}.",
-                                        &[
-                                            ("actor", actor_name.clone()),
-                                            ("target", enemy.name.clone()),
-                                        ],
-                                    ),
+                            let (enemy_name, damage, crit) = {
+                                let attacker_stats = actor_stats.clone();
+                                let defender_stats = enemy_combat_stats(&runtime.content, enemy);
+                                let roll = roll_attack(
+                                    &runtime.content,
+                                    &runtime.content.rules.battle,
+                                    &attacker_stats,
+                                    &defender_stats,
+                                    DamageKind::Physical,
+                                    entry.effect_power,
+                                    activity_hit_bonus,
+                                    rng,
                                 );
-                                continue;
-                            }
-                            let mut damage = roll.base_damage;
-                            let multiplier = damage_multiplier(
-                                &runtime.content,
-                                &enemy.statuses,
-                                &enemy.traits,
-                                DamageKind::Physical,
-                                None,
-                            );
-                            damage = ((damage as f32)
-                                * multiplier
-                                * attenuation
-                                * activity_damage_multiplier)
-                                .round()
-                                .max(1.0) as i32;
-                            apply_damage_to_enemy(enemy, damage);
+                                if !roll.hit {
+                                    super::logic::push_battle_log(
+                                        &mut battle_state.log,
+                                        crate::battle::format_ui_text(
+                                            runtime,
+                                            "battle.log.miss",
+                                            "{actor} misses {target}.",
+                                            &[
+                                                ("actor", actor_name.clone()),
+                                                ("target", enemy.name.clone()),
+                                            ],
+                                        ),
+                                    );
+                                    continue;
+                                }
+                                let mut damage = roll.base_damage;
+                                let multiplier = damage_multiplier(
+                                    &runtime.content,
+                                    &enemy.statuses,
+                                    &enemy.traits,
+                                    DamageKind::Physical,
+                                    None,
+                                );
+                                damage = ((damage as f32)
+                                    * multiplier
+                                    * attenuation
+                                    * activity_damage_multiplier)
+                                    .round()
+                                    .max(1.0) as i32;
+                                apply_damage_to_enemy(enemy, damage);
+                                (enemy.name.clone(), damage, roll.crit)
+                            };
                             runtime.track_max_stat("max_damage", damage);
+                            if runtime.content.rules.progression_mode == ProgressionMode::Activity {
+                                let growth = growth_entry(&mut battle_state.growth, actor_id);
+                                growth.damage_dealt_physical += damage.max(0) as f32;
+                                if crit {
+                                    growth.crits += 1.0;
+                                }
+                            }
                             if !applied_gain {
                                 if let Some(weapon_id) = weapon_id.as_deref() {
                                     if let Some(actor) = runtime.party.roster.get_mut(actor_id) {
@@ -825,7 +888,7 @@ pub fn execute_ability_action(
                                     }
                                 }
                             }
-                            if roll.crit {
+                            if crit {
                                 super::logic::push_battle_log(
                                     &mut battle_state.log,
                                     crate::battle::ui_text(
@@ -844,7 +907,7 @@ pub fn execute_ability_action(
                                     &[
                                         ("actor", actor_name.clone()),
                                         ("ability", entry.name.clone()),
-                                        ("target", enemy.name.clone()),
+                                        ("target", enemy_name),
                                         ("damage", damage.to_string()),
                                     ],
                                 ),
@@ -913,46 +976,56 @@ pub fn execute_ability_action(
                                         .map(|item| item.name.clone())
                                 })
                                 .unwrap_or_else(|| "Item".to_string());
-                            let attacker_stats = actor_stats.clone();
-                            let defender_stats = enemy_combat_stats(&runtime.content, enemy);
-                            let roll = roll_attack(
-                                &runtime.content,
-                                &runtime.content.rules.battle,
-                                &attacker_stats,
-                                &defender_stats,
-                                DamageKind::Physical,
-                                entry.effect_power,
-                                activity_hit_bonus,
-                                rng,
-                            );
-                            if !roll.hit {
-                                super::logic::push_battle_log(
-                                    &mut battle_state.log,
-                                    crate::battle::format_ui_text(
-                                        runtime,
-                                        "battle.log.miss",
-                                        "{actor} misses {target}.",
-                                        &[
-                                            ("actor", actor_name.clone()),
-                                            ("target", enemy.name.clone()),
-                                        ],
-                                    ),
+                            let (enemy_name, damage, crit) = {
+                                let attacker_stats = actor_stats.clone();
+                                let defender_stats = enemy_combat_stats(&runtime.content, enemy);
+                                let roll = roll_attack(
+                                    &runtime.content,
+                                    &runtime.content.rules.battle,
+                                    &attacker_stats,
+                                    &defender_stats,
+                                    DamageKind::Physical,
+                                    entry.effect_power,
+                                    activity_hit_bonus,
+                                    rng,
                                 );
-                                continue;
-                            }
-                            let mut damage = roll.base_damage;
-                            let multiplier = damage_multiplier(
-                                &runtime.content,
-                                &enemy.statuses,
-                                &enemy.traits,
-                                DamageKind::Physical,
-                                None,
-                            );
-                            damage = ((damage as f32) * multiplier * activity_damage_multiplier)
-                                .round()
-                                .max(1.0) as i32;
-                            apply_damage_to_enemy(enemy, damage);
+                                if !roll.hit {
+                                    super::logic::push_battle_log(
+                                        &mut battle_state.log,
+                                        crate::battle::format_ui_text(
+                                            runtime,
+                                            "battle.log.miss",
+                                            "{actor} misses {target}.",
+                                            &[
+                                                ("actor", actor_name.clone()),
+                                                ("target", enemy.name.clone()),
+                                            ],
+                                        ),
+                                    );
+                                    continue;
+                                }
+                                let mut damage = roll.base_damage;
+                                let multiplier = damage_multiplier(
+                                    &runtime.content,
+                                    &enemy.statuses,
+                                    &enemy.traits,
+                                    DamageKind::Physical,
+                                    None,
+                                );
+                                damage = ((damage as f32) * multiplier * activity_damage_multiplier)
+                                    .round()
+                                    .max(1.0) as i32;
+                                apply_damage_to_enemy(enemy, damage);
+                                (enemy.name.clone(), damage, roll.crit)
+                            };
                             runtime.track_max_stat("max_damage", damage);
+                            if runtime.content.rules.progression_mode == ProgressionMode::Activity {
+                                let growth = growth_entry(&mut battle_state.growth, actor_id);
+                                growth.damage_dealt_physical += damage.max(0) as f32;
+                                if crit {
+                                    growth.crits += 1.0;
+                                }
+                            }
                             if !applied_gain {
                                 if let Some(weapon_id) = weapon_id.as_deref() {
                                     if let Some(actor) = runtime.party.roster.get_mut(actor_id) {
@@ -971,7 +1044,7 @@ pub fn execute_ability_action(
                                     }
                                 }
                             }
-                            if roll.crit {
+                            if crit {
                                 super::logic::push_battle_log(
                                     &mut battle_state.log,
                                     crate::battle::ui_text(
@@ -990,7 +1063,7 @@ pub fn execute_ability_action(
                                     &[
                                         ("actor", actor_name.clone()),
                                         ("item", item_name),
-                                        ("target", enemy.name.clone()),
+                                        ("target", enemy_name),
                                         ("damage", damage.to_string()),
                                     ],
                                 ),
@@ -1015,16 +1088,22 @@ pub fn execute_ability_action(
                             &mut enemy.statuses,
                             rng,
                         );
-                        for label in applied {
+                        for label in &applied {
                             super::logic::push_battle_log(
                                 &mut battle_state.log,
                                 crate::battle::format_ui_text(
                                     runtime,
                                     "battle.log.status",
                                     "{target} is affected by {status}.",
-                                    &[("target", enemy.name.clone()), ("status", label)],
+                                    &[("target", enemy.name.clone()), ("status", label.clone())],
                                 ),
                             );
+                        }
+                        if runtime.content.rules.progression_mode == ProgressionMode::Activity
+                            && !applied.is_empty()
+                        {
+                            growth_entry(&mut battle_state.growth, actor_id).status_inflicted +=
+                                applied.len() as f32;
                         }
                     }
                 }
@@ -1115,16 +1194,22 @@ pub fn execute_ability_action(
                     );
                 }
                 if let Some((actor_name, applied)) = status_log {
-                    for label in applied {
+                    for label in &applied {
                         super::logic::push_battle_log(
                             &mut battle_state.log,
                             crate::battle::format_ui_text(
                                 runtime,
                                 "battle.log.status",
                                 "{target} is affected by {status}.",
-                                &[("target", actor_name.clone()), ("status", label)],
+                                &[("target", actor_name.clone()), ("status", label.clone())],
                             ),
                         );
+                    }
+                    if runtime.content.rules.progression_mode == ProgressionMode::Activity
+                        && !applied.is_empty()
+                    {
+                        growth_entry(&mut battle_state.growth, actor_id).status_inflicted +=
+                            applied.len() as f32;
                     }
                 }
             }

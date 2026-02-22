@@ -249,6 +249,36 @@ pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
                     );
                 }
             }
+            if rules.activity_growth.base_rate < 0.0 {
+                errors.push("rules.json: activity_growth.base_rate must be >= 0".to_string());
+            }
+            if !(0.0..=1.0).contains(&rules.activity_growth.min_gain_threshold) {
+                errors.push(
+                    "rules.json: activity_growth.min_gain_threshold must be within 0-1".to_string(),
+                );
+            }
+            if rules.activity_growth.danger_factor_min <= 0.0 {
+                errors
+                    .push("rules.json: activity_growth.danger_factor_min must be > 0".to_string());
+            }
+            if rules.activity_growth.danger_factor_max < rules.activity_growth.danger_factor_min {
+                errors.push(
+                    "rules.json: activity_growth.danger_factor_max must be >= danger_factor_min"
+                        .to_string(),
+                );
+            }
+            if rules.activity_growth.floor_depth_exponent < 0.0 {
+                errors.push(
+                    "rules.json: activity_growth.floor_depth_exponent must be >= 0".to_string(),
+                );
+            }
+            for (stat, cap) in &rules.activity_growth.soft_caps {
+                if *cap <= 0.0 {
+                    errors.push(format!(
+                        "rules.json: activity_growth.soft_caps.{stat} must be > 0"
+                    ));
+                }
+            }
         }
         match rules.exp_curve.mode.as_str() {
             "table" => {

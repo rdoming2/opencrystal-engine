@@ -14,9 +14,10 @@ use engine::io::{load_json, write_json_pretty};
 use engine::maps::{MapFile, MapLoop, TileLegend};
 use engine::quests::QuestsFile;
 use engine::rules::{
-    AbilityAcquisition, ActivityProgressionRules, BattleMode, Currency, ExpCurveRules, GameRules,
-    JobSystemRules, JpMode, MagicAcquisition, MagicSystem, PartyCreateRules, PartyMode,
-    ProgressionMode, RenderRules, RulesFile, SaveRules, SettingsRules, StatsRules,
+    AbilityAcquisition, ActivityGrowthRules, ActivityProgressionRules, BattleMode, Currency,
+    ExpCurveRules, GameRules, JobSystemRules, JpMode, MagicAcquisition, MagicSystem,
+    PartyCreateRules, PartyMode, ProgressionMode, RenderRules, RulesFile, SaveRules, SettingsRules,
+    StatsRules,
 };
 use engine::stats::{StatEntry, StatsDefinition, StatsFile};
 use engine::world::{FastTravelConfig, WorldDefinition, WorldsFile};
@@ -326,6 +327,7 @@ fn create_project_structure(target_dir: &Path, title: &str) -> Result<(), String
         },
         progression_mode: ProgressionMode::Job,
         activity_progression: ActivityProgressionRules::default(),
+        activity_growth: ActivityGrowthRules::default(),
         inventory: engine::rules::InventoryRules::default(),
         systems: default_systems(),
         save: SaveRules::default(),
@@ -415,6 +417,7 @@ fn create_project_structure(target_dir: &Path, title: &str) -> Result<(), String
             ],
             derived: Vec::new(),
             formulas: HashMap::new(),
+            growth_formulas: HashMap::new(),
         },
     };
 
@@ -1008,6 +1011,7 @@ fn build_new_equipment(
         allowed_jobs: None,
         stats: HashMap::new(),
         spells: Vec::new(),
+        abilities: Vec::new(),
         traits: Vec::new(),
     });
     write_json_pretty(path, &file)?;

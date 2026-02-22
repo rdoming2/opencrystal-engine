@@ -323,6 +323,7 @@ impl SaveActor {
             equipment: self.equipment.clone(),
             spells: self.spells.clone(),
             equipped_spells: self.equipped_spells.clone(),
+            equipped_abilities: Vec::new(),
             magic_tier_charges: self.magic_tier_charges.clone(),
             secondary_job_id: self.secondary_job_id.clone(),
             job_progress,

@@ -155,6 +155,75 @@ fn format_currency_rewards(
     lines
 }
 
+const MODAL_LINES_PER_PAGE: usize = 8;
+
+fn format_stat_change_line(stat: &str, new_value: i32, diff: i32) -> String {
+    let diff_text = if diff >= 0 {
+        format!("+{}", diff)
+    } else {
+        diff.to_string()
+    };
+    format!("  {}: {} ({})", stat, new_value, diff_text)
+}
+
+fn paginate_modal_lines(lines: &[String], page: usize) -> (Vec<String>, usize) {
+    let total_pages = (lines.len() + MODAL_LINES_PER_PAGE.saturating_sub(1)) / MODAL_LINES_PER_PAGE;
+    let total_pages = total_pages.max(1);
+    let page = page.min(total_pages.saturating_sub(1));
+    let start = page * MODAL_LINES_PER_PAGE;
+    let end = (start + MODAL_LINES_PER_PAGE).min(lines.len());
+    (lines[start..end].to_vec(), total_pages)
+}
+
+fn learned_entry_names(
+    runtime: &GameRuntime,
+    spells: &[String],
+    abilities: &[String],
+) -> Vec<String> {
+    let mut lines = Vec::new();
+    if !spells.is_empty() {
+        lines.push("Learned Spells:".to_string());
+        let mut spell_names = spells
+            .iter()
+            .map(|spell_id| {
+                runtime
+                    .content
+                    .spells
+                    .spells
+                    .iter()
+                    .find(|spell| spell.id == *spell_id)
+                    .map(|spell| spell.name.clone())
+                    .unwrap_or_else(|| spell_id.clone())
+            })
+            .collect::<Vec<_>>();
+        spell_names.sort();
+        for name in spell_names {
+            lines.push(format!("  {}", name));
+        }
+    }
+    if !abilities.is_empty() {
+        lines.push("Learned Abilities:".to_string());
+        let mut ability_names = abilities
+            .iter()
+            .map(|ability_id| {
+                runtime
+                    .content
+                    .abilities
+                    .abilities
+                    .iter()
+                    .find(|ability| ability.id == *ability_id)
+                    .map(|ability| ability.name.clone())
+                    .unwrap_or_else(|| ability_id.clone())
+            })
+            .collect::<Vec<_>>();
+        ability_names.sort();
+        for name in ability_names {
+            lines.push(format!("  {}", name));
+        }
+    }
+    lines
+}
+
 pub fn run_battle(
     runtime: &mut GameRuntime,
     battle_ui: &BattleUiFile,
@@ -228,15 +297,7 @@ pub fn run_battle(
                 )?;
                 menu_state.phase = BattlePhase::Victory;
                 battle_result = Some(apply_battle_rewards(runtime, &mut battle_state, rng));
-                victory_state = if battle_result
-                    .as_ref()
-                    .map(|r| !r.level_ups.is_empty())
-                    .unwrap_or(false)
-                {
-                    Some(VictoryState::LevelUp(0))
-                } else {
-                    Some(VictoryState::Summary)
-                };
+                victory_state = Some(VictoryState::Summary);
                 push_battle_log(
                     &mut battle_state.log,
                     ui_text(runtime, "battle.victory", "Victory!"),
@@ -555,9 +616,27 @@ pub fn run_battle(
                         )?;
                     }
                 }
-                Some(VictoryState::LevelUp(index)) => {
+                Some(VictoryState::LevelUp { index, page }) => {
                     if let Some(ref result) = battle_result {
                         if let Some(diff) = result.level_ups.get(index) {
+                            let learned = result
+                                .learned
+                                .iter()
+                                .find(|entry| entry.actor_id == diff.actor_id);
+                            let mut lines = Vec::new();
+                            let mut stats: Vec<_> = diff.stat_changes.iter().collect();
+                            stats.sort_by(|a, b| a.0.cmp(b.0));
+                            for (stat, (new_val, diff)) in stats {
+                                lines.push(format_stat_change_line(stat, *new_val, *diff));
+                            }
+                            if let Some(learned) = learned {
+                                lines.extend(learned_entry_names(
+                                    runtime,
+                                    &learned.spells,
+                                    &learned.abilities,
+                                ));
+                            }
+                            let (page_lines, total_pages) = paginate_modal_lines(&lines, page);
                             let headline = format_ui_text(
                                 runtime,
                                 "battle.level_up",
@@ -570,10 +649,43 @@ pub fn run_battle(
                             tui::battle::draw_level_up_modal(
                                 session,
                                 &headline,
-                                &diff.stat_changes,
+                                &page_lines,
+                                page + 1,
+                                total_pages,
                                 &ui_text(
                                     runtime,
                                     "battle.level_up_prompt",
+                                    "Press Confirm to continue.",
+                                ),
+                            )?;
+                        }
+                    }
+                }
+                Some(VictoryState::Growth { index, page }) => {
+                    if let Some(ref result) = battle_result {
+                        if let Some(diff) = result.activity_growth.get(index) {
+                            let mut lines = Vec::new();
+                            let mut stats: Vec<_> = diff.stat_changes.iter().collect();
+                            stats.sort_by(|a, b| a.0.cmp(b.0));
+                            for (stat, (new_val, diff)) in stats {
+                                lines.push(format_stat_change_line(stat, *new_val, *diff));
+                            }
+                            let (page_lines, total_pages) = paginate_modal_lines(&lines, page);
+                            let headline = format_ui_text(
+                                runtime,
+                                "battle.growth",
+                                "{actor} grows stronger.",
+                                &[("actor", diff.actor_name.clone())],
+                            );
+                            tui::battle::draw_level_up_modal(
+                                session,
+                                &headline,
+                                &page_lines,
+                                page + 1,
+                                total_pages,
+                                &ui_text(
+                                    runtime,
+                                    "battle.growth_prompt",
                                     "Press Confirm to continue.",
                                 ),
                             )?;
@@ -632,7 +744,11 @@ pub fn run_battle(
                         Some(VictoryState::Summary) => {
                             if let Some(ref result) = battle_result {
                                 if !result.level_ups.is_empty() {
-                                    victory_state = Some(VictoryState::LevelUp(0));
+                                    victory_state =
+                                        Some(VictoryState::LevelUp { index: 0, page: 0 });
+                                } else if !result.activity_growth.is_empty() {
+                                    victory_state =
+                                        Some(VictoryState::Growth { index: 0, page: 0 });
                                 } else {
                                     cleanup_party_statuses_after_battle(runtime);
                                     return Ok(BattleOutcome::Victory);
@@ -642,10 +758,75 @@ pub fn run_battle(
                                 return Ok(BattleOutcome::Victory);
                             }
                         }
-                        Some(VictoryState::LevelUp(index)) => {
+                        Some(VictoryState::LevelUp { index, page }) => {
                             if let Some(ref result) = battle_result {
-                                if index + 1 < result.level_ups.len() {
-                                    victory_state = Some(VictoryState::LevelUp(index + 1));
+                                let diff = result.level_ups.get(index);
+                                let learned = diff.and_then(|diff| {
+                                    result
+                                        .learned
+                                        .iter()
+                                        .find(|entry| entry.actor_id == diff.actor_id)
+                                });
+                                let mut lines = Vec::new();
+                                if let Some(diff) = diff {
+                                    let mut stats: Vec<_> = diff.stat_changes.iter().collect();
+                                    stats.sort_by(|a, b| a.0.cmp(b.0));
+                                    for (stat, (new_val, diff)) in stats {
+                                        lines.push(format_stat_change_line(stat, *new_val, *diff));
+                                    }
+                                }
+                                if let Some(learned) = learned {
+                                    lines.extend(learned_entry_names(
+                                        runtime,
+                                        &learned.spells,
+                                        &learned.abilities,
+                                    ));
+                                }
+                                let (_, total_pages) = paginate_modal_lines(&lines, page);
+                                if page + 1 < total_pages {
+                                    victory_state = Some(VictoryState::LevelUp {
+                                        index,
+                                        page: page + 1,
+                                    });
+                                } else if index + 1 < result.level_ups.len() {
+                                    victory_state = Some(VictoryState::LevelUp {
+                                        index: index + 1,
+                                        page: 0,
+                                    });
+                                } else if !result.activity_growth.is_empty() {
+                                    victory_state =
+                                        Some(VictoryState::Growth { index: 0, page: 0 });
+                                } else {
+                                    cleanup_party_statuses_after_battle(runtime);
+                                    return Ok(BattleOutcome::Victory);
+                                }
+                            } else {
+                                cleanup_party_statuses_after_battle(runtime);
+                                return Ok(BattleOutcome::Victory);
+                            }
+                        }
+                        Some(VictoryState::Growth { index, page }) => {
+                            if let Some(ref result) = battle_result {
+                                let diff = result.activity_growth.get(index);
+                                let mut lines = Vec::new();
+                                if let Some(diff) = diff {
+                                    let mut stats: Vec<_> = diff.stat_changes.iter().collect();
+                                    stats.sort_by(|a, b| a.0.cmp(b.0));
+                                    for (stat, (new_val, diff)) in stats {
+                                        lines.push(format_stat_change_line(stat, *new_val, *diff));
+                                    }
+                                }
+                                let (_, total_pages) = paginate_modal_lines(&lines, page);
+                                if page + 1 < total_pages {
+                                    victory_state = Some(VictoryState::Growth {
+                                        index,
+                                        page: page + 1,
+                                    });
+                                } else if index + 1 < result.activity_growth.len() {
+                                    victory_state = Some(VictoryState::Growth {
+                                        index: index + 1,
+                                        page: 0,
+                                    });
                                 } else {
                                     cleanup_party_statuses_after_battle(runtime);
                                     return Ok(BattleOutcome::Victory);
@@ -2060,6 +2241,8 @@ fn apply_battle_rewards(
     let mut result = BattleResult {
         rewards,
         level_ups: Vec::new(),
+        learned: Vec::new(),
+        activity_growth: Vec::new(),
     };
 
     let rules = Ruleset::from_file(runtime.content.rules.clone());
@@ -2083,10 +2266,19 @@ fn apply_battle_rewards(
     if result.rewards.exp > 0 {
         for actor_id in &eligible_actor_ids {
             if let Some(actor) = runtime.party.roster.get_mut(actor_id.as_str()) {
+                let before_spells: std::collections::HashSet<String> =
+                    actor.spells.iter().cloned().collect();
+                let before_abilities: std::collections::HashSet<String> =
+                    actor.unlocked_abilities.iter().cloned().collect();
                 let old_level = actor.level;
                 let old_stats = actor.derived_stats.clone();
 
                 let levels_gained = gain_exp(&runtime.content, &rules, actor, result.rewards.exp);
+
+                let after_spells: std::collections::HashSet<String> =
+                    actor.spells.iter().cloned().collect();
+                let after_abilities: std::collections::HashSet<String> =
+                    actor.unlocked_abilities.iter().cloned().collect();
 
                 if levels_gained > 0 {
                     let new_stats = actor.derived_stats.clone();
@@ -2101,11 +2293,28 @@ fn apply_battle_rewards(
                     }
 
                     result.level_ups.push(LevelUpDiff {
+                        actor_id: actor.id.clone(),
                         actor_name: actor.name.clone(),
                         old_level,
                         new_level: actor.level,
                         stat_changes,
                     });
+                    let learned_spells = after_spells
+                        .difference(&before_spells)
+                        .cloned()
+                        .collect::<Vec<_>>();
+                    let learned_abilities = after_abilities
+                        .difference(&before_abilities)
+                        .cloned()
+                        .collect::<Vec<_>>();
+                    if !learned_spells.is_empty() || !learned_abilities.is_empty() {
+                        result.learned.push(engine::battle::LearnedDiff {
+                            actor_id: actor.id.clone(),
+                            actor_name: actor.name.clone(),
+                            spells: learned_spells,
+                            abilities: learned_abilities,
+                        });
+                    }
                 }
             }
         }
@@ -2148,6 +2357,15 @@ fn apply_battle_rewards(
                 runtime.inventory.add_equipment(item_id, *qty, max_stack);
             }
         }
+    }
+
+    if rules.progression_mode == ProgressionMode::Activity {
+        result.activity_growth = engine::party::apply_activity_growth(
+            &runtime.content,
+            &rules,
+            &mut runtime.party,
+            battle_state,
+        );
     }
 
     let defeated = battle_state

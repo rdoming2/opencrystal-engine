@@ -20,6 +20,8 @@ pub struct RulesFile {
     #[serde(default)]
     pub activity_progression: ActivityProgressionRules,
     #[serde(default)]
+    pub activity_growth: ActivityGrowthRules,
+    #[serde(default)]
     pub inventory: InventoryRules,
     #[serde(default)]
     pub systems: HashMap<String, bool>,
@@ -230,6 +232,32 @@ pub struct ActivityRank {
     pub label: String,
 }
 
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct ActivityGrowthRules {
+    #[serde(default = "default_activity_growth_base_rate")]
+    pub base_rate: f32,
+    #[serde(default = "default_activity_growth_min_gain_threshold")]
+    pub min_gain_threshold: f32,
+    #[serde(default = "default_activity_growth_min_battle_turns")]
+    pub min_battle_turns: u32,
+    #[serde(default = "default_activity_growth_danger_min")]
+    pub danger_factor_min: f32,
+    #[serde(default = "default_activity_growth_danger_max")]
+    pub danger_factor_max: f32,
+    #[serde(default = "default_activity_growth_floor_exponent")]
+    pub floor_depth_exponent: f32,
+    #[serde(default = "default_activity_growth_status_weight")]
+    pub status_effect_weight: f32,
+    #[serde(default = "default_activity_growth_initiative_weight")]
+    pub initiative_weight: f32,
+    #[serde(default = "default_activity_growth_combo_weight")]
+    pub combo_weight: f32,
+    #[serde(default = "default_activity_growth_survival_bonus")]
+    pub survival_bonus: f32,
+    #[serde(default)]
+    pub soft_caps: HashMap<String, f32>,
+}
+
 #[derive(Clone, Debug)]
 pub struct Ruleset {
     pub title: String,
@@ -249,6 +277,7 @@ pub struct Ruleset {
     pub exp_curve: ExpCurveRules,
     pub progression_mode: ProgressionMode,
     pub activity_progression: ActivityProgressionRules,
+    pub activity_growth: ActivityGrowthRules,
     pub inventory: InventoryRules,
     pub systems: HashMap<String, bool>,
     pub save: SaveRules,
@@ -336,6 +365,7 @@ impl Ruleset {
             exp_curve: ExpCurveRules::default(),
             progression_mode: default_progression_mode(),
             activity_progression: ActivityProgressionRules::default(),
+            activity_growth: ActivityGrowthRules::default(),
             inventory: InventoryRules::default(),
             systems: HashMap::new(),
             save: SaveRules::default(),
@@ -363,6 +393,7 @@ impl Ruleset {
             exp_curve: file.exp_curve,
             progression_mode: file.progression_mode,
             activity_progression: file.activity_progression,
+            activity_growth: file.activity_growth,
             inventory: file.inventory,
             systems: file.systems,
             save: file.save,
@@ -509,6 +540,24 @@ impl Default for ActivityProgressionRules {
             ranks: default_activity_ranks(),
             effects: ActivityEffectRules::default(),
             unarmed_category: default_activity_unarmed_category(),
+        }
+    }
+}
+
+impl Default for ActivityGrowthRules {
+    fn default() -> Self {
+        Self {
+            base_rate: default_activity_growth_base_rate(),
+            min_gain_threshold: default_activity_growth_min_gain_threshold(),
+            min_battle_turns: default_activity_growth_min_battle_turns(),
+            danger_factor_min: default_activity_growth_danger_min(),
+            danger_factor_max: default_activity_growth_danger_max(),
+            floor_depth_exponent: default_activity_growth_floor_exponent(),
+            status_effect_weight: default_activity_growth_status_weight(),
+            initiative_weight: default_activity_growth_initiative_weight(),
+            combo_weight: default_activity_growth_combo_weight(),
+            survival_bonus: default_activity_growth_survival_bonus(),
+            soft_caps: HashMap::new(),
         }
     }
 }
@@ -823,4 +872,44 @@ fn default_activity_ranks() -> Vec<ActivityRank> {
             label: "Master".to_string(),
         },
     ]
+}
+
+fn default_activity_growth_base_rate() -> f32 {
+    0.35
+}
+
+fn default_activity_growth_min_gain_threshold() -> f32 {
+    0.25
+}
+
+fn default_activity_growth_min_battle_turns() -> u32 {
+    1
+}
+
+fn default_activity_growth_danger_min() -> f32 {
+    0.25
+}
+
+fn default_activity_growth_danger_max() -> f32 {
+    2.0
+}
+
+fn default_activity_growth_floor_exponent() -> f32 {
+    0.0
+}
+
+fn default_activity_growth_status_weight() -> f32 {
+    1.0
+}
+
+fn default_activity_growth_initiative_weight() -> f32 {
+    0.0
+}
+
+fn default_activity_growth_combo_weight() -> f32 {
+    0.0
+}
+
+fn default_activity_growth_survival_bonus() -> f32 {
+    1.2
 }

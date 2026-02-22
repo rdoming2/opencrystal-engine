@@ -73,6 +73,8 @@ stats or equipment slots.
   job-specific levels, JP balances, and the learned ability set.
 - When using `progression_mode: activity`, tune weapon/magic gains and rank
   labels under `rules.json -> activity_progression`.
+- Equipment can grant abilities while equipped, making item-based ability
+  acquisition viable without JP/levels.
 
 By following these conventions the job system remains data-driven and
 flexible: designers can keep the classic single-progress model or switch to

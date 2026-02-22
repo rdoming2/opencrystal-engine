@@ -246,7 +246,9 @@ pub fn draw_victory_summary(
 pub fn draw_level_up_modal(
     session: &mut TuiSession,
     headline: &str,
-    stat_changes: &HashMap<String, (i32, i32)>,
+    content_lines: &[String],
+    page: usize,
+    total_pages: usize,
     prompt_label: &str,
 ) -> io::Result<()> {
     session
@@ -264,17 +266,15 @@ pub fn draw_level_up_modal(
                     .fg(Color::Cyan)
                     .add_modifier(Modifier::BOLD),
             )));
-
-            let mut stats: Vec<_> = stat_changes.iter().collect();
-            stats.sort_by(|a, b| a.0.cmp(b.0));
-
-            for (stat, (new_val, diff)) in stats {
+            for line in content_lines {
+                lines.push(Line::from(Span::raw(line.clone())));
+            }
+            if total_pages > 1 {
                 lines.push(Line::from(Span::styled(
-                    format!("  {}: {} (+{})", stat, new_val, diff),
-                    Style::default(),
+                    format!("Page {}/{}", page, total_pages),
+                    Style::default().fg(Color::Gray),
                 )));
             }
-
             lines.push(Line::from(Span::raw("")));
             lines.push(Line::from(Span::styled(
                 prompt_label,

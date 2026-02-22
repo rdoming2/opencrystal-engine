@@ -27,9 +27,16 @@ pub fn build_abilities_panel(runtime: &GameRuntime) -> MenuPanelView {
     let mut lines = Vec::new();
     lines.push(ability_header_line(actor));
     if entries.is_empty() {
+        let unlock_hint = match runtime.content.rules.game.ability_acquisition {
+            AbilityAcquisition::Level => "Gain levels to unlock abilities.",
+            AbilityAcquisition::Jp => "Earn JP to unlock abilities.",
+            AbilityAcquisition::Item | AbilityAcquisition::Equip => {
+                "Equip items that grant abilities."
+            }
+        };
         lines.push(panel_line("------------------------------"));
         lines.push(panel_line("No abilities learned."));
-        lines.push(panel_line("Gain levels to unlock abilities."));
+        lines.push(panel_line(unlock_hint));
         lines.push(panel_line("------------------------------"));
         lines.push(panel_line_spans(vec![panel_span(
             "Details",
@@ -465,6 +472,9 @@ fn ability_header_line(actor: &engine::party::Actor) -> MenuPanelLine {
 
 fn collect_ability_ids(runtime: &GameRuntime, actor: &engine::party::Actor) -> Vec<String> {
     let mut ids = Vec::new();
+    for ability_id in &actor.equipped_abilities {
+        ids.push(ability_id.clone());
+    }
     let mut job_ids = vec![actor.job_id.as_str()];
     if runtime.content.rules.job_system.secondary_jobs {
         if let Some(job_id) = actor.secondary_job_id.as_deref() {

@@ -45,6 +45,7 @@ pub fn advance_turn(
     turn_state: &mut BattleTurnState,
     battle_state: &mut engine::battle::BattleState,
 ) {
+    battle_state.turns = battle_state.turns.saturating_add(1);
     match battle_state.mode {
         BattleMode::Turn => {
             turn_state.index = turn_state.index.saturating_add(1);
@@ -123,6 +124,13 @@ pub fn enemy_take_turn(
         return None;
     };
     let (final_target_id, covered) = resolve_cover_target(runtime, menu_state, &target_id);
+    if runtime.content.rules.progression_mode == engine::rules::ProgressionMode::Activity {
+        battle_state
+            .growth
+            .entry(final_target_id.clone())
+            .or_default()
+            .turns_targeted += 1.0;
+    }
     if let Some((coverer, original)) = covered {
         push_battle_log(
             &mut battle_state.log,
@@ -152,6 +160,13 @@ pub fn enemy_take_turn(
         rng,
     );
     if !roll.hit {
+        if runtime.content.rules.progression_mode == engine::rules::ProgressionMode::Activity {
+            battle_state
+                .growth
+                .entry(final_target_id.clone())
+                .or_default()
+                .dodges += 1.0;
+        }
         push_battle_log(
             &mut battle_state.log,
             crate::battle::format_ui_text(
@@ -208,6 +223,17 @@ pub fn enemy_take_turn(
         .max(0.0) as i32;
     if let Some(target) = runtime.party.roster.get_mut(&final_target_id) {
         apply_damage_to_actor(target, damage);
+        if runtime.content.rules.progression_mode == engine::rules::ProgressionMode::Activity {
+            let max_hp = target.derived_stats.get("hp").copied().unwrap_or(0).max(1) as f32;
+            let growth = battle_state
+                .growth
+                .entry(final_target_id.clone())
+                .or_default();
+            growth.damage_taken += damage.max(0) as f32;
+            if (target.current_hp as f32) / max_hp <= 0.25 {
+                growth.hp_below_25 = true;
+            }
+        }
     }
     if roll.crit {
         push_battle_log(

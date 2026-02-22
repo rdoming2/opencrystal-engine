@@ -142,6 +142,7 @@
 ## Progression
 - [x] Implement experience + level-up pipeline.
 - [x] Add activity-based progression mode (weapon/magic proficiencies).
+- [x] Show activity growth + learned spells/abilities in victory flow.
 - [ ] Apply job growth formulas/tables on level-up.
 - [x] Fallen character EXP earn option
 - [ ] Expand status panel JP display (earned/spent/available).

@@ -228,12 +228,15 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
 - Job growth can use formula or table modes per base stat.
 - Derived stat formulas support `lvl` for level-based scaling.
 - Activity mode uses proficiency growth (weapon/magic) with soft caps and rank labels.
+- Activity mode can apply post-battle stat growth using `stats.json` growth formulas
+  and `rules.json` activity_growth tuning.
 
 ### Inventory + equipment
 
 - Inventory stacks are seeded from `rules.json` `inventory` and capped by `max_stack`.
 - Equipment is slot-based (weapons, armor, accessories) and validated by job categories.
 - Equipping recomputes derived stats and clamps current HP/MP to new maxima.
+- Equipment can grant spells or abilities while equipped.
 
 ### Cooking system
 
@@ -270,6 +273,7 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
 - Enemy selection tied to list on the left column.
 - Visual feedback highlights enemy in battlefield and list simultaneously.
 - Victory flow grants EXP/loot/currency stacks summed from enemies.
+- Level-up modals can list newly learned spells/abilities; activity mode shows growth modals after victory.
 - Fallen party members earn EXP/JP only when `battle.exp_for_fallen` is enabled.
 - Battle commands come from `rules.json` `battle.commands` plus job/secondary-job additions.
 - The global command list defines the base menu; job commands augment it without duplicates.
@@ -449,6 +453,27 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
       {"min": 0.5, "label": "Veteran"},
       {"min": 0.8, "label": "Master"}
     ]
+  },
+  "activity_growth": {
+    "base_rate": 0.35,
+    "min_gain_threshold": 0.25,
+    "min_battle_turns": 1,
+    "danger_factor_min": 0.25,
+    "danger_factor_max": 2.0,
+    "floor_depth_exponent": 0.0,
+    "status_effect_weight": 1.0,
+    "initiative_weight": 0.0,
+    "combo_weight": 0.0,
+    "survival_bonus": 1.2,
+    "soft_caps": {
+      "hp": 180,
+      "mp": 90,
+      "str": 45,
+      "int": 45,
+      "vit": 45,
+      "agi": 45,
+      "lck": 45
+    }
   },
   "settings": {
     "autosave_enabled": {"value": true, "visible": true, "editable": true},

@@ -171,6 +171,27 @@ only; autosave uses slot 0 and never reduces the manual slot total.
       {"min": 0.8, "label": "Master"}
     ]
   },
+  "activity_growth": {
+    "base_rate": 0.35,
+    "min_gain_threshold": 0.25,
+    "min_battle_turns": 1,
+    "danger_factor_min": 0.25,
+    "danger_factor_max": 2.0,
+    "floor_depth_exponent": 0.0,
+    "status_effect_weight": 1.0,
+    "initiative_weight": 0.0,
+    "combo_weight": 0.0,
+    "survival_bonus": 1.2,
+    "soft_caps": {
+      "hp": 180,
+      "mp": 90,
+      "str": 45,
+      "int": 45,
+      "vit": 45,
+      "agi": 45,
+      "lck": 45
+    }
+  },
   "inventory": {
     "max_stack": 99,
     "items": [{"id": "potion", "qty": 5}],
@@ -280,6 +301,19 @@ Defines use-based growth when `progression_mode` is `activity`.
   based on proficiency (0.0-1.0).
 - `unarmed_category` is used when no weapon is equipped.
 - `ranks` list proficiency thresholds and labels for UI display.
+
+## activity_growth (rules.json)
+
+Defines post-battle stat growth tuning for activity progression.
+
+- `base_rate` scales overall growth chance.
+- `min_gain_threshold` is the minimum fractional gain required for a stat to increase.
+- `min_battle_turns` prevents growth in trivial battles.
+- `danger_factor_min`/`danger_factor_max` clamp the enemy rank factor.
+- `floor_depth_exponent` scales danger by tower depth when available.
+- `status_effect_weight`, `initiative_weight`, `combo_weight`, `survival_bonus`
+  feed into growth formulas as variables.
+- `soft_caps` map stat ids to soft cap values used by `stat_progress`.
 
 ## job_system
 
@@ -1152,6 +1186,7 @@ Magic Equip items, use `slot: "magic"` and include the spells they should grant.
 Equipment spells:
 
 - `spells`: list of spell IDs provided by the equipment while equipped.
+- `abilities`: list of ability IDs provided by the equipment while equipped.
 ```
 
 ## entities/enemies.json
@@ -1820,10 +1855,16 @@ pages based on available width and height.
 ## stats.json
 
 Defines base stats and derived stats. This allows games to extend or rename stats.
+`growth_formulas` is optional and used by activity-based progression to compute
+stat score inputs after battle.
 
 Formula expressions are strings. Supported operators: `+ - * /` and parentheses. Supported
 functions: `RAND(min,max)` (inclusive, float), `ROUND(value)` (nearest int), `FLOOR(value)`,
 `CEIL(value)`. Formulas may reference base stats, `lvl`, and `gear.*`/`buffs.*` for derived stats.
+Growth formulas can reference activity variables such as `damage_taken_ratio`,
+`physical_damage_dealt`, `magic_damage_dealt`, `enemy_rank_factor`,
+`danger_factor`, `turns_targeted`, `dodges`, `crits`, `status_effect_weight`,
+`max_hp`, `max_mp`, `enemy_total_hp`, `stat_progress`, and `battle_turns`.
 
 ```json
 {
@@ -1851,6 +1892,15 @@ functions: `RAND(min,max)` (inclusive, float), `ROUND(value)` (nearest int), `FL
       "def": "vit * 2 + gear.def + buffs.def",
       "mdef": "int + vit + gear.mdef + buffs.mdef",
       "eva": "agi + lck / 2 + gear.eva + buffs.eva"
+    },
+    "growth_formulas": {
+      "hp": "damage_taken_ratio * danger_factor",
+      "mp": "mp_spent_ratio * danger_factor",
+      "str": "(physical_damage_dealt / enemy_total_hp) * enemy_rank_factor",
+      "int": "(magic_damage_dealt / enemy_total_hp) * enemy_rank_factor",
+      "vit": "turns_targeted * danger_factor",
+      "agi": "dodges",
+      "lck": "crits * danger_factor"
     }
   }
 }

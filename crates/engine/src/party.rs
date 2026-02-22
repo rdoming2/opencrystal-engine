@@ -2,6 +2,9 @@ use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
+use crate::battle::{
+    actor_power, enemy_power, ActivityGrowthDiff, BattleGrowthAccumulator, BattleState,
+};
 use crate::content::Content;
 use crate::entities::{EquipmentDefinition, JobDefinition, MagicAcquisitionOverride};
 use crate::expr::eval_expression;
@@ -78,6 +81,7 @@ pub struct Actor {
     pub equipment: HashMap<String, String>,
     pub spells: Vec<String>,
     pub equipped_spells: Vec<String>,
+    pub equipped_abilities: Vec<String>,
     pub magic_tier_charges: HashMap<u32, i32>,
     pub secondary_job_id: Option<String>,
     pub job_progress: HashMap<String, JobProgress>,
@@ -481,6 +485,7 @@ fn build_actor(
         equipment,
         spells: actor.spells.clone(),
         equipped_spells: Vec::new(),
+        equipped_abilities: Vec::new(),
         magic_tier_charges: HashMap::new(),
         secondary_job_id: None,
         job_progress: {
@@ -508,6 +513,7 @@ fn build_actor(
         statuses: Vec::new(),
     };
     update_equipped_spells(content, &mut built);
+    update_equipped_abilities(content, &mut built);
     learn_job_spells(content, &mut built);
     learn_job_abilities(content, &mut built);
     built
@@ -792,6 +798,21 @@ pub fn update_equipped_spells(content: &Content, actor: &mut Actor) {
     actor.equipped_spells = sorted;
 }
 
+pub fn update_equipped_abilities(content: &Content, actor: &mut Actor) {
+    let equipment_lookup = build_equipment_lookup(content);
+    let mut abilities = HashSet::new();
+    for item_id in actor.equipment.values() {
+        if let Some(item) = equipment_lookup.get(item_id.as_str()) {
+            for ability in &item.abilities {
+                abilities.insert(ability.clone());
+            }
+        }
+    }
+    let mut sorted = abilities.into_iter().collect::<Vec<_>>();
+    sorted.sort_unstable();
+    actor.equipped_abilities = sorted;
+}
+
 pub fn recompute_derived_stats(content: &Content, actor: &mut Actor) {
     let job = content.jobs.jobs.iter().find(|job| job.id == actor.job_id);
     let equipment_lookup = build_equipment_lookup(content);
@@ -805,6 +826,7 @@ pub fn recompute_derived_stats(content: &Content, actor: &mut Actor) {
     );
     clamp_current_stats(actor);
     update_equipped_spells(content, actor);
+    update_equipped_abilities(content, actor);
 }
 
 pub fn exp_for_level(curve: &ExpCurveRules, level: u32) -> Option<i32> {
@@ -944,6 +966,190 @@ pub fn gain_jp(content: &Content, rules: &Ruleset, actor: &mut Actor, amount: i3
     }
     learn_job_spells(content, actor);
     learn_job_abilities(content, actor);
+}
+
+pub fn apply_activity_growth(
+    content: &Content,
+    rules: &Ruleset,
+    party: &mut PartyState,
+    battle_state: &BattleState,
+) -> Vec<ActivityGrowthDiff> {
+    let mut diffs = Vec::new();
+    if rules.progression_mode != ProgressionMode::Activity {
+        return diffs;
+    }
+    if rules.activity_growth.base_rate <= 0.0 {
+        return diffs;
+    }
+    if battle_state.turns < rules.activity_growth.min_battle_turns {
+        return diffs;
+    }
+    let enemy_power_total: f32 = battle_state
+        .enemies
+        .iter()
+        .map(|enemy| enemy_power(content, enemy))
+        .sum();
+    let player_power_total: f32 = battle_state
+        .party_order
+        .iter()
+        .filter_map(|id| party.roster.get(id))
+        .map(|actor| actor_power(content, actor))
+        .sum();
+    let base_rank = if player_power_total > 0.0 {
+        enemy_power_total / player_power_total
+    } else {
+        1.0
+    };
+    let mut enemy_rank_factor = base_rank.clamp(
+        rules.activity_growth.danger_factor_min,
+        rules.activity_growth.danger_factor_max,
+    );
+    let floor_depth = battle_state.floor_depth.max(1) as f32;
+    if rules.activity_growth.floor_depth_exponent > 0.0 {
+        enemy_rank_factor *= floor_depth.powf(rules.activity_growth.floor_depth_exponent);
+    }
+    let enemy_total_hp: f32 = battle_state
+        .enemies
+        .iter()
+        .map(|enemy| enemy.max_hp().max(1) as f32)
+        .sum();
+
+    let growth_formulas = &content.stats.stats.growth_formulas;
+    if growth_formulas.is_empty() {
+        return diffs;
+    }
+
+    for actor_id in &battle_state.party_order {
+        let Some(actor) = party.roster.get_mut(actor_id) else {
+            continue;
+        };
+        let acc = battle_state
+            .growth
+            .get(actor_id)
+            .cloned()
+            .unwrap_or_else(BattleGrowthAccumulator::default);
+        let max_hp = actor.derived_stats.get("hp").copied().unwrap_or(0).max(1) as f32;
+        let max_mp = actor.derived_stats.get("mp").copied().unwrap_or(0).max(1) as f32;
+        let damage_taken_ratio = acc.damage_taken / max_hp;
+        let mp_spent_ratio = acc.mp_spent / max_mp;
+        let survival_bonus = if acc.hp_below_25 {
+            rules.activity_growth.survival_bonus
+        } else {
+            1.0
+        };
+        let status_effect_weight =
+            acc.status_inflicted * rules.activity_growth.status_effect_weight;
+        let effective_cast_ratio = if acc.mp_spent > 0.0 { 1.0 } else { 0.0 };
+
+        let mut base_vars = HashMap::new();
+        base_vars.insert("damage_taken".to_string(), acc.damage_taken as f64);
+        base_vars.insert("damage_taken_ratio".to_string(), damage_taken_ratio as f64);
+        base_vars.insert(
+            "hp_below_25".to_string(),
+            if acc.hp_below_25 { 1.0 } else { 0.0 },
+        );
+        base_vars.insert("survival_bonus".to_string(), survival_bonus as f64);
+        base_vars.insert("mp_spent".to_string(), acc.mp_spent as f64);
+        base_vars.insert("mp_spent_ratio".to_string(), mp_spent_ratio as f64);
+        base_vars.insert(
+            "effective_cast_ratio".to_string(),
+            effective_cast_ratio as f64,
+        );
+        base_vars.insert(
+            "physical_damage_dealt".to_string(),
+            acc.damage_dealt_physical as f64,
+        );
+        base_vars.insert(
+            "magic_damage_dealt".to_string(),
+            acc.damage_dealt_magic as f64,
+        );
+        base_vars.insert("status_inflicted".to_string(), acc.status_inflicted as f64);
+        base_vars.insert(
+            "status_effect_weight".to_string(),
+            status_effect_weight as f64,
+        );
+        base_vars.insert("crits".to_string(), acc.crits as f64);
+        base_vars.insert("dodges".to_string(), acc.dodges as f64);
+        base_vars.insert("turns_targeted".to_string(), acc.turns_targeted as f64);
+        base_vars.insert("turns_acted".to_string(), acc.turns_acted as f64);
+        base_vars.insert("battle_turns".to_string(), battle_state.turns as f64);
+        base_vars.insert("enemy_rank_factor".to_string(), enemy_rank_factor as f64);
+        base_vars.insert("danger_factor".to_string(), enemy_rank_factor as f64);
+        base_vars.insert("enemy_power".to_string(), enemy_power_total as f64);
+        base_vars.insert("player_power".to_string(), player_power_total as f64);
+        base_vars.insert("enemy_total_hp".to_string(), enemy_total_hp as f64);
+        base_vars.insert("max_hp".to_string(), max_hp as f64);
+        base_vars.insert("max_mp".to_string(), max_mp as f64);
+        base_vars.insert(
+            "initiative_weight".to_string(),
+            rules.activity_growth.initiative_weight as f64,
+        );
+        base_vars.insert(
+            "combo_weight".to_string(),
+            rules.activity_growth.combo_weight as f64,
+        );
+        base_vars.insert("damage_mitigated".to_string(), 0.0);
+
+        let mut any_growth = false;
+        let old_stats = actor.base_stats.clone();
+        for stat in &content.stats.stats.base {
+            let Some(formula) = growth_formulas.get(&stat.id) else {
+                continue;
+            };
+            let current_stat = actor.base_stats.get(&stat.id).copied().unwrap_or(0);
+            let soft_cap = rules
+                .activity_growth
+                .soft_caps
+                .get(&stat.id)
+                .copied()
+                .unwrap_or(100.0)
+                .max(1.0);
+            let stat_progress = ((current_stat as f32) / soft_cap).clamp(0.0, 1.0);
+            let mut vars = base_vars.clone();
+            vars.insert("current_stat".to_string(), current_stat as f64);
+            vars.insert("stat_progress".to_string(), stat_progress as f64);
+
+            let stat_score = match eval_expression(formula, &vars) {
+                Ok(value) => value.max(0.0),
+                Err(_) => continue,
+            };
+            let growth_chance = (rules.activity_growth.base_rate as f64)
+                * stat_score
+                * (1.0 - stat_progress as f64);
+            if growth_chance <= 0.0 {
+                continue;
+            }
+            let mut increase = growth_chance.floor() as i32;
+            let remainder = growth_chance - (increase as f64);
+            if increase == 0 && remainder >= rules.activity_growth.min_gain_threshold as f64 {
+                increase = 1;
+            }
+            if increase > 0 {
+                let entry = actor.base_stats.entry(stat.id.clone()).or_insert(0);
+                *entry += increase;
+                any_growth = true;
+            }
+        }
+        if any_growth {
+            let mut stat_changes = HashMap::new();
+            for (stat, new_value) in &actor.base_stats {
+                let old_value = old_stats.get(stat).copied().unwrap_or(0);
+                let diff = *new_value - old_value;
+                if diff != 0 {
+                    stat_changes.insert(stat.clone(), (*new_value, diff));
+                }
+            }
+            if !stat_changes.is_empty() {
+                diffs.push(ActivityGrowthDiff {
+                    actor_id: actor.id.clone(),
+                    actor_name: actor.name.clone(),
+                    stat_changes,
+                });
+            }
+            recompute_derived_stats(content, actor);
+        }
+    }
+    diffs
 }
 
 fn apply_growth(content: &Content, actor: &mut Actor) {

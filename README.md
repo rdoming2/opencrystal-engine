@@ -70,7 +70,7 @@ data-driven and inspectable. Highlights include:
 | Worlds & travel | Multi-world maps, overworld/town/dungeon layers, encounters, transitions, fast travel, vehicles, and downsampled overworld map views. |
 | Events & dialog | Scripted events with flags, warps, battles, shops, rests, stat updates, and dialog trees with actions and gated choices. |
 | Battle | Turn-based and Readiness modes, pause, command catalogs, targeting rules, rows, traits/status effects, boss scaling (by level), difficulty scaling (global), and configurable formulas. |
-| Jobs & growth | Character/job/job_points/activity progression, JP earn/spend modes, optional secondary jobs, spell/ability unlock modes, tier charges, and magic equip slots. |
+| Jobs & growth | Character/job/job_points/activity progression, post-battle stat growth, JP earn/spend modes, optional secondary jobs, spell/ability unlock modes (including equipment-granted), tier charges, and magic equip slots. |
 | Party & inventory | Create/preset/preset_rename party flows, roster + reserve, equipment slots, inventory stacks, field/battle item use, and cooking. |
 | UI & UX | Two-pane main menu, journal and gameplay stats panels, settings visibility/locking, localized strings, title and battle layout configs. |
 | Tooling | Validation, content stubs, a TUI map editor, and docs output for automation workflows. |

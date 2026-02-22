@@ -117,7 +117,8 @@ pub enum TargetRule {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum VictoryState {
     Summary,
-    LevelUp(usize),
+    LevelUp { index: usize, page: usize },
+    Growth { index: usize, page: usize },
 }
 
 pub fn enemy_target_indices(battle_state: &BattleState) -> Vec<usize> {

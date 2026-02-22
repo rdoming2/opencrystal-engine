@@ -379,6 +379,8 @@ pub struct EquipmentDefinition {
     #[serde(default)]
     pub spells: Vec<String>,
     #[serde(default)]
+    pub abilities: Vec<String>,
+    #[serde(default)]
     pub traits: Vec<String>,
 }
 
