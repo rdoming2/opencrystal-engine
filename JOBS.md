@@ -4,7 +4,7 @@ OpenCrystal ships with a modular job system so games can pick the
 progression model that fits their vision. Every actor has one primary job
 and, if the rules allow it, an optional secondary job. As actors gain
 experience, jobs unlock new base stats, spells, and abilities according to
-per-job growth data defined in `content/demo/entities/jobs.json`.
+per-job growth data defined in `content/<pack>/entities/jobs.json`.
 
 ## Related docs
 
@@ -16,8 +16,8 @@ Use `cryst build docs -j` to print this file to stdout.
 
 ## Progression Modes
 
-The job progression mode is configured under `rules.json -> job_system ->
-progression_mode`. Three modes are available right now:
+The progression mode is configured under `rules.json -> progression_mode`. Four
+modes are available right now:
 
 - `character`: (default) a single `Actor.level`/`Actor.exp` pair drives
   progression. Switching jobs keeps the current level and the job simply
@@ -31,6 +31,9 @@ progression_mode`. Three modes are available right now:
   the Job menu to unlock additional spells or abilities. Jobs may still
   auto-unlock stat/spell gains by level while JP purchases provide finer
   control.
+- `activity`: actors grow by use-based weapon/magic proficiencies (0.0-1.0)
+  with soft caps. EXP/level-ups are disabled, but jobs remain as baseline
+  templates for stats, equipment slots, and unlock lists.
 
 JP gains, secondary job availability, and the job curve are all controlled
 from the same `job_system` block. Changing modes only requires swapping a
@@ -54,6 +57,7 @@ stats or equipment slots.
   for each job and the unlockable spells/abilities that still have a cost.
 - Secondary job assignment is an optional action (mapped to Pause/"Mag" on
   the menu). It only appears if the rules allow it.
+- The Jobs menu is hidden automatically when `progression_mode` is `activity`.
 
 ## Data and Configuration
 
@@ -64,6 +68,8 @@ stats or equipment slots.
   the job menu uses to show job flavor and school coverage.
 - The engine keeps a `job_progress` map per actor so save files can persist
   job-specific levels, JP balances, and the learned ability set.
+- When using `progression_mode: activity`, tune weapon/magic gains and rank
+  labels under `rules.json -> activity_progression`.
 
 By following these conventions the job system remains data-driven and
 flexible: designers can keep the classic single-progress model or switch to

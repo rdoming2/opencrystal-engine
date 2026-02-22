@@ -3,6 +3,18 @@
 OpenCrystal is a Rust-based JRPG engine for the terminal. It targets wide compatibility
 (ANSI + 256 colors) while keeping the content fully data-driven via JSON.
 
+```text
+    .   .   /#\     .
+  *        /*##\  .    *
+'      .  /**###\    .  '
+    <    /***####\      >
+  .   *  \***####/  *   .
+*       . \**###/   .    *
+    .      \*##/  *      .
+  '      *  \#/  .    '
+     OpenCrystal Engine
+```
+
 ## Disclaimer
 
 This project is an original open-source game engine inspired by classic turn-based RPG
@@ -57,13 +69,13 @@ data-driven and inspectable. Highlights include:
 | Rendering | ANSI + 256 colors, palette-based styling, wide/modern modes, glyph or ASCII battle art based on terminal size. |
 | Worlds & travel | Multi-world maps, overworld/town/dungeon layers, encounters, transitions, fast travel, vehicles, and downsampled overworld map views. |
 | Events & dialog | Scripted events with flags, warps, battles, shops, rests, stat updates, and dialog trees with actions and gated choices. |
-| Battle | Turn-based and Readiness modes, pause, command catalogs, targeting rules, rows, traits/status effects, boss scaling, and configurable formulas. |
+| Battle | Turn-based and Readiness modes, pause, command catalogs, targeting rules, rows, traits/status effects, boss scaling (by level), difficulty scaling (global), and configurable formulas. |
 | Jobs & growth | Character/job/job_points/activity progression, optional secondary jobs, spell/ability unlock modes, tier charges, and magic equip slots. |
 | Party & inventory | Create/preset/preset_rename party flows, roster + reserve, equipment slots, inventory stacks, field/battle item use, and cooking. |
 | UI & UX | Two-pane main menu, journal and gameplay stats panels, settings visibility/locking, localized strings, title and battle layout configs. |
 | Tooling | Validation, content stubs, a TUI map editor, and docs output for automation workflows. |
 
-See `SCHEMAS.md`, `ARCHITECTURE.md`, and `CONTENT_AUTHORING_GUIDE.md` for deeper references.
+See `SCHEMAS.md`, `ARCHITECTURE.md`, `JOBS.md` and `CONTENT_AUTHORING_GUIDE.md` for deeper references.
 
 ## Project layout
 
