@@ -75,8 +75,10 @@ Job selection always shows unlocked jobs; `systems.jobs` only gates job-related 
 `exp_curve` defines the XP thresholds for leveling. Use `mode: "table"` with
 absolute XP totals per level or `mode: "formula"` with a formula string (use
 `lvl` in the formula). `max_level` caps progression.
+`progression_mode` selects `character` (baseline XP), `job` (per-job XP/levels),
+`job_points` (global XP plus job-specific JP), or `activity` (use-based growth).
 Status menu EXP uses `exp_curve` for `character`/`job_points` progression and
-`job_system.job_exp_curve` for `job` progression.
+`job_system.job_exp_curve` for `job` progression; `activity` mode hides EXP.
 
 `inventory` seeds starting inventory and sets `max_stack` for items/equipment.
 `magic_acquisition` defines how spells are obtained (`level`, `item`, `equip`, `jp`) and is required.
@@ -156,6 +158,19 @@ only; autosave uses slot 0 and never reduces the manual slot total.
     "table": [0, 10, 30, 60, 100],
     "max_level": 5
   },
+  "progression_mode": "job",
+  "activity_progression": {
+    "weapon_gain": {"attack": 0.02, "ability": 0.03, "cast": 0.0},
+    "magic_gain": {"attack": 0.0, "ability": 0.0, "cast": 0.02},
+    "effects": {"damage_scale": 0.25, "hit_bonus": 0.15},
+    "unarmed_category": "unarmed",
+    "ranks": [
+      {"min": 0.0, "label": "Novice"},
+      {"min": 0.2, "label": "Skilled"},
+      {"min": 0.5, "label": "Veteran"},
+      {"min": 0.8, "label": "Master"}
+    ]
+  },
   "inventory": {
     "max_stack": 99,
     "items": [{"id": "potion", "qty": 5}],
@@ -211,7 +226,6 @@ only; autosave uses slot 0 and never reduces the manual slot total.
     }
   },
   "job_system": {
-    "progression_mode": "job",
     "secondary_jobs": true,
     "jp_mode": "earn",
     "job_exp_curve": {
@@ -248,17 +262,31 @@ Render fields:
 - `render.death_markers.show_on_map`: when true, defeat locations are stored per map and rendered.
 - `render.death_markers.glyph`: map glyph used for death markers (defaults to `✞`).
 
+## progression_mode (rules.json)
+
+Selects the progression pipeline for the game:
+
+- `character`: global EXP and levels drive growth.
+- `job`: per-job EXP and levels drive growth.
+- `job_points`: global EXP levels plus JP-based job progression.
+- `activity`: use-based growth with proficiencies (no EXP/levels).
+
+## activity_progression (rules.json)
+
+Defines use-based growth when `progression_mode` is `activity`.
+
+- `weapon_gain` and `magic_gain` set per-action gains (attack/ability/cast).
+- `effects.damage_scale` and `effects.hit_bonus` scale damage and hit chance
+  based on proficiency (0.0-1.0).
+- `unarmed_category` is used when no weapon is equipped.
+- `ranks` list proficiency thresholds and labels for UI display.
+
 ## job_system
 
-Describes how the job system tracks progression beyond the standard
-experience curve. Put this object in `rules.json` alongside `exp_curve`
-to enable job-specific leveling, JP spending, and optional secondary jobs.
+Describes job-specific progression settings, JP behavior, and secondary jobs.
 
-- `progression_mode` selects `character` (baseline XP), `job` (per-job
-  XP/levels), or `job_points` (global XP plus job-specific JP).
-- `job_exp_curve` defines thresholds when `job` mode is active.
-- `secondary_jobs` toggles the secondary job slot exposed by the Job
-  menu.
+- `job_exp_curve` defines thresholds when `progression_mode` is `job`.
+- `secondary_jobs` toggles the secondary job slot exposed by the Job menu.
 
 Spells and abilities can declare `unlock_level` or `jp_cost` inside the
 job definitions so that the menu and progression logic know whether they
@@ -1841,6 +1869,8 @@ Vehicle fields:
 - `world.vehicle`: active vehicle id or null when on foot.
 - `vehicles`: per-vehicle map positions keyed by vehicle id.
 - `party.members.*.row`: `front` or `back` when battle rows are enabled.
+- `party.members.*.weapon_proficiencies`: map of weapon category -> 0.0-1.0 proficiency.
+- `party.members.*.magic_proficiencies`: map of magic school -> 0.0-1.0 proficiency.
 
 ```json
 {

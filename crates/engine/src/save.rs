@@ -67,6 +67,10 @@ pub struct SaveActor {
     pub magic_tier_charges: HashMap<u32, i32>,
     pub secondary_job_id: Option<String>,
     pub job_progress: HashMap<String, SaveJobProgress>,
+    #[serde(default)]
+    pub weapon_proficiencies: HashMap<String, f32>,
+    #[serde(default)]
+    pub magic_proficiencies: HashMap<String, f32>,
     pub unlocked_abilities: Vec<String>,
 }
 
@@ -293,6 +297,8 @@ impl SaveActor {
             magic_tier_charges: actor.magic_tier_charges.clone(),
             secondary_job_id: actor.secondary_job_id.clone(),
             job_progress,
+            weapon_proficiencies: actor.weapon_proficiencies.clone(),
+            magic_proficiencies: actor.magic_proficiencies.clone(),
             unlocked_abilities,
         }
     }
@@ -320,6 +326,8 @@ impl SaveActor {
             magic_tier_charges: self.magic_tier_charges.clone(),
             secondary_job_id: self.secondary_job_id.clone(),
             job_progress,
+            weapon_proficiencies: self.weapon_proficiencies.clone(),
+            magic_proficiencies: self.magic_proficiencies.clone(),
             unlocked_abilities: self.unlocked_abilities.iter().cloned().collect(),
             statuses: Vec::new(),
         }

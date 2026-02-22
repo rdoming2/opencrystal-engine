@@ -254,15 +254,17 @@ pub fn roll_attack(
     defender: &CombatantStats,
     kind: DamageKind,
     power: i32,
+    hit_bonus: f32,
     rng: &mut impl Rng,
 ) -> AttackRoll {
-    let hit_chance = evaluate_chance_formula(
+    let mut hit_chance = evaluate_chance_formula(
         rules.formulas.hit.as_deref(),
         attacker,
         defender,
         power,
         1.0,
     );
+    hit_chance = (hit_chance + hit_bonus).clamp(0.0, 1.0);
     if rng.r#gen::<f32>() > hit_chance {
         return AttackRoll {
             hit: false,

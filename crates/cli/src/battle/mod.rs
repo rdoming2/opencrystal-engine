@@ -13,7 +13,7 @@ use engine::battle::{
     is_party_defeated, BattleMode, BattleResult, BattleState, LevelUpDiff,
 };
 use engine::party::{actor_row_label, gain_exp, toggle_actor_row};
-use engine::rules::{JobProgressionMode, Ruleset};
+use engine::rules::{ProgressionMode, Ruleset};
 use engine::runtime::GameRuntime;
 use rand::Rng;
 use tui::battle::{draw_battle, draw_battle_frame, BattleRenderState};
@@ -542,8 +542,7 @@ pub fn run_battle(
                             session,
                             result.rewards.exp,
                             result.rewards.jp,
-                            runtime.content.rules.job_system.progression_mode
-                                == JobProgressionMode::JobPoints,
+                            runtime.content.rules.progression_mode == ProgressionMode::JobPoints,
                             &currency_lines,
                             &result.rewards.items,
                             &ui_text(runtime, "battle.victory_title", "Victory!"),
@@ -2053,6 +2052,10 @@ fn apply_battle_rewards(
                 *amount = ((*amount as f32) * scale).round().max(0.0) as i32;
             }
         }
+    }
+    if runtime.content.rules.progression_mode == ProgressionMode::Activity {
+        rewards.exp = 0;
+        rewards.jp = 0;
     }
     let mut result = BattleResult {
         rewards,

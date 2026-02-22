@@ -224,9 +224,10 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
 ### Leveling + experience
 
 - Experience thresholds are configured via `exp_curve` in `rules.json` (table or formula).
-- Status menu EXP display follows progression mode: character/job_points use `actor.exp`, job mode uses current job EXP.
+- Status menu EXP display follows progression mode: character/job_points use `actor.exp`, job mode uses current job EXP, activity hides EXP.
 - Job growth can use formula or table modes per base stat.
 - Derived stat formulas support `lvl` for level-based scaling.
+- Activity mode uses proficiency growth (weapon/magic) with soft caps and rank labels.
 
 ### Inventory + equipment
 
@@ -436,6 +437,19 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
   "save": {
     "slots_max": 10
   },
+  "progression_mode": "job",
+  "activity_progression": {
+    "weapon_gain": {"attack": 0.02, "ability": 0.03, "cast": 0.0},
+    "magic_gain": {"attack": 0.0, "ability": 0.0, "cast": 0.02},
+    "effects": {"damage_scale": 0.25, "hit_bonus": 0.15},
+    "unarmed_category": "unarmed",
+    "ranks": [
+      {"min": 0.0, "label": "Novice"},
+      {"min": 0.2, "label": "Skilled"},
+      {"min": 0.5, "label": "Veteran"},
+      {"min": 0.8, "label": "Master"}
+    ]
+  },
   "settings": {
     "autosave_enabled": {"value": true, "visible": true, "editable": true},
     "readiness_speed": {
@@ -462,7 +476,6 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
     }
   },
   "job_system": {
-    "progression_mode": "job",
     "secondary_jobs": true,
     "jp_mode": "earn",
     "job_exp_curve": {

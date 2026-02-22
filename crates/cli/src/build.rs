@@ -14,9 +14,9 @@ use engine::io::{load_json, write_json_pretty};
 use engine::maps::{MapFile, MapLoop, TileLegend};
 use engine::quests::QuestsFile;
 use engine::rules::{
-    AbilityAcquisition, BattleMode, Currency, ExpCurveRules, GameRules, JobProgressionMode,
+    AbilityAcquisition, ActivityProgressionRules, BattleMode, Currency, ExpCurveRules, GameRules,
     JobSystemRules, JpMode, MagicAcquisition, MagicSystem, PartyCreateRules, PartyMode,
-    RenderRules, RulesFile, SaveRules, SettingsRules, StatsRules,
+    ProgressionMode, RenderRules, RulesFile, SaveRules, SettingsRules, StatsRules,
 };
 use engine::stats::{StatEntry, StatsDefinition, StatsFile};
 use engine::world::{FastTravelConfig, WorldDefinition, WorldsFile};
@@ -324,6 +324,8 @@ fn create_project_structure(target_dir: &Path, title: &str) -> Result<(), String
             formula: None,
             max_level: 2,
         },
+        progression_mode: ProgressionMode::Job,
+        activity_progression: ActivityProgressionRules::default(),
         inventory: engine::rules::InventoryRules::default(),
         systems: default_systems(),
         save: SaveRules::default(),
@@ -336,7 +338,6 @@ fn create_project_structure(target_dir: &Path, title: &str) -> Result<(), String
         },
         stats: StatsRules { track: Vec::new() },
         job_system: JobSystemRules {
-            progression_mode: JobProgressionMode::Job,
             secondary_jobs: false,
             jp_mode: JpMode::Earn,
             job_exp_curve: ExpCurveRules {

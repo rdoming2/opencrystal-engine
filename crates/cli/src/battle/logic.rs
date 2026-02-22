@@ -148,6 +148,7 @@ pub fn enemy_take_turn(
         &defender_stats,
         DamageKind::Physical,
         0,
+        0.0,
         rng,
     );
     if !roll.hit {
@@ -321,6 +322,7 @@ fn handle_counter_attack(
         &defender_stats,
         DamageKind::Physical,
         0,
+        0.0,
         rng,
     );
     if !roll.hit {

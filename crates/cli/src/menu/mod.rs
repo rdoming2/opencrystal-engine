@@ -16,7 +16,7 @@ use std::path::{Path, PathBuf};
 use engine::maps::MapFile;
 use engine::menu::MenuFocus;
 use engine::party::{actor_row_label, get_actor_max_charges, job_jp};
-use engine::rules::JobProgressionMode;
+use engine::rules::ProgressionMode;
 use engine::runtime::GameRuntime;
 use engine::save::SaveFile;
 use tui::input::{Action, InputBindings};
@@ -1205,8 +1205,7 @@ pub fn run_menu_loop(
                     if matches!(focus, MenuPane::Detail)
                         && submenu_action == "jobs"
                         && runtime.menu_state.detail_page == 0
-                        && runtime.content.rules.job_system.progression_mode
-                            == JobProgressionMode::JobPoints
+                        && runtime.content.rules.progression_mode == ProgressionMode::JobPoints
                     {
                         runtime.menu_state.detail_page = 2;
                         runtime.menu_state.detail_target = 0;
@@ -1713,8 +1712,7 @@ fn jobs_selected_line(runtime: &GameRuntime) -> Option<usize> {
     if runtime.menu_state.detail_page > 0 {
         return None;
     }
-    let job_points =
-        runtime.content.rules.job_system.progression_mode == JobProgressionMode::JobPoints;
+    let job_points = runtime.content.rules.progression_mode == ProgressionMode::JobPoints;
     let line_index = 2 + if job_points { 1 } else { 0 } + 1;
     let options = job_menu_options(runtime);
     if options.is_empty() {
@@ -2217,7 +2215,7 @@ fn build_party_summary(runtime: &GameRuntime) -> Vec<MenuPanelLine> {
             if rows_enabled {
                 lines.push(panel_line(format!("Row: {}", actor_row_label(actor))));
             }
-            if runtime.content.rules.job_system.progression_mode == JobProgressionMode::JobPoints {
+            if runtime.content.rules.progression_mode == ProgressionMode::JobPoints {
                 lines.push(panel_line(format!("JP {}", job_jp(actor, &actor.job_id))));
             }
             lines.push(panel_line(""));
@@ -2722,13 +2720,19 @@ fn map_save_allowed(runtime: &GameRuntime, map_id: &str, player_pos: (i32, i32))
 
 pub fn system_enabled(runtime: &GameRuntime, system: Option<&str>) -> bool {
     match system {
-        Some(key) if !key.trim().is_empty() => runtime
-            .content
-            .rules
-            .systems
-            .get(key)
-            .copied()
-            .unwrap_or(false),
+        Some(key) if !key.trim().is_empty() => {
+            if key == "jobs" && runtime.content.rules.progression_mode == ProgressionMode::Activity
+            {
+                return false;
+            }
+            runtime
+                .content
+                .rules
+                .systems
+                .get(key)
+                .copied()
+                .unwrap_or(false)
+        }
         _ => true,
     }
 }

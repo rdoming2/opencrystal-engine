@@ -183,20 +183,72 @@ pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
             }
         }
         if rules.game.magic_acquisition == crate::rules::MagicAcquisition::Jp
-            && rules.job_system.progression_mode != crate::rules::JobProgressionMode::JobPoints
+            && rules.progression_mode != crate::rules::ProgressionMode::JobPoints
         {
             errors.push(
-                "rules.json: magic_acquisition 'jp' requires job_system.progression_mode 'job_points'"
+                "rules.json: magic_acquisition 'jp' requires progression_mode 'job_points'"
                     .to_string(),
             );
         }
         if rules.game.ability_acquisition == crate::rules::AbilityAcquisition::Jp
-            && rules.job_system.progression_mode != crate::rules::JobProgressionMode::JobPoints
+            && rules.progression_mode != crate::rules::ProgressionMode::JobPoints
         {
             errors.push(
-                "rules.json: ability_acquisition 'jp' requires job_system.progression_mode 'job_points'"
+                "rules.json: ability_acquisition 'jp' requires progression_mode 'job_points'"
                     .to_string(),
             );
+        }
+        if rules.progression_mode == crate::rules::ProgressionMode::Activity {
+            if rules.activity_progression.ranks.is_empty() {
+                errors.push("rules.json: activity_progression.ranks must not be empty".to_string());
+            }
+            let weapon_gain = &rules.activity_progression.weapon_gain;
+            let magic_gain = &rules.activity_progression.magic_gain;
+            for (label, value) in [
+                ("weapon_gain.attack", weapon_gain.attack),
+                ("weapon_gain.ability", weapon_gain.ability),
+                ("weapon_gain.cast", weapon_gain.cast),
+                ("magic_gain.attack", magic_gain.attack),
+                ("magic_gain.ability", magic_gain.ability),
+                ("magic_gain.cast", magic_gain.cast),
+            ] {
+                if value < 0.0 {
+                    errors.push(format!(
+                        "rules.json: activity_progression.{} must be >= 0",
+                        label
+                    ));
+                }
+                if value > 1.0 {
+                    errors.push(format!(
+                        "rules.json: activity_progression.{} must be <= 1",
+                        label
+                    ));
+                }
+            }
+            if rules.activity_progression.effects.damage_scale < 0.0 {
+                errors.push(
+                    "rules.json: activity_progression.effects.damage_scale must be >= 0"
+                        .to_string(),
+                );
+            }
+            if rules.activity_progression.effects.hit_bonus < 0.0 {
+                errors.push(
+                    "rules.json: activity_progression.effects.hit_bonus must be >= 0".to_string(),
+                );
+            }
+            for rank in &rules.activity_progression.ranks {
+                if !(0.0..=1.0).contains(&rank.min) {
+                    errors.push(
+                        "rules.json: activity_progression.ranks min must be within 0-1".to_string(),
+                    );
+                }
+                if rank.label.trim().is_empty() {
+                    errors.push(
+                        "rules.json: activity_progression.ranks label must not be empty"
+                            .to_string(),
+                    );
+                }
+            }
         }
         match rules.exp_curve.mode.as_str() {
             "table" => {

@@ -3,13 +3,45 @@ use engine::battle::{
     damage_multiplier, enemy_combat_stats, healing_inverted, roll_attack, CombatantStats,
     DamageKind,
 };
-use engine::party::row_attack_multiplier;
-use engine::rules::MagicSystem;
+use engine::party::{
+    activity_proficiency, actor_weapon_category, apply_activity_gain, row_attack_multiplier,
+    ActivityKind,
+};
+use engine::rules::{MagicSystem, ProgressionMode};
 use engine::runtime::GameRuntime;
 use rand::Rng;
 
 use super::state::{enemy_target_indices, BattleMenuState, TargetMode, TargetSide};
 use crate::menu::common::{AbilityEntry, SpellEntry};
+
+fn activity_weapon_id(runtime: &GameRuntime, actor: &engine::party::Actor) -> Option<String> {
+    let rules = &runtime.content.rules.activity_progression;
+    actor_weapon_category(&runtime.content, actor, rules.unarmed_category.as_str())
+}
+
+fn activity_magic_id(runtime: &GameRuntime, spell_id: &str) -> Option<String> {
+    runtime
+        .content
+        .spells
+        .spells
+        .iter()
+        .find(|spell| spell.id == spell_id)
+        .map(|spell| spell.school.clone())
+}
+
+fn activity_damage_multiplier(runtime: &GameRuntime, prof: f32) -> f32 {
+    1.0 + prof
+        * runtime
+            .content
+            .rules
+            .activity_progression
+            .effects
+            .damage_scale
+}
+
+fn activity_hit_bonus(runtime: &GameRuntime, prof: f32) -> f32 {
+    prof * runtime.content.rules.activity_progression.effects.hit_bonus
+}
 
 pub fn execute_attack_action(
     runtime: &mut GameRuntime,
@@ -22,6 +54,20 @@ pub fn execute_attack_action(
         return;
     };
     let actor_name = actor.name.clone();
+    let weapon_id = if runtime.content.rules.progression_mode == ProgressionMode::Activity {
+        activity_weapon_id(runtime, actor)
+    } else {
+        None
+    };
+    let (activity_hit_bonus, activity_damage_multiplier) = if let Some(ref weapon_id) = weapon_id {
+        let prof = activity_proficiency(actor, ActivityKind::Weapon, weapon_id);
+        (
+            activity_hit_bonus(runtime, prof),
+            activity_damage_multiplier(runtime, prof),
+        )
+    } else {
+        (0.0, 1.0)
+    };
     let Some(enemy) = battle_state.enemies.get_mut(enemy_index) else {
         return;
     };
@@ -41,6 +87,7 @@ pub fn execute_attack_action(
         &defender_stats,
         DamageKind::Physical,
         0,
+        activity_hit_bonus,
         rng,
     );
     if !roll.hit {
@@ -60,7 +107,9 @@ pub fn execute_attack_action(
     }
     let mut damage = roll.base_damage;
     let row_multiplier = row_attack_multiplier(&runtime.content, actor);
-    damage = ((damage as f32) * row_multiplier).round().max(0.0) as i32;
+    damage = ((damage as f32) * row_multiplier * activity_damage_multiplier)
+        .round()
+        .max(0.0) as i32;
     let multiplier = damage_multiplier(
         &runtime.content,
         &enemy.statuses,
@@ -70,6 +119,21 @@ pub fn execute_attack_action(
     );
     damage = ((damage as f32) * multiplier).round().max(0.0) as i32;
     apply_damage_to_enemy(enemy, damage);
+    if let Some(weapon_id) = weapon_id.as_deref() {
+        if let Some(actor) = runtime.party.roster.get_mut(actor_id) {
+            apply_activity_gain(
+                actor,
+                ActivityKind::Weapon,
+                weapon_id,
+                runtime
+                    .content
+                    .rules
+                    .activity_progression
+                    .weapon_gain
+                    .attack,
+            );
+        }
+    }
     runtime.track_max_stat("max_damage", damage);
     if roll.crit {
         super::logic::push_battle_log(
@@ -187,6 +251,25 @@ pub fn execute_magic_action(
         }
         actor.name.clone()
     };
+    let magic_id = if runtime.content.rules.progression_mode == ProgressionMode::Activity {
+        activity_magic_id(runtime, entry.id.as_str())
+    } else {
+        None
+    };
+    let (activity_hit_bonus, activity_damage_multiplier) = if let Some(ref magic_id) = magic_id {
+        let prof = runtime
+            .party
+            .roster
+            .get(actor_id)
+            .map(|actor| activity_proficiency(actor, ActivityKind::Magic, magic_id))
+            .unwrap_or(0.0);
+        (
+            activity_hit_bonus(runtime, prof),
+            activity_damage_multiplier(runtime, prof),
+        )
+    } else {
+        (0.0, 1.0)
+    };
     let Some(actor_stats) = runtime.party.roster.get(actor_id).map(actor_combat_stats) else {
         return;
     };
@@ -196,6 +279,7 @@ pub fn execute_magic_action(
         TargetMode::Single => 1.0,
     };
 
+    let mut applied_gain = false;
     match target_side {
         TargetSide::Enemy => {
             let indices = if target_mode == TargetMode::Multi {
@@ -223,6 +307,7 @@ pub fn execute_magic_action(
                                 &defender_stats,
                                 DamageKind::Magic,
                                 entry.effect_power,
+                                activity_hit_bonus,
                                 rng,
                             );
                             if !roll.hit {
@@ -248,11 +333,32 @@ pub fn execute_magic_action(
                                 DamageKind::Magic,
                                 element.as_deref(),
                             );
-                            damage = ((damage as f32) * multiplier * attenuation)
+                            damage = ((damage as f32)
+                                * multiplier
+                                * attenuation
+                                * activity_damage_multiplier)
                                 .round()
                                 .max(1.0) as i32;
                             apply_damage_to_enemy(enemy, damage);
                             runtime.track_max_stat("max_damage", damage);
+                            if !applied_gain {
+                                if let Some(magic_id) = magic_id.as_deref() {
+                                    if let Some(actor) = runtime.party.roster.get_mut(actor_id) {
+                                        apply_activity_gain(
+                                            actor,
+                                            ActivityKind::Magic,
+                                            magic_id,
+                                            runtime
+                                                .content
+                                                .rules
+                                                .activity_progression
+                                                .magic_gain
+                                                .cast,
+                                        );
+                                        applied_gain = true;
+                                    }
+                                }
+                            }
                             if roll.crit {
                                 super::logic::push_battle_log(
                                     &mut battle_state.log,
@@ -313,6 +419,24 @@ pub fn execute_magic_action(
                                     ),
                                 );
                             }
+                            if !applied_gain {
+                                if let Some(magic_id) = magic_id.as_deref() {
+                                    if let Some(actor) = runtime.party.roster.get_mut(actor_id) {
+                                        apply_activity_gain(
+                                            actor,
+                                            ActivityKind::Magic,
+                                            magic_id,
+                                            runtime
+                                                .content
+                                                .rules
+                                                .activity_progression
+                                                .magic_gain
+                                                .cast,
+                                        );
+                                        applied_gain = true;
+                                    }
+                                }
+                            }
                         }
                         "scan" => {
                             enemy.scanned = true;
@@ -330,6 +454,24 @@ pub fn execute_magic_action(
                                     ],
                                 ),
                             );
+                            if !applied_gain {
+                                if let Some(magic_id) = magic_id.as_deref() {
+                                    if let Some(actor) = runtime.party.roster.get_mut(actor_id) {
+                                        apply_activity_gain(
+                                            actor,
+                                            ActivityKind::Magic,
+                                            magic_id,
+                                            runtime
+                                                .content
+                                                .rules
+                                                .activity_progression
+                                                .magic_gain
+                                                .cast,
+                                        );
+                                        applied_gain = true;
+                                    }
+                                }
+                            }
                         }
                         "status" => {}
                         _ => {
@@ -361,11 +503,25 @@ pub fn execute_magic_action(
                                 ),
                             );
                         }
+                        if !applied_gain {
+                            if let Some(magic_id) = magic_id.as_deref() {
+                                if let Some(actor) = runtime.party.roster.get_mut(actor_id) {
+                                    apply_activity_gain(
+                                        actor,
+                                        ActivityKind::Magic,
+                                        magic_id,
+                                        runtime.content.rules.activity_progression.magic_gain.cast,
+                                    );
+                                    applied_gain = true;
+                                }
+                            }
+                        }
                     }
                 }
             }
         }
         TargetSide::Party => {
+            let mut gain_pending = false;
             let indices = if target_mode == TargetMode::Multi {
                 party_indices_for_effect(runtime, battle_state, entry.effect_type.as_str())
             } else {
@@ -380,6 +536,10 @@ pub fn execute_magic_action(
                         apply_spell_to_actor_battle(&runtime.content, entry, actor, attenuation)
                     {
                         super::logic::push_battle_log(&mut battle_state.log, message);
+                        if !applied_gain {
+                            applied_gain = true;
+                            gain_pending = true;
+                        }
                     }
                     if !effect_ids.is_empty() {
                         let (actor_name, applied) = {
@@ -402,6 +562,22 @@ pub fn execute_magic_action(
                                 ),
                             );
                         }
+                        if !applied_gain {
+                            applied_gain = true;
+                            gain_pending = true;
+                        }
+                    }
+                }
+            }
+            if gain_pending {
+                if let Some(magic_id) = magic_id.as_deref() {
+                    if let Some(caster) = runtime.party.roster.get_mut(actor_id) {
+                        apply_activity_gain(
+                            caster,
+                            ActivityKind::Magic,
+                            magic_id,
+                            runtime.content.rules.activity_progression.magic_gain.cast,
+                        );
                     }
                 }
             }
@@ -530,6 +706,29 @@ pub fn execute_ability_action(
         }
         actor.name.clone()
     };
+    let weapon_id = if runtime.content.rules.progression_mode == ProgressionMode::Activity {
+        runtime
+            .party
+            .roster
+            .get(actor_id)
+            .and_then(|actor| activity_weapon_id(runtime, actor))
+    } else {
+        None
+    };
+    let (activity_hit_bonus, activity_damage_multiplier) = if let Some(ref weapon_id) = weapon_id {
+        let prof = runtime
+            .party
+            .roster
+            .get(actor_id)
+            .map(|actor| activity_proficiency(actor, ActivityKind::Weapon, weapon_id))
+            .unwrap_or(0.0);
+        (
+            activity_hit_bonus(runtime, prof),
+            activity_damage_multiplier(runtime, prof),
+        )
+    } else {
+        (0.0, 1.0)
+    };
     let Some(actor_stats) = runtime.party.roster.get(actor_id).map(actor_combat_stats) else {
         return;
     };
@@ -546,6 +745,7 @@ pub fn execute_ability_action(
         TargetMode::Single => 1.0,
     };
 
+    let mut applied_gain = false;
     match target_side {
         TargetSide::Enemy => {
             let indices = if target_mode == TargetMode::Multi {
@@ -573,6 +773,7 @@ pub fn execute_ability_action(
                                 &defender_stats,
                                 DamageKind::Physical,
                                 entry.effect_power,
+                                activity_hit_bonus,
                                 rng,
                             );
                             if !roll.hit {
@@ -598,11 +799,32 @@ pub fn execute_ability_action(
                                 DamageKind::Physical,
                                 None,
                             );
-                            damage = ((damage as f32) * multiplier * attenuation)
+                            damage = ((damage as f32)
+                                * multiplier
+                                * attenuation
+                                * activity_damage_multiplier)
                                 .round()
                                 .max(1.0) as i32;
                             apply_damage_to_enemy(enemy, damage);
                             runtime.track_max_stat("max_damage", damage);
+                            if !applied_gain {
+                                if let Some(weapon_id) = weapon_id.as_deref() {
+                                    if let Some(actor) = runtime.party.roster.get_mut(actor_id) {
+                                        apply_activity_gain(
+                                            actor,
+                                            ActivityKind::Weapon,
+                                            weapon_id,
+                                            runtime
+                                                .content
+                                                .rules
+                                                .activity_progression
+                                                .weapon_gain
+                                                .ability,
+                                        );
+                                        applied_gain = true;
+                                    }
+                                }
+                            }
                             if roll.crit {
                                 super::logic::push_battle_log(
                                     &mut battle_state.log,
@@ -700,6 +922,7 @@ pub fn execute_ability_action(
                                 &defender_stats,
                                 DamageKind::Physical,
                                 entry.effect_power,
+                                activity_hit_bonus,
                                 rng,
                             );
                             if !roll.hit {
@@ -725,9 +948,29 @@ pub fn execute_ability_action(
                                 DamageKind::Physical,
                                 None,
                             );
-                            damage = ((damage as f32) * multiplier).round().max(1.0) as i32;
+                            damage = ((damage as f32) * multiplier * activity_damage_multiplier)
+                                .round()
+                                .max(1.0) as i32;
                             apply_damage_to_enemy(enemy, damage);
                             runtime.track_max_stat("max_damage", damage);
+                            if !applied_gain {
+                                if let Some(weapon_id) = weapon_id.as_deref() {
+                                    if let Some(actor) = runtime.party.roster.get_mut(actor_id) {
+                                        apply_activity_gain(
+                                            actor,
+                                            ActivityKind::Weapon,
+                                            weapon_id,
+                                            runtime
+                                                .content
+                                                .rules
+                                                .activity_progression
+                                                .weapon_gain
+                                                .ability,
+                                        );
+                                        applied_gain = true;
+                                    }
+                                }
+                            }
                             if roll.crit {
                                 super::logic::push_battle_log(
                                     &mut battle_state.log,
@@ -1061,6 +1304,7 @@ pub fn execute_item_action(
                     &defender_stats,
                     DamageKind::Physical,
                     item.effect.power.unwrap_or(0),
+                    0.0,
                     rng,
                 );
                 if !roll.hit {

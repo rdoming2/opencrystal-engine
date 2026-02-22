@@ -7,8 +7,9 @@ use crate::entities::{EquipmentDefinition, JobDefinition, MagicAcquisitionOverri
 use crate::expr::eval_expression;
 use crate::inventory::InventoryState;
 use crate::rules::{
-    AbilityAcquisition, ExpCurveRules, JobProgressionMode, JpMode, MagicAcquisition, MagicSystem,
-    PartyCreateRules, PartyMode, RulesFile, Ruleset,
+    AbilityAcquisition, ActivityProgressionRules, ActivityRank, ExpCurveRules, JpMode,
+    MagicAcquisition, MagicSystem, PartyCreateRules, PartyMode, ProgressionMode, RulesFile,
+    Ruleset,
 };
 
 #[derive(Clone, Debug, Default)]
@@ -80,6 +81,8 @@ pub struct Actor {
     pub magic_tier_charges: HashMap<u32, i32>,
     pub secondary_job_id: Option<String>,
     pub job_progress: HashMap<String, JobProgress>,
+    pub weapon_proficiencies: HashMap<String, f32>,
+    pub magic_proficiencies: HashMap<String, f32>,
     pub unlocked_abilities: HashSet<String>,
     pub statuses: Vec<StatusInstance>,
 }
@@ -89,6 +92,12 @@ pub struct PartyState {
     pub roster: HashMap<String, Actor>,
     pub active: Vec<Option<String>>,
     pub reserve: Vec<String>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum ActivityKind {
+    Weapon,
+    Magic,
 }
 
 impl PartyState {
@@ -131,6 +140,39 @@ impl PartyState {
     ) -> Self {
         build_created_party(content, &rules.party_create, rules.party_size, members)
     }
+}
+
+pub fn activity_proficiency(actor: &Actor, kind: ActivityKind, id: &str) -> f32 {
+    let value = match kind {
+        ActivityKind::Weapon => actor.weapon_proficiencies.get(id),
+        ActivityKind::Magic => actor.magic_proficiencies.get(id),
+    };
+    value.copied().unwrap_or(0.0).clamp(0.0, 1.0)
+}
+
+pub fn apply_activity_gain(actor: &mut Actor, kind: ActivityKind, id: &str, gain: f32) -> f32 {
+    if id.trim().is_empty() || gain <= 0.0 {
+        return activity_proficiency(actor, kind, id);
+    }
+    let map = match kind {
+        ActivityKind::Weapon => &mut actor.weapon_proficiencies,
+        ActivityKind::Magic => &mut actor.magic_proficiencies,
+    };
+    let entry = map.entry(id.to_string()).or_insert(0.0);
+    let next = *entry + gain * (1.0 - *entry);
+    *entry = next.clamp(0.0, 1.0);
+    *entry
+}
+
+pub fn activity_rank_label<'a>(rules: &'a ActivityProgressionRules, value: f32) -> Option<&'a str> {
+    let mut best: Option<&ActivityRank> = None;
+    let clamped = value.clamp(0.0, 1.0);
+    for rank in &rules.ranks {
+        if clamped + f32::EPSILON >= rank.min {
+            best = Some(rank);
+        }
+    }
+    best.map(|rank| rank.label.as_str())
 }
 
 pub fn get_actor_max_charges(content: &Content, actor: &Actor, tier: u32) -> i32 {
@@ -443,12 +485,12 @@ fn build_actor(
         secondary_job_id: None,
         job_progress: {
             let mut progress = HashMap::new();
-            let starting_job_level =
-                if content.rules.job_system.progression_mode == JobProgressionMode::JobPoints {
-                    1
-                } else {
-                    actor.level
-                };
+            let starting_job_level = if content.rules.progression_mode == ProgressionMode::JobPoints
+            {
+                1
+            } else {
+                actor.level
+            };
             progress.insert(
                 actor.job_id.clone(),
                 JobProgress {
@@ -460,6 +502,8 @@ fn build_actor(
             );
             progress
         },
+        weapon_proficiencies: HashMap::new(),
+        magic_proficiencies: HashMap::new(),
         unlocked_abilities: HashSet::new(),
         statuses: Vec::new(),
     };
@@ -784,8 +828,8 @@ pub fn exp_for_level(curve: &ExpCurveRules, level: u32) -> Option<i32> {
 }
 
 pub fn gain_exp(content: &Content, rules: &Ruleset, actor: &mut Actor, amount: i32) -> u32 {
-    match rules.job_system.progression_mode {
-        crate::rules::JobProgressionMode::Job => {
+    match rules.progression_mode {
+        ProgressionMode::Job => {
             // Apply EXP to the current job's level
             let job_id = actor.job_id.clone();
             let progress = actor
@@ -816,7 +860,7 @@ pub fn gain_exp(content: &Content, rules: &Ruleset, actor: &mut Actor, amount: i
             }
             levels_gained
         }
-        crate::rules::JobProgressionMode::JobPoints => {
+        ProgressionMode::JobPoints => {
             // Apply EXP to character level (unchanged)
             actor.exp = actor.exp.saturating_add(amount);
             let max_level = rules.exp_curve.max_level.max(1);
@@ -839,7 +883,7 @@ pub fn gain_exp(content: &Content, rules: &Ruleset, actor: &mut Actor, amount: i
             recompute_derived_stats(content, actor);
             levels_gained
         }
-        crate::rules::JobProgressionMode::Character => {
+        ProgressionMode::Character => {
             // Apply EXP to character level (unchanged)
             actor.exp = actor.exp.saturating_add(amount);
             let max_level = rules.exp_curve.max_level.max(1);
@@ -862,11 +906,12 @@ pub fn gain_exp(content: &Content, rules: &Ruleset, actor: &mut Actor, amount: i
             recompute_derived_stats(content, actor);
             levels_gained
         }
+        ProgressionMode::Activity => 0,
     }
 }
 
 pub fn gain_jp(content: &Content, rules: &Ruleset, actor: &mut Actor, amount: i32) {
-    if rules.job_system.progression_mode != JobProgressionMode::JobPoints {
+    if rules.progression_mode != ProgressionMode::JobPoints {
         return;
     }
     let job_id = actor.job_id.clone();
@@ -1080,19 +1125,19 @@ pub fn set_primary_job(actor: &mut Actor, job_id: &str, content: &Content) {
         .job_progress
         .entry(job_id.to_string())
         .or_insert_with(JobProgress::default);
-    match content.rules.job_system.progression_mode {
-        JobProgressionMode::Job => {
+    match content.rules.progression_mode {
+        ProgressionMode::Job => {
             if progress.level == 0 {
                 progress.level = 1;
             }
             actor.level = progress.level;
         }
-        JobProgressionMode::JobPoints => {
+        ProgressionMode::JobPoints => {
             if progress.level == 0 {
                 progress.level = 1;
             }
         }
-        JobProgressionMode::Character => {
+        ProgressionMode::Character | ProgressionMode::Activity => {
             progress.level = actor.level;
         }
     }
@@ -1166,6 +1211,29 @@ pub fn row_defense_multiplier(content: &Content, actor: &Actor) -> f32 {
         return 1.0;
     }
     rows.back_row_defense_multiplier
+}
+
+pub fn actor_weapon_category(
+    content: &Content,
+    actor: &Actor,
+    unarmed_category: &str,
+) -> Option<String> {
+    if let Some(weapon_id) = actor.equipment.get("weapon") {
+        if let Some(category) = content
+            .equipment
+            .equipment
+            .iter()
+            .find(|item| item.id == *weapon_id)
+            .map(|item| item.category.as_str())
+        {
+            return Some(category.to_string());
+        }
+    }
+    if unarmed_category.trim().is_empty() {
+        None
+    } else {
+        Some(unarmed_category.to_string())
+    }
 }
 
 fn is_ranged_weapon(content: &Content, actor: &Actor) -> bool {

@@ -3,7 +3,7 @@ use engine::party::{
     job_jp, job_level, set_primary_job, set_secondary_job, spend_job_jp,
     unequip_incompatible_equipment, unlock_ability, unlock_spell,
 };
-use engine::rules::{AbilityAcquisition, JobProgressionMode, JpMode, MagicAcquisition};
+use engine::rules::{AbilityAcquisition, JpMode, MagicAcquisition, ProgressionMode};
 use engine::runtime::GameRuntime;
 use tui::menu::{MenuPanelLine, MenuPanelSpan, MenuPanelView, PanelSpanStyle};
 
@@ -19,7 +19,7 @@ pub fn job_menu_options(runtime: &GameRuntime) -> Vec<JobMenuOption> {
     if runtime.content.rules.job_system.secondary_jobs {
         options.push(JobMenuOption::Secondary);
     }
-    if runtime.content.rules.job_system.progression_mode == JobProgressionMode::JobPoints {
+    if runtime.content.rules.progression_mode == ProgressionMode::JobPoints {
         options.push(JobMenuOption::Learn);
     }
     options
@@ -33,20 +33,21 @@ pub fn build_jobs_dashboard(runtime: &GameRuntime) -> MenuPanelView {
         .or_else(|| active_ids.first().cloned());
     let actor = actor_id.and_then(|actor_id| runtime.party.roster.get(&actor_id));
 
-    let progression_mode = runtime.content.rules.job_system.progression_mode.clone();
-    let show_job_level = progression_mode != JobProgressionMode::Character;
+    let progression_mode = runtime.content.rules.progression_mode.clone();
+    let show_job_level = progression_mode != ProgressionMode::Character;
     let mut lines = Vec::new();
     if let Some(actor) = actor {
         lines.push(panel_line(format!("Actor: {}", actor.name)));
         lines.push(panel_line(format!(
             "Progression: {}",
-            match runtime.content.rules.job_system.progression_mode {
-                JobProgressionMode::Character => "Character",
-                JobProgressionMode::Job => "Job",
-                JobProgressionMode::JobPoints => "Job Points",
+            match runtime.content.rules.progression_mode {
+                ProgressionMode::Character => "Character",
+                ProgressionMode::Job => "Job",
+                ProgressionMode::JobPoints => "Job Points",
+                ProgressionMode::Activity => "Activity",
             }
         )));
-        if runtime.content.rules.job_system.progression_mode == JobProgressionMode::JobPoints {
+        if runtime.content.rules.progression_mode == ProgressionMode::JobPoints {
             lines.push(panel_line(format!(
                 "JP ({}): {}",
                 actor.job_id,
@@ -111,8 +112,8 @@ pub fn build_job_picker(runtime: &GameRuntime) -> MenuPanelView {
         .min(jobs.len().saturating_sub(1));
     let job = jobs.get(selection).copied();
 
-    let progression_mode = runtime.content.rules.job_system.progression_mode.clone();
-    let show_job_level = progression_mode != JobProgressionMode::Character;
+    let progression_mode = runtime.content.rules.progression_mode.clone();
+    let show_job_level = progression_mode != ProgressionMode::Character;
     let mut lines = Vec::new();
     if let Some(actor) = actor {
         lines.push(panel_line(format!("Actor: {}", actor.name)));
@@ -161,7 +162,7 @@ pub fn build_job_picker(runtime: &GameRuntime) -> MenuPanelView {
         }
         let job_level_text = actor.map(|actor| job_level(actor, &job.id)).unwrap_or(1);
         let job_jp_text = actor.map(|actor| job_jp(actor, &job.id)).unwrap_or(0);
-        if progression_mode == JobProgressionMode::JobPoints {
+        if progression_mode == ProgressionMode::JobPoints {
             lines.push(panel_line(format!(
                 "Job Lv: {}  JP: {}",
                 job_level_text, job_jp_text

@@ -15,6 +15,10 @@ pub struct RulesFile {
     pub party_create: PartyCreateRules,
     #[serde(default)]
     pub exp_curve: ExpCurveRules,
+    #[serde(default = "default_progression_mode")]
+    pub progression_mode: ProgressionMode,
+    #[serde(default)]
+    pub activity_progression: ActivityProgressionRules,
     #[serde(default)]
     pub inventory: InventoryRules,
     #[serde(default)]
@@ -181,13 +185,49 @@ pub struct StatsRules {
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct JobSystemRules {
-    #[serde(default = "default_job_progression_mode")]
-    pub progression_mode: JobProgressionMode,
     #[serde(default = "default_secondary_job_enabled")]
     pub secondary_jobs: bool,
     pub jp_mode: JpMode,
     #[serde(default)]
     pub job_exp_curve: ExpCurveRules,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct ActivityProgressionRules {
+    #[serde(default)]
+    pub weapon_gain: ActivityGainRules,
+    #[serde(default)]
+    pub magic_gain: ActivityGainRules,
+    #[serde(default)]
+    pub ranks: Vec<ActivityRank>,
+    #[serde(default)]
+    pub effects: ActivityEffectRules,
+    #[serde(default = "default_activity_unarmed_category")]
+    pub unarmed_category: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct ActivityGainRules {
+    #[serde(default)]
+    pub attack: f32,
+    #[serde(default)]
+    pub ability: f32,
+    #[serde(default)]
+    pub cast: f32,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct ActivityEffectRules {
+    #[serde(default = "default_activity_damage_scale")]
+    pub damage_scale: f32,
+    #[serde(default = "default_activity_hit_bonus")]
+    pub hit_bonus: f32,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct ActivityRank {
+    pub min: f32,
+    pub label: String,
 }
 
 #[derive(Clone, Debug)]
@@ -207,6 +247,8 @@ pub struct Ruleset {
     pub party_mode: PartyMode,
     pub party_create: PartyCreateRules,
     pub exp_curve: ExpCurveRules,
+    pub progression_mode: ProgressionMode,
+    pub activity_progression: ActivityProgressionRules,
     pub inventory: InventoryRules,
     pub systems: HashMap<String, bool>,
     pub save: SaveRules,
@@ -292,6 +334,8 @@ impl Ruleset {
             party_mode: PartyMode::Create,
             party_create: PartyCreateRules::default(),
             exp_curve: ExpCurveRules::default(),
+            progression_mode: default_progression_mode(),
+            activity_progression: ActivityProgressionRules::default(),
             inventory: InventoryRules::default(),
             systems: HashMap::new(),
             save: SaveRules::default(),
@@ -317,6 +361,8 @@ impl Ruleset {
             party_mode: file.party_mode,
             party_create: file.party_create,
             exp_curve: file.exp_curve,
+            progression_mode: file.progression_mode,
+            activity_progression: file.activity_progression,
             inventory: file.inventory,
             systems: file.systems,
             save: file.save,
@@ -381,10 +427,11 @@ pub enum PartyMode {
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
-pub enum JobProgressionMode {
+pub enum ProgressionMode {
     Character,
     Job,
     JobPoints,
+    Activity,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
@@ -442,6 +489,45 @@ impl Default for BattleRules {
             rows: BattleRowRules::default(),
             boss_scaling: BossScalingRules::default(),
             difficulty_rewards: DifficultyRewardsRules::default(),
+        }
+    }
+}
+
+impl Default for ActivityProgressionRules {
+    fn default() -> Self {
+        Self {
+            weapon_gain: ActivityGainRules {
+                attack: 0.02,
+                ability: 0.03,
+                cast: 0.0,
+            },
+            magic_gain: ActivityGainRules {
+                attack: 0.0,
+                ability: 0.0,
+                cast: 0.02,
+            },
+            ranks: default_activity_ranks(),
+            effects: ActivityEffectRules::default(),
+            unarmed_category: default_activity_unarmed_category(),
+        }
+    }
+}
+
+impl Default for ActivityEffectRules {
+    fn default() -> Self {
+        Self {
+            damage_scale: default_activity_damage_scale(),
+            hit_bonus: default_activity_hit_bonus(),
+        }
+    }
+}
+
+impl Default for ActivityGainRules {
+    fn default() -> Self {
+        Self {
+            attack: 0.0,
+            ability: 0.0,
+            cast: 0.0,
         }
     }
 }
@@ -688,8 +774,8 @@ fn default_battle_command_sort_order() -> i32 {
     100
 }
 
-fn default_job_progression_mode() -> JobProgressionMode {
-    JobProgressionMode::Character
+fn default_progression_mode() -> ProgressionMode {
+    ProgressionMode::Character
 }
 
 fn default_secondary_job_enabled() -> bool {
@@ -699,10 +785,42 @@ fn default_secondary_job_enabled() -> bool {
 impl Default for JobSystemRules {
     fn default() -> Self {
         Self {
-            progression_mode: default_job_progression_mode(),
             secondary_jobs: default_secondary_job_enabled(),
             jp_mode: JpMode::Earn,
             job_exp_curve: ExpCurveRules::default(),
         }
     }
+}
+
+fn default_activity_damage_scale() -> f32 {
+    0.25
+}
+
+fn default_activity_hit_bonus() -> f32 {
+    0.15
+}
+
+fn default_activity_unarmed_category() -> String {
+    "unarmed".to_string()
+}
+
+fn default_activity_ranks() -> Vec<ActivityRank> {
+    vec![
+        ActivityRank {
+            min: 0.0,
+            label: "Novice".to_string(),
+        },
+        ActivityRank {
+            min: 0.2,
+            label: "Skilled".to_string(),
+        },
+        ActivityRank {
+            min: 0.5,
+            label: "Veteran".to_string(),
+        },
+        ActivityRank {
+            min: 0.8,
+            label: "Master".to_string(),
+        },
+    ]
 }
