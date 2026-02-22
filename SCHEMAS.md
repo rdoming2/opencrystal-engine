@@ -83,7 +83,7 @@ Status menu EXP uses `exp_curve` for `character`/`job_points` progression and
 `inventory` seeds starting inventory and sets `max_stack` for items/equipment.
 `magic_acquisition` defines how spells are obtained (`level`, `item`, `equip`, `jp`) and is required.
 `ability_acquisition` defines how abilities are obtained (`level`, `item`, `equip`, `jp`) and is required.
-`job_system.jp_mode` controls whether JP is spent (`spend`) or earned (`earn`, `earn_job_locked`) and is required.
+`job_system.jp_mode` controls whether JP is spent (`spend`) or earned (`earn`) and is required.
 `battle` defines the command catalog and the global command set used in battle. The global set is
 the default menu for every job; job `commands` entries add to it (primary + secondary jobs are
 merged, duplicates removed). Command labels come from the catalog so UI text can be overridden.

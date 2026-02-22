@@ -36,8 +36,11 @@ modes are available right now:
   templates for stats, equipment slots, and unlock lists.
 
 JP gains, secondary job availability, and the job curve are all controlled
-from the same `job_system` block. Changing modes only requires swapping a
-single field in `rules.json` and adjusting the job definitions to include
+from the same `job_system` block. JP can be configured via `job_system.jp_mode`:
+`earn` grants JP that accumulates automatically as jobs level and cannot be
+spent; `spend` grants JP that must be spent in the
+Job menu to unlock spells or abilities. Changing modes only requires swapping
+a single field in `rules.json` and adjusting the job definitions to include
 `unlock_level`/`jp_cost` entries for spells and abilities.
 
 ## Secondary Jobs
