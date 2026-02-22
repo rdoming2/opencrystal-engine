@@ -89,6 +89,8 @@ cryst build new encounter grasslands_skirmish --content content/demo
 - When using tier charges, ensure `magic_slots` exist in job definitions.
 - Item and equipment sell prices are currency-aware maps (`price: {"gold": 50}`), and shops only
   allow selling when their currency matches one of the item/equipment price entries.
+- Shops with `currency_pool: "tracked"` or finite `stock` persist those values in saves, keyed by
+  shop ID (shared across NPCs that open the same shop).
 
 ## UI configuration
 

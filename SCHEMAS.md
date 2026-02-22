@@ -1149,7 +1149,9 @@ Common effect types: `heal_hp`, `heal_mp`, `revive`, `warp`, `learn_spell`, `lea
 
 Shops sell items listed in `inventory` at `price` (base buy price) and can accept sell
 transactions for any item or equipment with a `price` entry matching the shop currency
-(unless `sellable: false` or the shop entry overrides the sell price).
+(unless `sellable: false` or the shop entry overrides the sell price). Tracked merchant
+currency pools and finite stock are persisted in saves keyed by shop ID, so multiple NPCs
+opening the same shop share inventory and currency state.
 `buy_price_multiplier` and `sell_price_multiplier` apply to base prices when a specific
 override is not provided. `sell_behavior` controls whether sold items disappear or enter
 the merchant stock list. `currency_pool` controls whether the merchant has infinite funds
