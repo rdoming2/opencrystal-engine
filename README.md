@@ -14,28 +14,27 @@ mechanics. It is not affiliated with or endorsed by any existing franchise.
 - Configurable systems (jobs, magic schools, Readiness vs turn-based, world jumps, vehicles).
 - Content driven by JSON maps, entities, events, and UI layouts.
 
-## Capabilities
+## Quick start (binary)
 
-- **Rendering:** ANSI + 256 color output with wide/modern render modes, palette-based colors, and battle breakpoints for glyph vs ASCII art.
-- **Worlds & maps:** multi-world travel, overworld/town/dungeon maps, encounter zones, transitions, save points, vehicles, and overworld map menus with auto-downsampled views.
-- **Events & dialog:** event scripts with dialog/narration, flags, grants, warps, battles, NPC show/hide/move/sprite, shops, rests, and stat updates; triggers on map enter/step with zone or coordinate targeting; dialog trees with actions and gated choices.
-- **Battle system:** turn-based and Readiness modes, pause, command catalog with job extensions, target rules, front/back rows, boss scaling, elements/traits/status effects, and victory/defeat rewards.
-- **Jobs & progression:** character/job/job_points/activity progression modes, optional secondary jobs, job command lists, use-based proficiencies (weapon/magic), spell/ability unlocks by level/item/equip/jp, magic equip slots, and tier charge tables.
-- **Party & inventory:** create/preset/preset_rename party modes, roster + reserve, equipment slots, inventory stacks, items usable in field/battle, and campfire cooking.
-- **UI & UX:** two-pane main menu, journal/quest tracking, gameplay stats panels, settings visibility/locking, localized UI strings, and configurable title/menu/battle layouts.
-- **Data & tooling:** JSON schemas with validation, content pack metadata, `cryst build` stubs/upgrades, and JSON save files with autosave slot support.
+If you have the `cryst` binary (for example from a release zip), you can run it directly:
 
-See `SCHEMAS.md` and `CONTENT_AUTHORING_GUIDE.md` for schema-level details and authoring workflows.
+```bash
+./cryst play
+```
 
-## Project layout
+Use a specific content pack:
 
-- `crates/engine/`: runtime systems, loaders, validation.
-- `crates/tui/`: UI configs and rendering scaffolding.
-- `crates/cli/`: `cryst` command.
-- `SCHEMAS.md`: JSON schema drafts.
-- `ARCHITECTURE.md`: architecture overview.
+```bash
+./cryst play --content content/demo
+```
 
-## Quick start
+Validate a pack:
+
+```bash
+./cryst validate --content content/demo
+```
+
+## Quick start (source)
 
 ```bash
 cargo run -- validate
@@ -48,9 +47,36 @@ Use a different content pack:
 cargo run -- play --content content/demo
 ```
 
+## Capabilities
+
+OpenCrystal aims to cover the full loop of a classic JRPG, but keeps the content authoring
+data-driven and inspectable. Highlights include:
+
+| Area | Highlights |
+| --- | --- |
+| Rendering | ANSI + 256 colors, palette-based styling, wide/modern modes, glyph or ASCII battle art based on terminal size. |
+| Worlds & travel | Multi-world maps, overworld/town/dungeon layers, encounters, transitions, fast travel, vehicles, and downsampled overworld map views. |
+| Events & dialog | Scripted events with flags, warps, battles, shops, rests, stat updates, and dialog trees with actions and gated choices. |
+| Battle | Turn-based and Readiness modes, pause, command catalogs, targeting rules, rows, traits/status effects, boss scaling, and configurable formulas. |
+| Jobs & growth | Character/job/job_points/activity progression, optional secondary jobs, spell/ability unlock modes, tier charges, and magic equip slots. |
+| Party & inventory | Create/preset/preset_rename party flows, roster + reserve, equipment slots, inventory stacks, field/battle item use, and cooking. |
+| UI & UX | Two-pane main menu, journal and gameplay stats panels, settings visibility/locking, localized strings, title and battle layout configs. |
+| Tooling | Validation, content stubs, a TUI map editor, and docs output for automation workflows. |
+
+See `SCHEMAS.md`, `ARCHITECTURE.md`, and `CONTENT_AUTHORING_GUIDE.md` for deeper references.
+
+## Project layout
+
+- `crates/engine/`: runtime systems, loaders, validation.
+- `crates/tui/`: UI configs and rendering scaffolding.
+- `crates/cli/`: `cryst` command.
+- `SCHEMAS.md`: JSON schema drafts.
+- `ARCHITECTURE.md`: architecture overview.
+
 ## Content packs
 
 - Content packs live under `content/<pack_name>/`.
+- `cryst play` opens a content chooser when `--content` is omitted, listing packs under `--content-dir`.
 - `--content-dir` defaults to `~/.local/share/opencrystal/content` (or `XDG_DATA_HOME/opencrystal/content`, or `%LOCALAPPDATA%\opencrystal\content` on Windows).
 
 ## CLI commands
