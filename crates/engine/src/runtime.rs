@@ -61,6 +61,8 @@ pub struct SettingsState {
     pub autosave_enabled: bool,
     pub readiness_speed: f32,
     pub battle_mode: crate::rules::BattleMode,
+    #[serde(default = "default_death_markers_visible")]
+    pub death_markers_visible: bool,
 }
 
 impl SettingsState {
@@ -83,12 +85,23 @@ impl SettingsState {
             .as_ref()
             .map(|setting| setting.value.clone())
             .unwrap_or(rules.game.battle_mode.clone());
+        let death_markers_visible = rules
+            .settings
+            .death_markers_visible
+            .as_ref()
+            .map(|setting| setting.value)
+            .unwrap_or(true);
         Self {
             autosave_enabled: autosave,
             readiness_speed: readiness,
             battle_mode,
+            death_markers_visible,
         }
     }
+}
+
+fn default_death_markers_visible() -> bool {
+    true
 }
 
 impl GameRuntime {
@@ -232,6 +245,18 @@ impl GameRuntime {
         }
     }
 
+    pub fn effective_death_markers_visible(&self) -> bool {
+        if !self.content.rules.render.death_markers.show_on_map {
+            return false;
+        }
+        let setting = self.death_markers_setting();
+        if !setting.editable {
+            setting.value
+        } else {
+            self.settings.death_markers_visible
+        }
+    }
+
     pub fn autosave_setting(&self) -> crate::rules::ToggleSetting {
         self.content
             .rules
@@ -274,6 +299,19 @@ impl GameRuntime {
                     crate::rules::BattleMode::Dynamic,
                     crate::rules::BattleMode::DynamicWait,
                 ],
+                visible: true,
+                editable: true,
+            })
+    }
+
+    pub fn death_markers_setting(&self) -> crate::rules::ToggleSetting {
+        self.content
+            .rules
+            .settings
+            .death_markers_visible
+            .clone()
+            .unwrap_or(crate::rules::ToggleSetting {
+                value: true,
                 visible: true,
                 editable: true,
             })

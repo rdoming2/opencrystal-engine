@@ -34,7 +34,9 @@ use tui::ui::{BattleUiFile, DialogUiFile, MenuUiFile, ProgressUiFile, TitleUiFil
 use crate::battle::{run_battle, BattleOutcome, BattleSource, LastBattleContext};
 use crate::dialog::default_dialog_ui;
 use crate::events::{run_event_loop, run_event_loop_console, EventLoopOutcome};
-use crate::overworld::{build_map_view, find_spawn, run_overworld_loop, OverworldOutcome};
+use crate::overworld::{
+    build_map_view, find_spawn, record_death_marker, run_overworld_loop, OverworldOutcome,
+};
 use crate::party::{default_party_names, run_party_create_flow};
 
 struct SessionGuard(Option<TuiSession>);
@@ -42,6 +44,11 @@ struct SessionGuard(Option<TuiSession>);
 enum SessionExit {
     ReturnTitle,
     Exit,
+}
+
+struct DefeatCarryover {
+    map_id: String,
+    pos: (i32, i32),
 }
 
 impl SessionGuard {
@@ -201,6 +208,7 @@ fn run_play(args: Vec<String>) {
     let _engine = Engine::new(rules.clone(), world.clone());
     let mut runtime = GameRuntime::new(content);
     let save_dir = default_save_dir(&content_dir);
+    let mut pending_carryover: Option<DefeatCarryover> = None;
 
     if session_guard.as_mut().is_none() {
         match render_mode {
@@ -242,6 +250,7 @@ fn run_play(args: Vec<String>) {
 
         match action {
             TitleAction::NewGame => {
+                pending_carryover = None;
                 if let Some(session) = session_guard.as_mut() {
                     match rules.party_mode {
                         PartyMode::Create => {
@@ -285,6 +294,7 @@ fn run_play(args: Vec<String>) {
                         &input_bindings,
                         &title_ui,
                         &save_dir,
+                        &mut pending_carryover,
                     ) {
                         Ok(SessionExit::ReturnTitle) => {}
                         Ok(SessionExit::Exit) => return,
@@ -321,25 +331,31 @@ fn run_play(args: Vec<String>) {
                         &input_bindings,
                         &save_dir,
                     ) {
-                        Ok(true) => match run_session_with_gameover(
-                            session,
-                            &mut runtime,
-                            &dialog_ui,
-                            &battle_ui,
-                            &menu_ui,
-                            &progress_ui,
-                            &input_bindings,
-                            &title_ui,
-                            &save_dir,
-                        ) {
-                            Ok(SessionExit::ReturnTitle) => {}
-                            Ok(SessionExit::Exit) => return,
-                            Err(err) => {
-                                if err.kind() == std::io::ErrorKind::Interrupted {
-                                    return;
+                        Ok(true) => {
+                            if let Some(carryover) = pending_carryover.take() {
+                                apply_defeat_carryover(&mut runtime, &carryover);
+                            }
+                            match run_session_with_gameover(
+                                session,
+                                &mut runtime,
+                                &dialog_ui,
+                                &battle_ui,
+                                &menu_ui,
+                                &progress_ui,
+                                &input_bindings,
+                                &title_ui,
+                                &save_dir,
+                                &mut pending_carryover,
+                            ) {
+                                Ok(SessionExit::ReturnTitle) => {}
+                                Ok(SessionExit::Exit) => return,
+                                Err(err) => {
+                                    if err.kind() == std::io::ErrorKind::Interrupted {
+                                        return;
+                                    }
                                 }
                             }
-                        },
+                        }
                         Ok(false) => {}
                         Err(err) => {
                             eprintln!("Failed to load save: {}", err);
@@ -628,6 +644,18 @@ fn run_load_flow(
     Ok(true)
 }
 
+fn defeat_carryover_from_context(context: &LastBattleContext) -> DefeatCarryover {
+    DefeatCarryover {
+        map_id: context.defeat_map_id.clone(),
+        pos: context.defeat_pos,
+    }
+}
+
+fn apply_defeat_carryover(runtime: &mut GameRuntime, carryover: &DefeatCarryover) {
+    record_death_marker(runtime, &carryover.map_id, carryover.pos);
+    runtime.add_stat("player_deaths", 1);
+}
+
 fn run_session_with_gameover(
     session: &mut TuiSession,
     runtime: &mut GameRuntime,
@@ -638,6 +666,7 @@ fn run_session_with_gameover(
     bindings: &InputBindings,
     title_ui: &TitleUiFile,
     save_dir: &PathBuf,
+    pending_carryover: &mut Option<DefeatCarryover>,
 ) -> std::io::Result<SessionExit> {
     let mut pending_defeat: Option<LastBattleContext> = None;
 
@@ -656,6 +685,7 @@ fn run_session_with_gameover(
             match action {
                 GameOverAction::RetryBattle => {
                     apply_battle_snapshot(runtime, &context.snapshot);
+                    apply_defeat_carryover(runtime, &defeat_carryover_from_context(&context));
                     match context.source {
                         BattleSource::Random => {
                             let mut rng = rand::thread_rng();
@@ -706,6 +736,11 @@ fn run_session_with_gameover(
                         if let Err(err) = load_save_slot(runtime, save_dir, slot) {
                             eprintln!("Failed to load save: {}", err);
                             pending_defeat = Some(context);
+                        } else {
+                            apply_defeat_carryover(
+                                runtime,
+                                &defeat_carryover_from_context(&context),
+                            );
                         }
                     } else {
                         pending_defeat = Some(context);
@@ -716,12 +751,20 @@ fn run_session_with_gameover(
                         if let Err(err) = load_save_slot(runtime, save_dir, 0) {
                             eprintln!("Failed to load autosave: {}", err);
                             pending_defeat = Some(context);
+                        } else {
+                            apply_defeat_carryover(
+                                runtime,
+                                &defeat_carryover_from_context(&context),
+                            );
                         }
                     } else {
                         pending_defeat = Some(context);
                     }
                 }
-                GameOverAction::ReturnTitle => return Ok(SessionExit::ReturnTitle),
+                GameOverAction::ReturnTitle => {
+                    *pending_carryover = Some(defeat_carryover_from_context(&context));
+                    return Ok(SessionExit::ReturnTitle);
+                }
                 GameOverAction::Exit => return Ok(SessionExit::Exit),
             }
             continue;
@@ -761,6 +804,7 @@ fn run_session_with_gameover(
                 pending_defeat = Some(context);
             }
             OverworldOutcome::Quit => return Ok(SessionExit::Exit),
+            OverworldOutcome::ReturnTitle => return Ok(SessionExit::ReturnTitle),
             OverworldOutcome::Continue => {}
         }
     }

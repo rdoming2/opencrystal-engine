@@ -9,7 +9,7 @@ use ratatui::Frame;
 
 use crate::session::TuiSession;
 use crate::ui::{BattleUiFile, Breakpoint};
-use crate::utils::{centered_rect, palette_style};
+use crate::utils::{centered_rect, palette_color, palette_style};
 
 #[derive(Clone, Debug)]
 pub struct BattleEnemyView {
@@ -431,12 +431,16 @@ fn draw_enemy_panel(
         } else if state.flash_enemies.contains(&index) {
             style = style.fg(Color::Yellow).add_modifier(Modifier::REVERSED);
         }
-        let label = if enemy.show_hp {
-            format!("{} {}/{}", enemy.name, enemy.hp.max(0), enemy.max_hp.max(1))
+        let name_style = enemy_name_style(enemy, battle_ui, style);
+        if enemy.show_hp {
+            let hp_label = format!(" {}/{}", enemy.hp.max(0), enemy.max_hp.max(1));
+            lines.push(Line::from(vec![
+                Span::styled(enemy.name.clone(), name_style),
+                Span::styled(hp_label, style),
+            ]));
         } else {
-            enemy.name.clone()
-        };
-        lines.push(Line::from(Span::styled(label, style)));
+            lines.push(Line::from(Span::styled(enemy.name.clone(), name_style)));
+        }
     }
     let title = if hide_titles {
         ""
@@ -881,6 +885,44 @@ fn list_highlight_style(style: Style, highlight: &str, focused: bool) -> Style {
         "invert" => style.add_modifier(Modifier::REVERSED),
         _ => style,
     }
+}
+
+fn enemy_name_style(enemy: &BattleEnemyView, battle_ui: &BattleUiFile, base: Style) -> Style {
+    if !enemy.alive {
+        return base;
+    }
+    let Some(config) = battle_ui.panels.enemies.hp_colors.as_ref() else {
+        return base;
+    };
+    if !config.enabled || config.thresholds.is_empty() {
+        return base;
+    }
+    let ratio = if enemy.max_hp > 0 {
+        enemy.hp.max(0) as f32 / enemy.max_hp.max(1) as f32
+    } else {
+        0.0
+    };
+    let mut selected: Option<&crate::ui::EnemyHpColorThreshold> = None;
+    for threshold in &config.thresholds {
+        if ratio <= threshold.ratio {
+            selected = match selected {
+                Some(current) if current.ratio <= threshold.ratio => Some(current),
+                _ => Some(threshold),
+            };
+        }
+    }
+    let selected = selected.or_else(|| {
+        config
+            .thresholds
+            .iter()
+            .max_by(|left, right| left.ratio.total_cmp(&right.ratio))
+    });
+    if let Some(threshold) = selected {
+        if let Some(color) = palette_color(&threshold.palette) {
+            return base.fg(color);
+        }
+    }
+    base
 }
 
 fn battlefield_highlight_modifier(highlight: &str) -> Modifier {

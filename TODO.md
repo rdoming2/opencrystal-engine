@@ -72,7 +72,7 @@
   - [x] Command row (enemy list, commands, party list).
   - [x] Selection highlights.
   - [x] Battle dialog overlay.
-  - [ ] Add enemy HP color indication by health thresholds.
+- [x] Add enemy HP color indication by health thresholds.
 - [x] Menu + gameplay stats UI.
   - [x] Status menu panels from `ui/gameplay_stats.json`.
   - [x] Journal/quest display.
@@ -80,10 +80,10 @@
 - [x] Main menu UI.
   - [x] Two-pane layout (left list, right detail pane).
   - [x] Default party summary panel.
-  - [ ] Fix overflow on status
-  - [ ] Add paging to menu UI elements
-  - [ ] Loop menu input when reaching the top/bottom
-  - [ ] Exit menu option (take back to main menu)
+- [x] Fix overflow on status
+- [x] Add paging to menu UI elements
+- [x] Loop menu input when reaching the top/bottom
+- [x] Exit menu option (take back to main menu)
 - [x] Playtime and currency balance display.
   - [x] Display current map coordinates in main menu stats.
   - [x] Focus switching (confirm enters right pane, cancel returns).
@@ -95,12 +95,12 @@
 - [x] Inventory + equipment UI.
   - [x] Inventory filters + sorting.
   - [x] Item field use (heal/revive).
-  - [ ] Keep item menu panels visible when no items exist (empty categories).
+- [x] Keep item menu panels visible when no items exist (empty categories).
 - [x] Equipment swap flow with stat preview.
 - [x] Add startup content chooser when `--content` is omitted.
 - [x] Show campfire recipe ingredient requirements with inventory counts.
 - [x] Gameover screen and optional restart logic (last battle, last save, fallback to main menu)
-- [ ] Optional persistent death markers
+- [x] Optional persistent death markers
 
 ## Battle System
 - [x] Turn-based flow (command selection, targeting, resolve action).

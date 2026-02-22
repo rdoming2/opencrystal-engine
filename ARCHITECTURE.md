@@ -58,6 +58,7 @@ and showing `rules.json` metadata (title, optional description/author).
 - Chests render with closed/open glyphs, block movement, and display loot in a centered dialog.
 - Doors, puzzles, and campfires render as map objects, block movement, and trigger interactions on confirm.
 - Puzzles can be interacted with from an adjacent tile or while standing on the puzzle tile.
+- Optional death markers render on passable tiles when enabled in `rules.json` and can be hidden via Settings.
 
 ### Area name popup
 
@@ -70,6 +71,7 @@ and showing `rules.json` metadata (title, optional description/author).
   - Default to glyphs for small terminals.
   - Use ASCII art sprites when terminal size is at least 110x32.
   - Auto-fallback to glyphs when space is constrained.
+- Enemy list names can be colorized by HP thresholds via `ui/battle.json`.
 
 ### Title screen
 

@@ -227,8 +227,21 @@ pub struct EntityState {
     pub sprite: Option<String>,
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct DeathMarkerState {
+    pub pos: [i32; 2],
+    #[serde(default = "default_death_marker_count")]
+    pub count: u32,
+}
+
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct MapState {
     pub flags: HashSet<String>,
     pub entities: HashMap<String, EntityState>,
+    #[serde(default)]
+    pub death_markers: Vec<DeathMarkerState>,
+}
+
+fn default_death_marker_count() -> u32 {
+    1
 }

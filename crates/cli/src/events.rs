@@ -141,6 +141,8 @@ fn handle_event_result(
                 runtime, battle_ui, bindings, session, &encounter, &formation, snapshot,
             )?;
             if matches!(report.outcome, BattleOutcome::Defeat) {
+                let map_id = runtime.world.map_id.clone();
+                let pos = runtime.world.position;
                 if let Some(event_id) = event_id {
                     let context = LastBattleContext::new(
                         report.formation,
@@ -149,11 +151,18 @@ fn handle_event_result(
                             event_id,
                             event_step,
                         },
+                        map_id,
+                        pos,
                     );
                     return Ok(EventLoopOutcome::Defeat(context));
                 }
-                let context =
-                    LastBattleContext::new(report.formation, report.snapshot, BattleSource::Random);
+                let context = LastBattleContext::new(
+                    report.formation,
+                    report.snapshot,
+                    BattleSource::Random,
+                    map_id,
+                    pos,
+                );
                 return Ok(EventLoopOutcome::Defeat(context));
             }
         }

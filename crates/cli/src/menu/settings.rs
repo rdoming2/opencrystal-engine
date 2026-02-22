@@ -8,6 +8,7 @@ enum SettingKind {
     Autosave,
     ReadinessSpeed,
     BattleMode,
+    DeathMarkers,
 }
 
 #[derive(Clone, Debug)]
@@ -86,6 +87,9 @@ pub fn apply_settings_confirm(runtime: &mut GameRuntime, selected: usize) {
             runtime.settings.autosave_enabled = !runtime.settings.autosave_enabled;
         }
         SettingKind::ReadinessSpeed | SettingKind::BattleMode => {}
+        SettingKind::DeathMarkers => {
+            runtime.settings.death_markers_visible = !runtime.settings.death_markers_visible;
+        }
     }
 }
 
@@ -127,6 +131,9 @@ pub fn adjust_settings(runtime: &mut GameRuntime, selected: usize, direction: i3
             let len = options.len() as i32;
             let next_index = (current_index as i32 + direction).rem_euclid(len) as usize;
             runtime.settings.battle_mode = options[next_index].clone();
+        }
+        SettingKind::DeathMarkers => {
+            runtime.settings.death_markers_visible = direction >= 0;
         }
     }
 }
@@ -173,6 +180,24 @@ fn settings_entries(runtime: &GameRuntime) -> Vec<SettingsEntry> {
             locked: battle_locked,
             kind: SettingKind::BattleMode,
         });
+    }
+
+    if runtime.content.rules.render.death_markers.show_on_map {
+        let marker_setting = runtime.death_markers_setting();
+        if marker_setting.visible {
+            let marker_locked = !marker_setting.editable;
+            let marker_value = if runtime.effective_death_markers_visible() {
+                "On"
+            } else {
+                "Off"
+            };
+            entries.push(SettingsEntry {
+                label: "Death Markers",
+                value: marker_value.to_string(),
+                locked: marker_locked,
+                kind: SettingKind::DeathMarkers,
+            });
+        }
     }
 
     entries

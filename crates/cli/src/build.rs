@@ -308,6 +308,7 @@ fn create_project_structure(target_dir: &Path, title: &str) -> Result<(), String
             min_art_width: 110,
             min_art_height: 32,
             palette: "terminal".to_string(),
+            death_markers: engine::rules::DeathMarkerRules::default(),
         },
         stats: StatsRules { track: Vec::new() },
         job_system: JobSystemRules {
@@ -678,6 +679,7 @@ fn create_project_structure(target_dir: &Path, title: &str) -> Result<(), String
                     style: "invert".to_string(),
                     link_to_battlefield: true,
                 },
+                hp_colors: None,
             },
             commands: CommandPanel {
                 title: "Commands".to_string(),

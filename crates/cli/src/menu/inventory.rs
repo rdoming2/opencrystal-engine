@@ -13,9 +13,19 @@ pub fn build_items_panel(runtime: &GameRuntime) -> MenuPanelView {
     let sort = sort_from_index(runtime.menu_state.detail_sort);
     let entries = build_inventory_entries(runtime, &filter, &sort);
     if entries.is_empty() {
+        let header = inventory_filter_line(&filter, &sort);
+        let mut lines = Vec::new();
+        lines.push(header);
+        lines.push(panel_line("No items available."));
+        lines.push(panel_line("------------------------------"));
+        lines.push(panel_line_spans(vec![panel_span(
+            "Details",
+            PanelSpanStyle::Accent,
+        )]));
+        lines.push(panel_line("Select an item to view details."));
         return MenuPanelView {
             title: "Items".to_string(),
-            lines: vec![panel_line("No items available.")],
+            lines,
         };
     }
     let selection = runtime

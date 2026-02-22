@@ -4,13 +4,14 @@ use crossterm::event::{self, Event};
 use ratatui::layout::{Alignment, Constraint, Direction, Layout};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
+use ratatui::widgets::{Block, Borders, Clear, Paragraph, Wrap};
 use ratatui::Frame;
 
 use crate::dialog::confirm_quit;
 use crate::input::{is_actionable_key, Action, InputBindings};
 use crate::session::TuiSession;
 use crate::ui::{MenuLayout, MenuUiFile};
+use crate::utils::centered_rect;
 
 #[derive(Clone, Copy, Debug)]
 pub enum MenuPane {
@@ -192,9 +193,20 @@ pub fn draw_menu_frame(
         ])
         .split(layout[0]);
 
+    let available_lines = columns[0].height.saturating_sub(2) as usize;
+    let page_size = available_lines.max(1);
+    let page = if entries.is_empty() {
+        0
+    } else {
+        selected / page_size
+    };
+    let start = page.saturating_mul(page_size);
+    let end = (start + page_size).min(entries.len());
     let menu_lines = entries
         .iter()
         .enumerate()
+        .skip(start)
+        .take(end.saturating_sub(start))
         .map(|(index, entry)| {
             let is_selected = index == selected;
             let mut style = if entry.enabled {
@@ -380,6 +392,39 @@ pub fn draw_inventory_frame(
         .alignment(Alignment::Center)
         .block(Block::default().borders(Borders::NONE));
     frame.render_widget(footer, layout[1]);
+}
+
+pub fn confirm_menu_exit<F>(session: &mut TuiSession, draw_background: F) -> io::Result<bool>
+where
+    F: Fn(&mut Frame),
+{
+    loop {
+        session.terminal_mut().draw(|frame| {
+            draw_background(frame);
+            let area = centered_rect(frame.size(), 42, 3);
+            frame.render_widget(Clear, area);
+            let content = vec![Line::from(Span::raw("Return to title screen? (Y/N)"))];
+            let paragraph = Paragraph::new(content)
+                .block(Block::default().borders(Borders::ALL))
+                .alignment(Alignment::Center);
+            frame.render_widget(paragraph, area);
+        })?;
+
+        if let Event::Key(key) = event::read()? {
+            if !is_actionable_key(&key) {
+                continue;
+            }
+            match key.code {
+                crossterm::event::KeyCode::Char('y') | crossterm::event::KeyCode::Char('Y') => {
+                    return Ok(true)
+                }
+                crossterm::event::KeyCode::Char('n') | crossterm::event::KeyCode::Char('N') => {
+                    return Ok(false)
+                }
+                _ => return Ok(false),
+            }
+        }
+    }
 }
 
 fn draw_content_frame(frame: &mut Frame, entries: &[ContentMenuEntry], selected: usize) {

@@ -78,6 +78,8 @@ pub struct LastBattleContext {
     pub formation: Vec<engine::encounters::EncounterMember>,
     pub snapshot: BattleSnapshot,
     pub source: BattleSource,
+    pub defeat_map_id: String,
+    pub defeat_pos: (i32, i32),
 }
 
 impl LastBattleContext {
@@ -85,11 +87,15 @@ impl LastBattleContext {
         formation: Vec<engine::encounters::EncounterMember>,
         snapshot: BattleSnapshot,
         source: BattleSource,
+        defeat_map_id: String,
+        defeat_pos: (i32, i32),
     ) -> Self {
         Self {
             formation,
             snapshot,
             source,
+            defeat_map_id,
+            defeat_pos,
         }
     }
 }

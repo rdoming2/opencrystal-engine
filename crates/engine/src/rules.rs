@@ -74,6 +74,25 @@ pub struct RenderRules {
     pub min_art_width: u16,
     pub min_art_height: u16,
     pub palette: String,
+    #[serde(default)]
+    pub death_markers: DeathMarkerRules,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct DeathMarkerRules {
+    #[serde(default)]
+    pub show_on_map: bool,
+    #[serde(default = "default_death_marker_glyph")]
+    pub glyph: String,
+}
+
+impl Default for DeathMarkerRules {
+    fn default() -> Self {
+        Self {
+            show_on_map: false,
+            glyph: default_death_marker_glyph(),
+        }
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -199,6 +218,8 @@ pub struct SettingsRules {
     pub readiness_speed: Option<RangeSetting>,
     #[serde(default)]
     pub battle_mode: Option<ChoiceSetting<BattleMode>>,
+    #[serde(default)]
+    pub death_markers_visible: Option<ToggleSetting>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -393,6 +414,7 @@ impl Default for SettingsRules {
             autosave_enabled: None,
             readiness_speed: None,
             battle_mode: None,
+            death_markers_visible: None,
         }
     }
 }
@@ -537,6 +559,10 @@ fn default_readiness_speed_max() -> f32 {
 
 fn default_readiness_speed_step() -> f32 {
     READINESS_SPEED_STEP
+}
+
+fn default_death_marker_glyph() -> String {
+    "✞".to_string()
 }
 
 fn default_battle_global_commands() -> Vec<String> {

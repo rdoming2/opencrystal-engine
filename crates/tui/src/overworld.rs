@@ -37,7 +37,16 @@ pub struct MapView {
     pub puzzles: Vec<PuzzleView>,
     pub campfires: Vec<CampfireView>,
     pub save_points: Vec<(i32, i32)>,
+    pub death_markers: Vec<DeathMarkerView>,
+    pub death_marker_glyph: char,
+    pub death_marker_palette: Option<String>,
     pub use_color: bool,
+}
+
+#[derive(Clone)]
+pub struct DeathMarkerView {
+    pub pos: (i32, i32),
+    pub count: u32,
 }
 
 #[derive(Clone)]
@@ -128,6 +137,7 @@ const DEFAULT_DOOR_PALETTE: &str = "bright_yellow";
 const DEFAULT_PUZZLE_PALETTE: &str = "bright_magenta";
 const DEFAULT_CAMPFIRE_PALETTE: &str = "bright_red";
 const DEFAULT_VEHICLE_PALETTE: &str = "bright_cyan";
+const DEFAULT_DEATH_MARKER_PALETTE: &str = "bright_red";
 
 pub fn show_dialog_on_map(
     session: &mut TuiSession,
@@ -289,6 +299,7 @@ pub fn draw_overworld_frame(frame: &mut Frame, map: &MapView, player_pos: (i32, 
                 .and_then(|entry| entry.palette.as_deref());
 
             if let Some(pos) = wrapped_pos {
+                let mut occupied = false;
                 if pos == player_pos {
                     if let Some(active_vehicle) = &map.active_vehicle {
                         glyph = active_vehicle.glyph;
@@ -300,13 +311,16 @@ pub fn draw_overworld_frame(frame: &mut Frame, map: &MapView, player_pos: (i32, 
                         glyph = '@';
                         palette = Some(DEFAULT_PLAYER_PALETTE);
                     }
+                    occupied = true;
                 } else if let Some(npc) = map.npcs.iter().find(|npc| npc.pos == pos) {
                     glyph = npc.glyph;
                     palette = npc.palette.as_deref().or(Some(DEFAULT_NPC_PALETTE));
+                    occupied = true;
                 } else if let Some(vehicle) = map.vehicles.iter().find(|vehicle| vehicle.pos == pos)
                 {
                     glyph = vehicle.glyph;
                     palette = vehicle.palette.as_deref().or(Some(DEFAULT_VEHICLE_PALETTE));
+                    occupied = true;
                 } else if let Some(chest) = map.chests.iter().find(|chest| chest.pos == pos) {
                     glyph = if chest.opened {
                         chest.glyph_open
@@ -314,9 +328,11 @@ pub fn draw_overworld_frame(frame: &mut Frame, map: &MapView, player_pos: (i32, 
                         chest.glyph_closed
                     };
                     palette = chest.palette.as_deref().or(Some(DEFAULT_CHEST_PALETTE));
+                    occupied = true;
                 } else if let Some(sign) = map.signs.iter().find(|sign| sign.pos == pos) {
                     glyph = sign.glyph;
                     palette = sign.palette.as_deref().or(Some(DEFAULT_SIGN_PALETTE));
+                    occupied = true;
                 } else if let Some(door) = map.doors.iter().find(|door| door.pos == pos) {
                     glyph = door.glyph;
                     if door.locked {
@@ -324,9 +340,11 @@ pub fn draw_overworld_frame(frame: &mut Frame, map: &MapView, player_pos: (i32, 
                     } else {
                         palette = door.palette.as_deref().or(Some(DEFAULT_DOOR_PALETTE));
                     }
+                    occupied = true;
                 } else if let Some(puzzle) = map.puzzles.iter().find(|puzzle| puzzle.pos == pos) {
                     glyph = puzzle.glyph;
                     palette = puzzle.palette.as_deref().or(Some(DEFAULT_PUZZLE_PALETTE));
+                    occupied = true;
                 } else if let Some(campfire) =
                     map.campfires.iter().find(|campfire| campfire.pos == pos)
                 {
@@ -335,6 +353,7 @@ pub fn draw_overworld_frame(frame: &mut Frame, map: &MapView, player_pos: (i32, 
                         .palette
                         .as_deref()
                         .or(Some(DEFAULT_CAMPFIRE_PALETTE));
+                    occupied = true;
                 } else if let Some(transition) = map
                     .transitions
                     .iter()
@@ -347,9 +366,21 @@ pub fn draw_overworld_frame(frame: &mut Frame, map: &MapView, player_pos: (i32, 
                         .palette
                         .as_deref()
                         .or(Some(DEFAULT_TRANSITION_PALETTE));
+                    occupied = true;
                 } else if map.save_points.iter().any(|entry| *entry == pos) {
                     glyph = '♦';
                     palette = Some(DEFAULT_SAVE_POINT_PALETTE);
+                    occupied = true;
+                }
+                if !occupied {
+                    if let Some(_marker) = map.death_markers.iter().find(|marker| marker.pos == pos)
+                    {
+                        glyph = map.death_marker_glyph;
+                        palette = map
+                            .death_marker_palette
+                            .as_deref()
+                            .or(Some(DEFAULT_DEATH_MARKER_PALETTE));
+                    }
                 }
             }
 

@@ -195,6 +195,22 @@ pub struct BattlePanels {
 pub struct EnemyPanel {
     pub title: String,
     pub highlight: HighlightRules,
+    #[serde(default)]
+    pub hp_colors: Option<EnemyHpColorRules>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct EnemyHpColorRules {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default = "default_enemy_hp_color_thresholds")]
+    pub thresholds: Vec<EnemyHpColorThreshold>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct EnemyHpColorThreshold {
+    pub ratio: f32,
+    pub palette: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -343,6 +359,23 @@ fn default_menu_enabled() -> bool {
 
 fn default_command_page_size() -> usize {
     6
+}
+
+fn default_enemy_hp_color_thresholds() -> Vec<EnemyHpColorThreshold> {
+    vec![
+        EnemyHpColorThreshold {
+            ratio: 0.25,
+            palette: "red".to_string(),
+        },
+        EnemyHpColorThreshold {
+            ratio: 0.5,
+            palette: "yellow".to_string(),
+        },
+        EnemyHpColorThreshold {
+            ratio: 1.0,
+            palette: "green".to_string(),
+        },
+    ]
 }
 
 fn load_json<T: serde::de::DeserializeOwned>(path: impl AsRef<Path>) -> Result<T, String> {

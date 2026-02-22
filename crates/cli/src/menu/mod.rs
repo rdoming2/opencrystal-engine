@@ -63,6 +63,11 @@ use self::settings::{
 };
 use self::status::build_status_panel;
 
+pub enum MenuOutcome {
+    Continue,
+    ReturnTitle,
+}
+
 pub fn run_menu_loop(
     session: &mut TuiSession,
     runtime: &mut GameRuntime,
@@ -73,12 +78,12 @@ pub fn run_menu_loop(
     map_id: &str,
     player_pos: (i32, i32),
     save_dir: &Path,
-) -> std::io::Result<()> {
+) -> std::io::Result<MenuOutcome> {
     let mut save_message: Option<SaveMessage> = None;
     let entries = build_menu_entries(runtime, menu_ui, map_id, player_pos);
     if entries.is_empty() {
         runtime.close_menu();
-        return Ok(());
+        return Ok(MenuOutcome::Continue);
     }
     let entry_views = entries
         .iter()
@@ -154,49 +159,113 @@ pub fn run_menu_loop(
         if let Some(action) = read_action(bindings) {
             match action {
                 Action::MoveUp => {
-                    if matches!(focus, MenuPane::List) {
-                        if runtime.menu_state.selected > 0 {
-                            runtime.menu_state.selected -= 1;
+                    if matches!(focus, MenuPane::Detail)
+                        && (submenu_action == "status" || submenu_action == "gameplay_stats")
+                    {
+                        let lines_len = if submenu_action == "status" {
+                            build_status_panel(runtime, runtime.menu_state.detail_page).len()
+                        } else {
+                            build_progress_panel(label.to_string(), progress_ui, runtime)
+                                .lines
+                                .len()
+                        };
+                        let page_size = panel_size.height as usize;
+                        if page_size > 0 && lines_len > page_size {
+                            let total_pages = (lines_len + page_size - 1) / page_size;
+                            runtime.menu_state.detail_scroll =
+                                wrap_index(runtime.menu_state.detail_scroll, total_pages, -1);
                         }
+                        continue;
+                    }
+                    if matches!(focus, MenuPane::List) {
+                        runtime.menu_state.selected =
+                            wrap_index(runtime.menu_state.selected, entry_views.len(), -1);
                     } else if submenu_action == "save" {
                         let slots = build_save_slots(runtime, save_dir);
                         runtime.menu_state.detail_selection =
                             move_save_selection(runtime.menu_state.detail_selection, &slots, -1);
                     } else if submenu_action == "items" {
                         if runtime.menu_state.detail_page == 0 {
-                            if runtime.menu_state.detail_selection > 0 {
-                                runtime.menu_state.detail_selection -= 1;
-                            }
-                        } else if runtime.menu_state.detail_target > 0 {
-                            runtime.menu_state.detail_target -= 1;
+                            let entries = build_inventory_entries(
+                                runtime,
+                                &filter_from_index(runtime.menu_state.detail_filter),
+                                &sort_from_index(runtime.menu_state.detail_sort),
+                            );
+                            runtime.menu_state.detail_selection =
+                                wrap_index(runtime.menu_state.detail_selection, entries.len(), -1);
+                        } else {
+                            let entries = build_inventory_entries(
+                                runtime,
+                                &filter_from_index(runtime.menu_state.detail_filter),
+                                &sort_from_index(runtime.menu_state.detail_sort),
+                            );
+                            let target_len = entries
+                                .get(runtime.menu_state.detail_selection)
+                                .map(|entry| item_targets_for_entry(runtime, entry).len())
+                                .unwrap_or(0);
+                            runtime.menu_state.detail_target =
+                                wrap_index(runtime.menu_state.detail_target, target_len, -1);
                         }
                     } else if submenu_action == "magic" {
                         if runtime.menu_state.detail_page == 0 {
-                            if runtime.menu_state.detail_selection > 0 {
-                                runtime.menu_state.detail_selection -= 1;
-                            }
-                        } else if runtime.menu_state.detail_target > 0 {
-                            runtime.menu_state.detail_target -= 1;
+                            let entries = build_spell_entries(runtime);
+                            runtime.menu_state.detail_selection =
+                                wrap_index(runtime.menu_state.detail_selection, entries.len(), -1);
+                        } else {
+                            let targets = selected_spell_targets(runtime);
+                            runtime.menu_state.detail_target =
+                                wrap_index(runtime.menu_state.detail_target, targets.len(), -1);
                         }
                     } else if submenu_action == "abilities" {
                         if runtime.menu_state.detail_page == 0 {
-                            if runtime.menu_state.detail_selection > 0 {
-                                runtime.menu_state.detail_selection -= 1;
-                            }
-                        } else if runtime.menu_state.detail_target > 0 {
-                            runtime.menu_state.detail_target -= 1;
+                            let entries = build_ability_entries(runtime);
+                            runtime.menu_state.detail_selection =
+                                wrap_index(runtime.menu_state.detail_selection, entries.len(), -1);
+                        } else {
+                            let targets = selected_ability_targets(runtime);
+                            runtime.menu_state.detail_target =
+                                wrap_index(runtime.menu_state.detail_target, targets.len(), -1);
                         }
                     } else if submenu_action == "journal" {
-                        if runtime.menu_state.detail_selection > 0 {
-                            runtime.menu_state.detail_selection -= 1;
-                        }
+                        let count = journal_entry_count(runtime);
+                        runtime.menu_state.detail_selection =
+                            wrap_index(runtime.menu_state.detail_selection, count, -1);
                     } else if submenu_action == "party" {
                         if runtime.menu_state.detail_page == 0 {
-                            if runtime.menu_state.detail_selection > 0 {
-                                runtime.menu_state.detail_selection -= 1;
+                            let list = if runtime.menu_state.detail_target == 0 {
+                                PartyList::Active
+                            } else {
+                                PartyList::Reserve
+                            };
+                            let entries = party_list_entries(runtime, list);
+                            runtime.menu_state.detail_selection =
+                                wrap_index(runtime.menu_state.detail_selection, entries.len(), -1);
+                        } else if runtime.menu_state.detail_page == 1 {
+                            let list = if runtime.menu_state.detail_target == 0 {
+                                PartyList::Active
+                            } else {
+                                PartyList::Reserve
+                            };
+                            let entries = party_list_entries(runtime, list);
+                            let member_index = runtime.menu_state.detail_slot;
+                            if member_index == usize::MAX {
+                                continue;
                             }
-                        } else if runtime.menu_state.detail_selection > 0 {
-                            runtime.menu_state.detail_selection -= 1;
+                            let member_index = member_index.min(entries.len().saturating_sub(1));
+                            let swap_allowed = map_save_allowed(runtime, map_id, player_pos);
+                            let actions = party_actions(runtime, list, member_index, swap_allowed);
+                            runtime.menu_state.detail_selection =
+                                wrap_index(runtime.menu_state.detail_selection, actions.len(), -1);
+                        } else {
+                            let list = if runtime.menu_state.detail_target == 0 {
+                                PartyList::Active
+                            } else {
+                                PartyList::Reserve
+                            };
+                            let target_list = list.toggle();
+                            let entries = party_list_entries(runtime, target_list);
+                            runtime.menu_state.detail_selection =
+                                wrap_index(runtime.menu_state.detail_selection, entries.len(), -1);
                         }
                     } else if submenu_action == "overworld_map" {
                         let destinations = overworld_destinations_for_runtime(runtime);
@@ -206,38 +275,69 @@ pub fn run_menu_loop(
                             -1,
                         );
                     } else if submenu_action == "magic_equip" {
-                        if runtime.menu_state.detail_selection > 0 {
-                            runtime.menu_state.detail_selection -= 1;
+                        if runtime.menu_state.detail_page == 0 {
+                            let slots = magic_equip_slots_for_menu(runtime);
+                            runtime.menu_state.detail_selection =
+                                wrap_index(runtime.menu_state.detail_selection, slots.len(), -1);
+                        } else {
+                            let entries = magic_equip_entries_for_menu(runtime);
+                            runtime.menu_state.detail_selection =
+                                wrap_index(runtime.menu_state.detail_selection, entries.len(), -1);
                         }
                     } else if submenu_action == "equipment" {
-                        if runtime.menu_state.detail_selection > 0 {
-                            runtime.menu_state.detail_selection -= 1;
+                        if runtime.menu_state.detail_page == 0 {
+                            let slots = equipment_slots_for_menu(runtime);
+                            runtime.menu_state.detail_selection =
+                                wrap_index(runtime.menu_state.detail_selection, slots.len(), -1);
+                        } else {
+                            let entries = equipment_entries_for_menu(runtime);
+                            runtime.menu_state.detail_selection =
+                                wrap_index(runtime.menu_state.detail_selection, entries.len(), -1);
                         }
                     } else if submenu_action == "jobs" {
                         if runtime.menu_state.detail_page == 0 {
-                            if runtime.menu_state.detail_slot > 0 {
-                                runtime.menu_state.detail_slot -= 1;
-                            }
+                            let options = job_menu_options(runtime);
+                            runtime.menu_state.detail_slot =
+                                wrap_index(runtime.menu_state.detail_slot, options.len(), -1);
                         } else if runtime.menu_state.detail_page == 1 {
-                            if runtime.menu_state.detail_selection > 0 {
-                                runtime.menu_state.detail_selection -= 1;
-                            }
+                            runtime.menu_state.detail_selection = wrap_index(
+                                runtime.menu_state.detail_selection,
+                                runtime.content.jobs.jobs.len(),
+                                -1,
+                            );
                         } else if runtime.menu_state.detail_page == 2 {
-                            if runtime.menu_state.detail_target > 0 {
-                                runtime.menu_state.detail_target -= 1;
-                            }
+                            let entries = learnable_count(runtime);
+                            runtime.menu_state.detail_target =
+                                wrap_index(runtime.menu_state.detail_target, entries, -1);
                         }
                     } else if submenu_action == "settings" {
-                        if runtime.menu_state.detail_selection > 0 {
-                            runtime.menu_state.detail_selection -= 1;
-                        }
+                        let limit = settings_entry_count(runtime);
+                        runtime.menu_state.detail_selection =
+                            wrap_index(runtime.menu_state.detail_selection, limit, -1);
                     }
                 }
                 Action::MoveDown => {
-                    if matches!(focus, MenuPane::List) {
-                        if runtime.menu_state.selected + 1 < entry_views.len() {
-                            runtime.menu_state.selected += 1;
+                    if matches!(focus, MenuPane::Detail)
+                        && (submenu_action == "status" || submenu_action == "gameplay_stats")
+                    {
+                        let lines_len = if submenu_action == "status" {
+                            build_status_panel(runtime, runtime.menu_state.detail_page).len()
+                        } else {
+                            build_progress_panel(label.to_string(), progress_ui, runtime)
+                                .lines
+                                .len()
+                        };
+                        let page_size = panel_size.height as usize;
+                        if page_size > 0 && lines_len > page_size {
+                            let total_pages = (lines_len + page_size - 1) / page_size;
+                            runtime.menu_state.detail_scroll =
+                                wrap_index(runtime.menu_state.detail_scroll, total_pages, 1);
                         }
+                        continue;
+                    }
+                    if matches!(focus, MenuPane::List) {
+                        runtime.menu_state.selected =
+                            wrap_index(runtime.menu_state.selected, entry_views.len(), 1);
                     } else if submenu_action == "save" {
                         let slots = build_save_slots(runtime, save_dir);
                         runtime.menu_state.detail_selection =
@@ -249,9 +349,8 @@ pub fn run_menu_loop(
                                 &filter_from_index(runtime.menu_state.detail_filter),
                                 &sort_from_index(runtime.menu_state.detail_sort),
                             );
-                            if runtime.menu_state.detail_selection + 1 < entries.len() {
-                                runtime.menu_state.detail_selection += 1;
-                            }
+                            runtime.menu_state.detail_selection =
+                                wrap_index(runtime.menu_state.detail_selection, entries.len(), 1);
                         } else {
                             let entries = build_inventory_entries(
                                 runtime,
@@ -262,33 +361,28 @@ pub fn run_menu_loop(
                                 .get(runtime.menu_state.detail_selection)
                                 .map(|entry| item_targets_for_entry(runtime, entry))
                                 .unwrap_or_default();
-                            if runtime.menu_state.detail_target + 1 < targets.len() {
-                                runtime.menu_state.detail_target += 1;
-                            }
+                            runtime.menu_state.detail_target =
+                                wrap_index(runtime.menu_state.detail_target, targets.len(), 1);
                         }
                     } else if submenu_action == "magic" {
                         if runtime.menu_state.detail_page == 0 {
                             let entries = build_spell_entries(runtime);
-                            if runtime.menu_state.detail_selection + 1 < entries.len() {
-                                runtime.menu_state.detail_selection += 1;
-                            }
+                            runtime.menu_state.detail_selection =
+                                wrap_index(runtime.menu_state.detail_selection, entries.len(), 1);
                         } else {
                             let targets = selected_spell_targets(runtime);
-                            if runtime.menu_state.detail_target + 1 < targets.len() {
-                                runtime.menu_state.detail_target += 1;
-                            }
+                            runtime.menu_state.detail_target =
+                                wrap_index(runtime.menu_state.detail_target, targets.len(), 1);
                         }
                     } else if submenu_action == "abilities" {
                         if runtime.menu_state.detail_page == 0 {
                             let entries = build_ability_entries(runtime);
-                            if runtime.menu_state.detail_selection + 1 < entries.len() {
-                                runtime.menu_state.detail_selection += 1;
-                            }
+                            runtime.menu_state.detail_selection =
+                                wrap_index(runtime.menu_state.detail_selection, entries.len(), 1);
                         } else {
                             let targets = selected_ability_targets(runtime);
-                            if runtime.menu_state.detail_target + 1 < targets.len() {
-                                runtime.menu_state.detail_target += 1;
-                            }
+                            runtime.menu_state.detail_target =
+                                wrap_index(runtime.menu_state.detail_target, targets.len(), 1);
                         }
                     } else if submenu_action == "equipment" {
                         let limit = if runtime.menu_state.detail_page == 0 {
@@ -296,18 +390,12 @@ pub fn run_menu_loop(
                         } else {
                             equipment_entries_for_menu(runtime).len()
                         };
-                        if runtime.menu_state.detail_selection + 1 < limit {
-                            runtime.menu_state.detail_selection += 1;
-                        }
+                        runtime.menu_state.detail_selection =
+                            wrap_index(runtime.menu_state.detail_selection, limit, 1);
                     } else if submenu_action == "journal" {
-                        let mut all_quest_states = Vec::new();
-                        for quest_file in &runtime.content.quests {
-                            let quest_states = quest_file.resolve_quests(&runtime.flags);
-                            all_quest_states.extend(quest_states);
-                        }
-                        if runtime.menu_state.detail_selection + 1 < all_quest_states.len() {
-                            runtime.menu_state.detail_selection += 1;
-                        }
+                        let count = journal_entry_count(runtime);
+                        runtime.menu_state.detail_selection =
+                            wrap_index(runtime.menu_state.detail_selection, count, 1);
                     } else if submenu_action == "party" {
                         if runtime.menu_state.detail_page == 0 {
                             let list = if runtime.menu_state.detail_target == 0 {
@@ -316,9 +404,8 @@ pub fn run_menu_loop(
                                 PartyList::Reserve
                             };
                             let entries = party_list_entries(runtime, list);
-                            if runtime.menu_state.detail_selection + 1 < entries.len() {
-                                runtime.menu_state.detail_selection += 1;
-                            }
+                            runtime.menu_state.detail_selection =
+                                wrap_index(runtime.menu_state.detail_selection, entries.len(), 1);
                         } else if runtime.menu_state.detail_page == 1 {
                             let list = if runtime.menu_state.detail_target == 0 {
                                 PartyList::Active
@@ -331,9 +418,8 @@ pub fn run_menu_loop(
                             }
                             let swap_allowed = map_save_allowed(runtime, map_id, player_pos);
                             let actions = party_actions(runtime, list, member_index, swap_allowed);
-                            if runtime.menu_state.detail_selection + 1 < actions.len() {
-                                runtime.menu_state.detail_selection += 1;
-                            }
+                            runtime.menu_state.detail_selection =
+                                wrap_index(runtime.menu_state.detail_selection, actions.len(), 1);
                         } else if runtime.menu_state.detail_page == 2 {
                             let list = if runtime.menu_state.detail_target == 0 {
                                 PartyList::Active
@@ -341,9 +427,11 @@ pub fn run_menu_loop(
                                 PartyList::Reserve
                             };
                             let target_entries = party_list_entries(runtime, list.toggle());
-                            if runtime.menu_state.detail_selection + 1 < target_entries.len() {
-                                runtime.menu_state.detail_selection += 1;
-                            }
+                            runtime.menu_state.detail_selection = wrap_index(
+                                runtime.menu_state.detail_selection,
+                                target_entries.len(),
+                                1,
+                            );
                         }
                     } else if submenu_action == "overworld_map" {
                         let destinations = overworld_destinations_for_runtime(runtime);
@@ -358,39 +446,35 @@ pub fn run_menu_loop(
                         } else {
                             magic_equip_entries_for_menu(runtime).len()
                         };
-                        if runtime.menu_state.detail_selection + 1 < limit {
-                            runtime.menu_state.detail_selection += 1;
-                        }
+                        runtime.menu_state.detail_selection =
+                            wrap_index(runtime.menu_state.detail_selection, limit, 1);
                     } else if submenu_action == "jobs" {
                         if runtime.menu_state.detail_page == 0 {
                             let options = job_menu_options(runtime);
-                            let limit = options.len();
-                            if runtime.menu_state.detail_slot + 1 < limit {
-                                runtime.menu_state.detail_slot += 1;
-                            }
+                            runtime.menu_state.detail_slot =
+                                wrap_index(runtime.menu_state.detail_slot, options.len(), 1);
                         } else if runtime.menu_state.detail_page == 1 {
-                            if runtime.menu_state.detail_selection + 1
-                                < runtime.content.jobs.jobs.len()
-                            {
-                                runtime.menu_state.detail_selection += 1;
-                            }
+                            runtime.menu_state.detail_selection = wrap_index(
+                                runtime.menu_state.detail_selection,
+                                runtime.content.jobs.jobs.len(),
+                                1,
+                            );
                         } else if runtime.menu_state.detail_page == 2 {
                             let entries = learnable_count(runtime);
-                            if runtime.menu_state.detail_target + 1 < entries {
-                                runtime.menu_state.detail_target += 1;
-                            }
+                            runtime.menu_state.detail_target =
+                                wrap_index(runtime.menu_state.detail_target, entries, 1);
                         }
                     } else if submenu_action == "settings" {
                         let limit = settings_entry_count(runtime);
-                        if runtime.menu_state.detail_selection + 1 < limit {
-                            runtime.menu_state.detail_selection += 1;
-                        }
+                        runtime.menu_state.detail_selection =
+                            wrap_index(runtime.menu_state.detail_selection, limit, 1);
                     }
                 }
                 Action::Confirm => {
                     if matches!(focus, MenuPane::List) {
                         if let Some(entry) = entries.get(runtime.menu_state.selected) {
                             if entry.selectable {
+                                runtime.menu_state.detail_scroll = 0;
                                 match entry.action.as_str() {
                                     "items" => {
                                         runtime.menu_state.focus = MenuFocus::Detail;
@@ -487,6 +571,24 @@ pub fn run_menu_loop(
                                         runtime.menu_state.detail_selection = 0;
                                         runtime.menu_state.detail_target = 0;
                                     }
+                                    "exit" => {
+                                        let confirm_stats = build_menu_stats_view(runtime);
+                                        if tui::menu::confirm_menu_exit(session, |frame| {
+                                            tui::menu::draw_menu_frame(
+                                                frame,
+                                                menu_ui,
+                                                &entry_views,
+                                                runtime.menu_state.selected,
+                                                focus,
+                                                &right_panel,
+                                                Some(&confirm_stats),
+                                                footer_text,
+                                            );
+                                        })? {
+                                            runtime.close_menu();
+                                            return Ok(MenuOutcome::ReturnTitle);
+                                        }
+                                    }
                                     _ => {
                                         runtime.menu_state.focus = MenuFocus::Detail;
                                         runtime.menu_state.active_submenu =
@@ -546,7 +648,7 @@ pub fn run_menu_loop(
                         }
                         runtime.warp_to_map(&destination.map_id, destination.target_pos);
                         runtime.close_menu();
-                        return Ok(());
+                        return Ok(MenuOutcome::Continue);
                     } else if submenu_action == "items" {
                         let entries = build_inventory_entries(
                             runtime,
@@ -935,6 +1037,7 @@ pub fn run_menu_loop(
                             runtime.menu_state.focus = MenuFocus::List;
                             runtime.menu_state.active_submenu = None;
                             runtime.menu_state.detail_page = 0;
+                            runtime.menu_state.detail_scroll = 0;
                             runtime.menu_state.detail_selection = 0;
                             if submenu_action == "save" {
                                 save_message = None;
@@ -942,7 +1045,7 @@ pub fn run_menu_loop(
                         }
                     } else {
                         runtime.close_menu();
-                        return Ok(());
+                        return Ok(MenuOutcome::Continue);
                     }
                 }
                 Action::MoveLeft | Action::MoveRight => {
@@ -952,6 +1055,7 @@ pub fn run_menu_loop(
                         } else {
                             0
                         };
+                        runtime.menu_state.detail_scroll = 0;
                     } else if matches!(focus, MenuPane::Detail) && submenu_action == "settings" {
                         let direction = if matches!(action, Action::MoveRight) {
                             1
@@ -1176,6 +1280,28 @@ fn build_menu_entries(
         .collect()
 }
 
+fn journal_entry_count(runtime: &GameRuntime) -> usize {
+    let journal_enabled = runtime
+        .content
+        .rules
+        .systems
+        .get("journal")
+        .copied()
+        .unwrap_or(false);
+    if !journal_enabled {
+        return 0;
+    }
+    if runtime.content.quests.is_empty() {
+        return 0;
+    }
+    let mut all_quest_states = Vec::new();
+    for quest_file in &runtime.content.quests {
+        let quest_states = quest_file.resolve_quests(&runtime.flags);
+        all_quest_states.extend(quest_states);
+    }
+    all_quest_states.len()
+}
+
 fn menu_detail_panel(
     label: &str,
     action: &str,
@@ -1186,37 +1312,30 @@ fn menu_detail_panel(
     save_message: Option<&SaveMessage>,
     panel_size: PanelSize,
 ) -> MenuPanelView {
-    if action == "status" {
-        return MenuPanelView {
+    let mut panel = if action == "status" {
+        MenuPanelView {
             title: "Status".to_string(),
             lines: build_status_panel(runtime, page),
-        };
-    }
-    if action == "items" {
-        return build_items_panel(runtime);
-    }
-    if action == "equipment" {
-        return build_equipment_panel(runtime);
-    }
-    if action == "magic_equip" {
-        return build_magic_equip_panel(runtime);
-    }
-    if action == "jobs" {
+        }
+    } else if action == "items" {
+        build_items_panel(runtime)
+    } else if action == "equipment" {
+        build_equipment_panel(runtime)
+    } else if action == "magic_equip" {
+        build_magic_equip_panel(runtime)
+    } else if action == "jobs" {
         if page == 2 {
-            return build_learn_panel(runtime);
+            build_learn_panel(runtime)
+        } else if page == 1 {
+            build_job_picker(runtime)
+        } else {
+            build_jobs_dashboard(runtime)
         }
-        if page == 1 {
-            return build_job_picker(runtime);
-        }
-        return build_jobs_dashboard(runtime);
-    }
-    if action == "magic" {
-        return build_magic_panel(runtime);
-    }
-    if action == "abilities" {
-        return build_abilities_panel(runtime);
-    }
-    if action == "party" {
+    } else if action == "magic" {
+        build_magic_panel(runtime)
+    } else if action == "abilities" {
+        build_abilities_panel(runtime)
+    } else if action == "party" {
         let list = if runtime.menu_state.detail_target == 0 {
             PartyList::Active
         } else {
@@ -1228,7 +1347,7 @@ fn menu_detail_panel(
             Some(runtime.menu_state.detail_slot)
         };
         let swap_allowed = map_save_allowed(runtime, &runtime.world.map_id, runtime.world.position);
-        return build_party_panel(
+        build_party_panel(
             runtime,
             list,
             runtime.menu_state.detail_page,
@@ -1236,43 +1355,376 @@ fn menu_detail_panel(
             runtime.menu_state.detail_selection,
             selected_member,
             swap_allowed,
-        );
-    }
-    if action == "journal" {
+        )
+    } else if action == "journal" {
         let lines = if page == 0 {
             build_journal_panel(runtime, runtime.menu_state.detail_selection)
         } else {
             build_journal_detail_panel(runtime, runtime.menu_state.detail_selection, page - 1)
         };
-        return MenuPanelView {
+        MenuPanelView {
             title: "Journal".to_string(),
             lines,
-        };
-    }
-    if action == "overworld_map" {
-        return build_overworld_map_panel(
+        }
+    } else if action == "overworld_map" {
+        build_overworld_map_panel(
             runtime,
             panel_size,
             "Overworld Map",
             overworld_travel_allowed(runtime),
-        );
+        )
+    } else if action == "settings" {
+        build_settings_panel(runtime, runtime.menu_state.detail_selection)
+    } else if action == "save" {
+        build_save_panel(runtime, save_dir, save_message)
+    } else if action == "gameplay_stats" {
+        build_progress_panel(label.to_string(), progress_ui, runtime)
+    } else {
+        MenuPanelView {
+            title: label.to_string(),
+            lines: vec![
+                panel_line(format!("{} menu not implemented.", label)),
+                panel_line(format!("TODO: implement '{}' submenu.", action)),
+            ],
+        }
+    };
+
+    let selected_line = panel_selected_line(action, runtime, save_dir);
+    let page_override = if action == "status" || action == "gameplay_stats" {
+        Some(runtime.menu_state.detail_scroll)
+    } else {
+        None
+    };
+    panel.lines = apply_panel_paging(panel.lines, panel_size, selected_line, page_override);
+    panel
+}
+
+fn apply_panel_paging(
+    lines: Vec<MenuPanelLine>,
+    panel_size: PanelSize,
+    selected_line: Option<usize>,
+    page_override: Option<usize>,
+) -> Vec<MenuPanelLine> {
+    let page_size = panel_size.height as usize;
+    if page_size == 0 || lines.len() <= page_size {
+        return lines;
     }
-    if action == "settings" {
-        return build_settings_panel(runtime, runtime.menu_state.detail_selection);
+    let total_pages = (lines.len() + page_size - 1) / page_size;
+    let mut page = page_override.unwrap_or(0);
+    if let Some(selected) = selected_line {
+        page = selected / page_size;
+    } else if total_pages > 0 {
+        page = page.min(total_pages.saturating_sub(1));
     }
-    if action == "save" {
-        return build_save_panel(runtime, save_dir, save_message);
+    let start = page.saturating_mul(page_size);
+    let end = (start + page_size).min(lines.len());
+    lines[start..end].to_vec()
+}
+
+fn panel_selected_line(action: &str, runtime: &GameRuntime, save_dir: &Path) -> Option<usize> {
+    match action {
+        "items" => items_selected_line(runtime),
+        "magic" => magic_selected_line(runtime),
+        "abilities" => abilities_selected_line(runtime),
+        "equipment" => equipment_selected_line(runtime),
+        "magic_equip" => magic_equip_selected_line(runtime),
+        "party" => party_selected_line(runtime),
+        "journal" => journal_selected_line(runtime),
+        "settings" => settings_selected_line(runtime),
+        "save" => save_selected_line(runtime, save_dir),
+        "jobs" => jobs_selected_line(runtime),
+        _ => None,
     }
-    if action == "gameplay_stats" {
-        return build_progress_panel(label.to_string(), progress_ui, runtime);
+}
+
+fn items_selected_line(runtime: &GameRuntime) -> Option<usize> {
+    let entries = build_inventory_entries(
+        runtime,
+        &filter_from_index(runtime.menu_state.detail_filter),
+        &sort_from_index(runtime.menu_state.detail_sort),
+    );
+    if entries.is_empty() {
+        return None;
     }
-    MenuPanelView {
-        title: label.to_string(),
-        lines: vec![
-            panel_line(format!("{} menu not implemented.", label)),
-            panel_line(format!("TODO: implement '{}' submenu.", action)),
-        ],
+    let selection = runtime
+        .menu_state
+        .detail_selection
+        .min(entries.len().saturating_sub(1));
+    if runtime.menu_state.detail_page == 1 {
+        let targets = entries
+            .get(selection)
+            .map(|entry| item_targets_for_entry(runtime, entry))
+            .unwrap_or_default();
+        if !targets.is_empty() {
+            let target_selection = runtime
+                .menu_state
+                .detail_target
+                .min(targets.len().saturating_sub(1));
+            return Some(1 + entries.len() + 2 + target_selection);
+        }
     }
+    Some(1 + selection)
+}
+
+fn magic_selected_line(runtime: &GameRuntime) -> Option<usize> {
+    let entries = build_spell_entries(runtime);
+    if entries.is_empty() {
+        return None;
+    }
+    let selection = runtime
+        .menu_state
+        .detail_selection
+        .min(entries.len().saturating_sub(1));
+    if runtime.menu_state.detail_page == 1 {
+        let targets = selected_spell_targets(runtime);
+        if !targets.is_empty() {
+            let target_selection = runtime
+                .menu_state
+                .detail_target
+                .min(targets.len().saturating_sub(1));
+            return Some(1 + entries.len() + 2 + target_selection);
+        }
+    }
+    Some(1 + selection)
+}
+
+fn abilities_selected_line(runtime: &GameRuntime) -> Option<usize> {
+    let entries = build_ability_entries(runtime);
+    if entries.is_empty() {
+        return None;
+    }
+    let selection = runtime
+        .menu_state
+        .detail_selection
+        .min(entries.len().saturating_sub(1));
+    if runtime.menu_state.detail_page == 1 {
+        let targets = selected_ability_targets(runtime);
+        if !targets.is_empty() {
+            let target_selection = runtime
+                .menu_state
+                .detail_target
+                .min(targets.len().saturating_sub(1));
+            return Some(1 + entries.len() + 2 + target_selection);
+        }
+    }
+    Some(1 + selection)
+}
+
+fn equipment_selected_line(runtime: &GameRuntime) -> Option<usize> {
+    if runtime.menu_state.detail_page == 0 {
+        let slots = equipment_slots_for_menu(runtime);
+        if slots.is_empty() {
+            return None;
+        }
+        let selection = runtime
+            .menu_state
+            .detail_selection
+            .min(slots.len().saturating_sub(1));
+        return Some(1 + selection);
+    }
+    let entries = equipment_entries_for_menu(runtime);
+    if entries.is_empty() {
+        return None;
+    }
+    let selection = runtime
+        .menu_state
+        .detail_selection
+        .min(entries.len().saturating_sub(1));
+    Some(1 + selection)
+}
+
+fn magic_equip_selected_line(runtime: &GameRuntime) -> Option<usize> {
+    if runtime.menu_state.detail_page == 0 {
+        let slots = magic_equip_slots_for_menu(runtime);
+        if slots.is_empty() {
+            return None;
+        }
+        let selection = runtime
+            .menu_state
+            .detail_selection
+            .min(slots.len().saturating_sub(1));
+        return Some(1 + selection);
+    }
+    let entries = magic_equip_entries_for_menu(runtime);
+    if entries.is_empty() {
+        return None;
+    }
+    let selection = runtime
+        .menu_state
+        .detail_selection
+        .min(entries.len().saturating_sub(1));
+    Some(1 + selection)
+}
+
+fn party_selected_line(runtime: &GameRuntime) -> Option<usize> {
+    let list = if runtime.menu_state.detail_target == 0 {
+        PartyList::Active
+    } else {
+        PartyList::Reserve
+    };
+    if runtime.menu_state.detail_page == 1 {
+        let entries = party_list_entries(runtime, list);
+        let member_index = runtime
+            .menu_state
+            .detail_slot
+            .min(entries.len().saturating_sub(1));
+        let swap_allowed = map_save_allowed(runtime, &runtime.world.map_id, runtime.world.position);
+        let actions = party_actions(runtime, list, member_index, swap_allowed);
+        let selection = if actions.is_empty() {
+            0
+        } else {
+            runtime
+                .menu_state
+                .detail_selection
+                .min(actions.len().saturating_sub(1))
+        };
+        return Some(3 + selection);
+    }
+    let active_entries = party_list_entries(runtime, PartyList::Active);
+    let reserve_entries = party_list_entries(runtime, PartyList::Reserve);
+    let active_block = active_entries.len().max(1);
+    if runtime.menu_state.detail_page == 2 {
+        let target_list = list.toggle();
+        let selection = runtime.menu_state.detail_selection.min(match target_list {
+            PartyList::Active => active_entries.len().saturating_sub(1),
+            PartyList::Reserve => reserve_entries.len().saturating_sub(1),
+        });
+        return match target_list {
+            PartyList::Active => Some(1 + selection),
+            PartyList::Reserve => Some(3 + active_block + selection),
+        };
+    }
+    let selection = runtime.menu_state.detail_selection.min(match list {
+        PartyList::Active => active_entries.len().saturating_sub(1),
+        PartyList::Reserve => reserve_entries.len().saturating_sub(1),
+    });
+    match list {
+        PartyList::Active => Some(1 + selection),
+        PartyList::Reserve => Some(3 + active_block + selection),
+    }
+}
+
+fn journal_selected_line(runtime: &GameRuntime) -> Option<usize> {
+    if runtime.menu_state.detail_page > 0 {
+        return None;
+    }
+    let count = journal_entry_count(runtime);
+    if count == 0 {
+        return None;
+    }
+    let mut all_quest_states = Vec::new();
+    for quest_file in &runtime.content.quests {
+        let quest_states = quest_file.resolve_quests(&runtime.flags);
+        all_quest_states.extend(quest_states);
+    }
+    if all_quest_states.is_empty() {
+        return None;
+    }
+    let mut categories: std::collections::HashMap<String, Vec<&engine::quests::QuestState>> =
+        std::collections::HashMap::new();
+    for quest_state in &all_quest_states {
+        categories
+            .entry(quest_state.quest.category_id.clone())
+            .or_default()
+            .push(quest_state);
+    }
+    let mut sorted_categories: Vec<_> = categories.into_iter().collect();
+    sorted_categories.sort_by(|a, b| {
+        let cat_a = runtime
+            .content
+            .quests
+            .iter()
+            .find_map(|file| file.categories.iter().find(|cat| cat.id == a.0));
+        let cat_b = runtime
+            .content
+            .quests
+            .iter()
+            .find_map(|file| file.categories.iter().find(|cat| cat.id == b.0));
+        let order_a = cat_a.map(|cat| cat.sort_order).unwrap_or(i32::MAX);
+        let order_b = cat_b.map(|cat| cat.sort_order).unwrap_or(i32::MAX);
+        order_a.cmp(&order_b)
+    });
+    let selected = runtime
+        .menu_state
+        .detail_selection
+        .min(count.saturating_sub(1));
+    let mut line_index = 0usize;
+    let mut quest_index = 0usize;
+    for (_category_id, quest_states) in sorted_categories {
+        line_index += 1;
+        for _quest in quest_states {
+            if quest_index == selected {
+                return Some(line_index);
+            }
+            quest_index += 1;
+            line_index += 1;
+        }
+        line_index += 1;
+    }
+    None
+}
+
+fn settings_selected_line(runtime: &GameRuntime) -> Option<usize> {
+    let count = settings_entry_count(runtime);
+    if count == 0 {
+        return None;
+    }
+    Some(
+        runtime
+            .menu_state
+            .detail_selection
+            .min(count.saturating_sub(1)),
+    )
+}
+
+fn save_selected_line(runtime: &GameRuntime, save_dir: &Path) -> Option<usize> {
+    let slots = build_save_slots(runtime, save_dir);
+    if slots.is_empty() {
+        return None;
+    }
+    Some(
+        runtime
+            .menu_state
+            .detail_selection
+            .min(slots.len().saturating_sub(1)),
+    )
+}
+
+fn jobs_selected_line(runtime: &GameRuntime) -> Option<usize> {
+    if runtime.party.active_count() == 0 {
+        return None;
+    }
+    if runtime.menu_state.detail_page == 2 {
+        let actor_present = runtime.party.active_count() > 0;
+        let mut line_index = if actor_present { 3 } else { 2 };
+        if !runtime.content.jobs.jobs.is_empty() {
+            line_index += 2;
+        }
+        let learn_count = learnable_count(runtime);
+        if learn_count == 0 {
+            return Some(line_index);
+        }
+        let learn_selection = runtime
+            .menu_state
+            .detail_target
+            .min(learn_count.saturating_sub(1));
+        return Some(line_index + learn_selection);
+    }
+    if runtime.menu_state.detail_page > 0 {
+        return None;
+    }
+    let job_points =
+        runtime.content.rules.job_system.progression_mode == JobProgressionMode::JobPoints;
+    let line_index = 2 + if job_points { 1 } else { 0 } + 1;
+    let options = job_menu_options(runtime);
+    if options.is_empty() {
+        return None;
+    }
+    let selection = runtime
+        .menu_state
+        .detail_slot
+        .min(options.len().saturating_sub(1));
+    Some(line_index + selection)
 }
 
 fn menu_default_panel(
@@ -1670,9 +2122,17 @@ fn move_save_selection(current: usize, slots: &[SaveSlotEntry], direction: i32) 
     let mut remaining = slots.len();
     while remaining > 0 {
         if direction < 0 {
-            index = index.saturating_sub(1);
+            index = if index == 0 {
+                slots.len().saturating_sub(1)
+            } else {
+                index - 1
+            };
         } else {
-            index = (index + 1).min(slots.len().saturating_sub(1));
+            index = if index + 1 >= slots.len() {
+                0
+            } else {
+                index + 1
+            };
         }
         if slots[index].selectable {
             return index;
@@ -1787,6 +2247,7 @@ struct MapMarker {
     style: PanelSpanStyle,
 }
 
+#[derive(Clone, Copy)]
 struct PanelSize {
     width: u16,
     height: u16,
@@ -2078,14 +2539,37 @@ fn overworld_destinations_for_runtime(runtime: &GameRuntime) -> Vec<OverworldDes
     build_overworld_destinations(runtime, map)
 }
 
+fn wrap_index(current: usize, len: usize, direction: i32) -> usize {
+    if len == 0 {
+        return 0;
+    }
+    if direction < 0 {
+        if current == 0 {
+            len.saturating_sub(1)
+        } else {
+            current - 1
+        }
+    } else if current + 1 >= len {
+        0
+    } else {
+        current + 1
+    }
+}
+
 fn move_overworld_selection(current: usize, count: usize, direction: i32) -> usize {
     if count == 0 {
         return 0;
     }
     if direction < 0 {
-        current.saturating_sub(1)
+        if current == 0 {
+            count.saturating_sub(1)
+        } else {
+            current - 1
+        }
+    } else if current + 1 >= count {
+        0
     } else {
-        (current + 1).min(count.saturating_sub(1))
+        current + 1
     }
 }
 

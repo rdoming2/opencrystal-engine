@@ -193,6 +193,11 @@ only; autosave uses slot 0 and never reduces the manual slot total.
       "options": ["dynamic_wait", "dynamic"],
       "visible": true,
       "editable": true
+    },
+    "death_markers_visible": {
+      "value": true,
+      "visible": true,
+      "editable": true
     }
   },
   "job_system": {
@@ -208,12 +213,17 @@ only; autosave uses slot 0 and never reduces the manual slot total.
   "render": {
     "min_art_width": 110,
     "min_art_height": 32,
-    "palette": "terminal"
+    "palette": "terminal",
+    "death_markers": {
+      "show_on_map": false,
+      "glyph": "✞"
+    }
   },
   "stats": {
     "track": [
       "time_played",
       "enemies_defeated",
+      "player_deaths",
       "max_damage",
       "jobs_unlocked",
       "crystals_collected",
@@ -222,6 +232,11 @@ only; autosave uses slot 0 and never reduces the manual slot total.
   }
 }
 ```
+
+Render fields:
+
+- `render.death_markers.show_on_map`: when true, defeat locations are stored per map and rendered.
+- `render.death_markers.glyph`: map glyph used for death markers (defaults to `✞`).
 
 ## job_system
 
@@ -1631,6 +1646,7 @@ Battle animation fields:
 - `flash_ms`: delay per flash frame.
 - `flash_cycles`: number of flash cycles per action.
 - `panels.commands.page_size`: number of command entries per page (adds page indicator when needed).
+- `panels.enemies.hp_colors`: optional enemy-name coloring rules based on HP ratio thresholds.
 
 ```json
 {
@@ -1683,7 +1699,15 @@ Battle animation fields:
   "panels": {
     "enemies": {
       "title": "Enemies",
-      "highlight": {"style": "invert", "link_to_battlefield": true}
+      "highlight": {"style": "invert", "link_to_battlefield": true},
+      "hp_colors": {
+        "enabled": true,
+        "thresholds": [
+          {"ratio": 0.25, "palette": "red"},
+          {"ratio": 0.5, "palette": "yellow"},
+          {"ratio": 1.0, "palette": "green"}
+        ]
+      }
     },
     "commands": {
       "title": "Commands",
@@ -2107,10 +2131,17 @@ to the schemas defined above and consolidate the former `BATTLE_MOCK.md` example
     "summons": false,
     "magic_equip": false
   },
+  "settings": {
+    "death_markers_visible": {"value": true, "visible": true, "editable": true}
+  },
   "render": {
     "min_art_width": 110,
     "min_art_height": 32,
-    "palette": "terminal"
+    "palette": "terminal",
+    "death_markers": {
+      "show_on_map": false,
+      "glyph": "✞"
+    }
   }
 }
 ```
