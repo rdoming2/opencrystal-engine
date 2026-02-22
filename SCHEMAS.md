@@ -1093,7 +1093,9 @@ Item usage defines where and how items can be used. `context` values: `field`,
 `battle`, or `both`. `target` values: `self`, `ally`, `party`, `enemy`.
 
 `description` is optional text displayed in item menus.
-`price` is optional base shop value used for selling (and for shops that restock sold items).
+`price` is an optional map of currency IDs to sell values used by shops (and for shops that
+restock sold items). Items can list multiple currencies; selling is only allowed in shops whose
+currency matches one of the listed prices (unless a shop entry overrides the sell price).
 `sellable` can be set to `false` to prevent selling even when `price` is present.
 Common effect types: `heal_hp`, `heal_mp`, `revive`, `warp`, `learn_spell`, `learn_recipe`, `cure_status`.
 `learn_spell` uses `effect.target` to specify the spell ID to teach.
@@ -1111,7 +1113,7 @@ Common effect types: `heal_hp`, `heal_mp`, `revive`, `warp`, `learn_spell`, `lea
       "name": "Potion",
       "type": "consumable",
       "description": "Restores a small amount of HP.",
-      "price": 50,
+      "price": {"gold": 50},
       "usage": {"context": "field", "target": "ally"},
       "effect": {"type": "heal_hp", "power": 50}
     },
@@ -1146,7 +1148,8 @@ Common effect types: `heal_hp`, `heal_mp`, `revive`, `warp`, `learn_spell`, `lea
 ## entities/shops.json
 
 Shops sell items listed in `inventory` at `price` (base buy price) and can accept sell
-transactions for any item or equipment with a `price` field (unless `sellable: false`).
+transactions for any item or equipment with a `price` entry matching the shop currency
+(unless `sellable: false` or the shop entry overrides the sell price).
 `buy_price_multiplier` and `sell_price_multiplier` apply to base prices when a specific
 override is not provided. `sell_behavior` controls whether sold items disappear or enter
 the merchant stock list. `currency_pool` controls whether the merchant has infinite funds
@@ -1188,7 +1191,9 @@ contains categories like "sword", "staff", while `slot` describes where it equip
 Use `allowed_jobs` only for item-specific overrides (e.g., a katana requiring Samurai).
 `spells` (optional) lists spell IDs granted while the equipment is equipped. For
 Magic Equip items, use `slot: "magic"` and include the spells they should grant.
-`price` is optional base shop value used for selling (and for shops that restock sold items).
+`price` is an optional map of currency IDs to sell values used by shops (and for shops that
+restock sold items). Equipment can list multiple currencies; selling is only allowed in shops whose
+currency matches one of the listed prices (unless a shop entry overrides the sell price).
 `sellable` can be set to `false` to prevent selling even when `price` is present.
 
 ```json
@@ -1201,7 +1206,7 @@ Magic Equip items, use `slot: "magic"` and include the spells they should grant.
       "category": "sword",
       "slot": "weapon",
       "allowed_jobs": null,
-      "price": 200,
+      "price": {"gold": 200},
       "stats": {"str": 2},
       "spells": ["fire"]
     }

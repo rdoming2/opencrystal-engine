@@ -87,6 +87,8 @@ cryst build new encounter grasslands_skirmish --content content/demo
 - Items define both usage context and targeting.
 - Spells and abilities must define target modes to ensure correct menu flow.
 - When using tier charges, ensure `magic_slots` exist in job definitions.
+- Item and equipment sell prices are currency-aware maps (`price: {"gold": 50}`), and shops only
+  allow selling when their currency matches one of the item/equipment price entries.
 
 ## UI configuration
 

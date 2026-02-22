@@ -1438,12 +1438,20 @@ pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
                     item.id, item.usage.target
                 ));
             }
-            if let Some(price) = item.price {
-                if price < 0 {
-                    errors.push(format!(
-                        "items.json: item '{}' has negative price {}",
-                        item.id, price
-                    ));
+            if let Some(prices) = &item.price {
+                for (currency, amount) in prices {
+                    if !currency_ids.contains(currency.as_str()) {
+                        errors.push(format!(
+                            "items.json: item '{}' has unknown currency '{}'",
+                            item.id, currency
+                        ));
+                    }
+                    if *amount < 0 {
+                        errors.push(format!(
+                            "items.json: item '{}' has negative price {} for '{}'",
+                            item.id, amount, currency
+                        ));
+                    }
                 }
             }
         }
@@ -2006,12 +2014,20 @@ pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
                     ));
                 }
             }
-            if let Some(price) = item.price {
-                if price < 0 {
-                    errors.push(format!(
-                        "equipment.json: equipment '{}' has negative price {}",
-                        item.id, price
-                    ));
+            if let Some(prices) = &item.price {
+                for (currency, amount) in prices {
+                    if !currency_ids.contains(currency.as_str()) {
+                        errors.push(format!(
+                            "equipment.json: equipment '{}' has unknown currency '{}'",
+                            item.id, currency
+                        ));
+                    }
+                    if *amount < 0 {
+                        errors.push(format!(
+                            "equipment.json: equipment '{}' has negative price {} for '{}'",
+                            item.id, amount, currency
+                        ));
+                    }
                 }
             }
         }

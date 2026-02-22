@@ -243,7 +243,7 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
 - Shops support buy/sell flows with category filtering and list paging in the TUI.
 - Inventory entries can be infinite or finite stock; sold items can disappear or enter merchant stock.
 - Merchants can use infinite funds or a tracked currency pool that persists in saves.
-- Sell pricing uses item/equipment base prices with shop-level and per-entry overrides.
+- Sell pricing uses item/equipment base prices keyed by currency, with shop-level and per-entry overrides.
 
 ### Cooking system
 

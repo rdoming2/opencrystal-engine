@@ -337,7 +337,7 @@ pub struct ItemDefinition {
     pub usage: ItemUsage,
     pub effect: ItemEffect,
     #[serde(default)]
-    pub price: Option<i32>,
+    pub price: Option<HashMap<String, i32>>,
     #[serde(default)]
     pub sellable: Option<bool>,
 }
@@ -387,7 +387,7 @@ pub struct EquipmentDefinition {
     #[serde(default)]
     pub traits: Vec<String>,
     #[serde(default)]
-    pub price: Option<i32>,
+    pub price: Option<HashMap<String, i32>>,
     #[serde(default)]
     pub sellable: Option<bool>,
 }

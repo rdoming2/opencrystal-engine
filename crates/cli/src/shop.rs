@@ -367,7 +367,7 @@ pub fn build_shop_view(runtime: &GameRuntime, shop_id: &str) -> Option<ShopView>
                 kind = ShopItemKind::Item;
                 inv_kind = InventoryKind::Item;
                 category = item.r#type.clone();
-                base_price = item.price;
+                base_price = price_for_currency(&item.price, currency_id);
             } else if let Some(equipment) = runtime
                 .content
                 .equipment
@@ -380,7 +380,7 @@ pub fn build_shop_view(runtime: &GameRuntime, shop_id: &str) -> Option<ShopView>
                 inv_kind = InventoryKind::Equipment;
                 slot = Some(equipment.slot.clone());
                 category = equipment.category.clone();
-                base_price = equipment.price;
+                base_price = price_for_currency(&equipment.price, currency_id);
             }
 
             let Some(base_price) = base_price else {
@@ -472,15 +472,17 @@ pub fn build_shop_view(runtime: &GameRuntime, shop_id: &str) -> Option<ShopView>
         else {
             continue;
         };
-        if !item_sellable(item.price, item.sellable) {
+        if !item_sellable(&item.price, item.sellable, currency_id) {
             continue;
         }
         let entry_override = shop.inventory.iter().find(|entry| entry.item == *item_id);
+        let base_price = match price_for_currency(&item.price, currency_id) {
+            Some(value) => value,
+            None => continue,
+        };
         let sell_price = entry_override
             .and_then(|entry| entry.sell_price)
-            .unwrap_or_else(|| {
-                apply_multiplier(item.price.unwrap_or(0), shop.sell_price_multiplier)
-            });
+            .unwrap_or_else(|| apply_multiplier(base_price, shop.sell_price_multiplier));
         let category = item.r#type.clone();
         let inv_entry = InventoryEntry {
             id: item_id.clone(),
@@ -547,15 +549,17 @@ pub fn build_shop_view(runtime: &GameRuntime, shop_id: &str) -> Option<ShopView>
         else {
             continue;
         };
-        if !item_sellable(equipment.price, equipment.sellable) {
+        if !item_sellable(&equipment.price, equipment.sellable, currency_id) {
             continue;
         }
         let entry_override = shop.inventory.iter().find(|entry| entry.item == *item_id);
+        let base_price = match price_for_currency(&equipment.price, currency_id) {
+            Some(value) => value,
+            None => continue,
+        };
         let sell_price = entry_override
             .and_then(|entry| entry.sell_price)
-            .unwrap_or_else(|| {
-                apply_multiplier(equipment.price.unwrap_or(0), shop.sell_price_multiplier)
-            });
+            .unwrap_or_else(|| apply_multiplier(base_price, shop.sell_price_multiplier));
         let category = equipment.category.clone();
         let inv_entry = InventoryEntry {
             id: item_id.clone(),
@@ -661,11 +665,25 @@ fn apply_multiplier(price: i32, multiplier: f32) -> i32 {
     ((price as f32) * multiplier).round().max(0.0) as i32
 }
 
-fn item_sellable(price: Option<i32>, sellable: Option<bool>) -> bool {
+fn price_for_currency(
+    prices: &Option<std::collections::HashMap<String, i32>>,
+    currency_id: &str,
+) -> Option<i32> {
+    prices
+        .as_ref()
+        .and_then(|map| map.get(currency_id))
+        .copied()
+}
+
+fn item_sellable(
+    prices: &Option<std::collections::HashMap<String, i32>>,
+    sellable: Option<bool>,
+    currency_id: &str,
+) -> bool {
     if sellable == Some(false) {
         return false;
     }
-    price.is_some()
+    price_for_currency(prices, currency_id).is_some()
 }
 
 pub fn lookup_item_name(runtime: &GameRuntime, item_id: &str) -> String {
