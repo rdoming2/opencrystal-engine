@@ -238,6 +238,13 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
 - Equipping recomputes derived stats and clamps current HP/MP to new maxima.
 - Equipment can grant spells or abilities while equipped.
 
+### Shops
+
+- Shops support buy/sell flows with category filtering and list paging in the TUI.
+- Inventory entries can be infinite or finite stock; sold items can disappear or enter merchant stock.
+- Merchants can use infinite funds or a tracked currency pool that persists in saves.
+- Sell pricing uses item/equipment base prices with shop-level and per-entry overrides.
+
 ### Cooking system
 
 - Campfire recipe selection shows a left-hand recipe list with a right-hand detail panel.

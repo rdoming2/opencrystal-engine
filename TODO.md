@@ -45,7 +45,7 @@
   - [ ] Dialog vs event selection.
   - [x] Shop opening via dialog actions.
   - [x] Shop purchase flow (currency, inventory updates).
-  - [ ] Shop sell flow (convert items/equipment to currency).
+  - [x] Shop sell flow (convert items/equipment to currency).
 - [x] Add idle chance for roaming NPCs.
 - [x] Add map treasure chests (loot + opened flags).
 - [x] Implement save/load system.

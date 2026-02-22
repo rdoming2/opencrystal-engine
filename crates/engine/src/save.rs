@@ -14,6 +14,8 @@ pub struct SaveFile {
     pub world: SaveWorld,
     pub party: SaveParty,
     pub inventory: SaveInventory,
+    #[serde(default)]
+    pub shops: HashMap<String, crate::runtime::ShopState>,
     pub flags: HashSet<String>,
     pub map_states: HashMap<String, MapState>,
     #[serde(default)]
@@ -119,6 +121,7 @@ impl SaveFile {
             },
             party: SaveParty::from_party(&runtime.party),
             inventory: SaveInventory::from_inventory(&runtime.inventory),
+            shops: runtime.shop_states.clone(),
             flags: runtime.flags.clone(),
             map_states: prune_map_states(runtime),
             stats: runtime.stats_for_save(),
@@ -171,6 +174,11 @@ impl SaveFile {
         runtime.vehicle_slow_mode = false;
         runtime.party = self.party.to_party();
         runtime.inventory = self.inventory.to_inventory();
+        runtime.shop_states = self.shops.clone();
+        let initial_shops = crate::runtime::initial_shop_states(&runtime.content);
+        for (id, state) in initial_shops {
+            runtime.shop_states.entry(id).or_insert(state);
+        }
         let mut stats = self.stats.clone();
         stats.remove("time_played");
         runtime.stats = stats;

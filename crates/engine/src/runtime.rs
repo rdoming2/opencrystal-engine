@@ -31,6 +31,7 @@ pub struct GameRuntime {
     pub menu_state: MenuState,
     pub party: PartyState,
     pub inventory: InventoryState,
+    pub shop_states: HashMap<String, ShopState>,
     pub world: WorldState,
     pub last_overworld: Option<LastOverworld>,
     pub active_vehicle: Option<String>,
@@ -54,6 +55,12 @@ pub struct LastOverworld {
     pub world_id: String,
     pub map_id: String,
     pub pos: (i32, i32),
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+pub struct ShopState {
+    pub currency: i32,
+    pub stock: HashMap<String, i32>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -123,6 +130,7 @@ impl GameRuntime {
         let vehicle_positions = initial_vehicle_positions(&content);
         let settings = SettingsState::from_rules(&content.rules);
         let stats = initialize_stats(&content.rules.stats.track);
+        let shop_states = initial_shop_states(&content);
         Self {
             content,
             state: GameState::Title,
@@ -134,6 +142,7 @@ impl GameRuntime {
             menu_state: MenuState::default(),
             party: PartyState::empty(),
             inventory: InventoryState::default(),
+            shop_states,
             world: WorldState::new(
                 &start_location.world,
                 &start_location.map,
@@ -596,6 +605,27 @@ fn initialize_stats(stats: &[String]) -> HashMap<String, i32> {
         map.entry(stat.clone()).or_insert(0);
     }
     map
+}
+
+pub fn initial_shop_states(content: &Content) -> HashMap<String, ShopState> {
+    let mut states = HashMap::new();
+    for shop in &content.shops.shops {
+        let mut stock = HashMap::new();
+        for entry in &shop.inventory {
+            if let Some(count) = entry.stock {
+                stock.insert(entry.item.clone(), count.max(0));
+            }
+        }
+        let currency = if shop.currency_pool == "tracked" {
+            shop.currency_amount.unwrap_or(0).max(0)
+        } else {
+            0
+        };
+        if !stock.is_empty() || shop.currency_pool == "tracked" {
+            states.insert(shop.id.clone(), ShopState { currency, stock });
+        }
+    }
+    states
 }
 
 fn initial_vehicle_positions(content: &Content) -> HashMap<String, VehiclePosition> {

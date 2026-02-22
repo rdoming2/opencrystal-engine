@@ -1438,6 +1438,14 @@ pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
                     item.id, item.usage.target
                 ));
             }
+            if let Some(price) = item.price {
+                if price < 0 {
+                    errors.push(format!(
+                        "items.json: item '{}' has negative price {}",
+                        item.id, price
+                    ));
+                }
+            }
         }
         for shop in &shops.shops {
             if shop.currency.trim().is_empty() {
@@ -1448,6 +1456,38 @@ pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
                     shop.id, shop.currency
                 ));
             }
+            if shop.buy_price_multiplier < 0.0 {
+                errors.push(format!(
+                    "shops.json: shop '{}' has negative buy_price_multiplier",
+                    shop.id
+                ));
+            }
+            if shop.sell_price_multiplier < 0.0 {
+                errors.push(format!(
+                    "shops.json: shop '{}' has negative sell_price_multiplier",
+                    shop.id
+                ));
+            }
+            if shop.sell_behavior != "disappear" && shop.sell_behavior != "stock" {
+                errors.push(format!(
+                    "shops.json: shop '{}' has invalid sell_behavior '{}'",
+                    shop.id, shop.sell_behavior
+                ));
+            }
+            if shop.currency_pool != "infinite" && shop.currency_pool != "tracked" {
+                errors.push(format!(
+                    "shops.json: shop '{}' has invalid currency_pool '{}'",
+                    shop.id, shop.currency_pool
+                ));
+            }
+            if let Some(amount) = shop.currency_amount {
+                if amount < 0 {
+                    errors.push(format!(
+                        "shops.json: shop '{}' has negative currency_amount",
+                        shop.id
+                    ));
+                }
+            }
             for entry in &shop.inventory {
                 if !item_ids.contains(entry.item.as_str())
                     && !equipment_ids.contains(entry.item.as_str())
@@ -1456,6 +1496,28 @@ pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
                         "shops.json: shop '{}' references unknown item '{}'",
                         shop.id, entry.item
                     ));
+                }
+                if entry.price < 0 {
+                    errors.push(format!(
+                        "shops.json: shop '{}' entry '{}' has negative price",
+                        shop.id, entry.item
+                    ));
+                }
+                if let Some(stock) = entry.stock {
+                    if stock < 0 {
+                        errors.push(format!(
+                            "shops.json: shop '{}' entry '{}' has negative stock",
+                            shop.id, entry.item
+                        ));
+                    }
+                }
+                if let Some(price) = entry.sell_price {
+                    if price < 0 {
+                        errors.push(format!(
+                            "shops.json: shop '{}' entry '{}' has negative sell_price",
+                            shop.id, entry.item
+                        ));
+                    }
                 }
             }
         }
@@ -1941,6 +2003,14 @@ pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
                     errors.push(format!(
                         "equipment.json: equipment '{}' references unknown trait '{}'",
                         item.id, trait_id
+                    ));
+                }
+            }
+            if let Some(price) = item.price {
+                if price < 0 {
+                    errors.push(format!(
+                        "equipment.json: equipment '{}' has negative price {}",
+                        item.id, price
                     ));
                 }
             }

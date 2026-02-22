@@ -1093,6 +1093,8 @@ Item usage defines where and how items can be used. `context` values: `field`,
 `battle`, or `both`. `target` values: `self`, `ally`, `party`, `enemy`.
 
 `description` is optional text displayed in item menus.
+`price` is optional base shop value used for selling (and for shops that restock sold items).
+`sellable` can be set to `false` to prevent selling even when `price` is present.
 Common effect types: `heal_hp`, `heal_mp`, `revive`, `warp`, `learn_spell`, `learn_recipe`, `cure_status`.
 `learn_spell` uses `effect.target` to specify the spell ID to teach.
 `learn_recipe` uses `effect.target` to specify the recipe ID to unlock.
@@ -1109,6 +1111,7 @@ Common effect types: `heal_hp`, `heal_mp`, `revive`, `warp`, `learn_spell`, `lea
       "name": "Potion",
       "type": "consumable",
       "description": "Restores a small amount of HP.",
+      "price": 50,
       "usage": {"context": "field", "target": "ally"},
       "effect": {"type": "heal_hp", "power": 50}
     },
@@ -1142,6 +1145,20 @@ Common effect types: `heal_hp`, `heal_mp`, `revive`, `warp`, `learn_spell`, `lea
 
 ## entities/shops.json
 
+Shops sell items listed in `inventory` at `price` (base buy price) and can accept sell
+transactions for any item or equipment with a `price` field (unless `sellable: false`).
+`buy_price_multiplier` and `sell_price_multiplier` apply to base prices when a specific
+override is not provided. `sell_behavior` controls whether sold items disappear or enter
+the merchant stock list. `currency_pool` controls whether the merchant has infinite funds
+or a tracked currency pool (`currency_amount` sets the initial amount).
+
+Shop entry fields:
+
+- `price`: base buy price for the item in this shop.
+- `stock`: optional finite stock count (omit for infinite stock).
+- `sell_price`: optional sell price override for this shop.
+- `category`: optional category label override used for shop filters.
+
 ```json
 {
   "version": 1,
@@ -1150,9 +1167,14 @@ Common effect types: `heal_hp`, `heal_mp`, `revive`, `warp`, `learn_spell`, `lea
       "id": "corner_store",
       "name": "Corner Store",
       "currency": "gold",
+      "buy_price_multiplier": 1.0,
+      "sell_price_multiplier": 0.5,
+      "sell_behavior": "stock",
+      "currency_pool": "tracked",
+      "currency_amount": 500,
       "inventory": [
-        {"item": "potion", "price": 50},
-        {"item": "bronze_sword", "price": 200}
+        {"item": "potion", "price": 50, "stock": 10},
+        {"item": "bronze_sword", "price": 200, "stock": 1, "sell_price": 120}
       ]
     }
   ]
@@ -1166,6 +1188,8 @@ contains categories like "sword", "staff", while `slot` describes where it equip
 Use `allowed_jobs` only for item-specific overrides (e.g., a katana requiring Samurai).
 `spells` (optional) lists spell IDs granted while the equipment is equipped. For
 Magic Equip items, use `slot: "magic"` and include the spells they should grant.
+`price` is optional base shop value used for selling (and for shops that restock sold items).
+`sellable` can be set to `false` to prevent selling even when `price` is present.
 
 ```json
 {
@@ -1177,6 +1201,7 @@ Magic Equip items, use `slot: "magic"` and include the spells they should grant.
       "category": "sword",
       "slot": "weapon",
       "allowed_jobs": null,
+      "price": 200,
       "stats": {"str": 2},
       "spells": ["fire"]
     }

@@ -336,6 +336,10 @@ pub struct ItemDefinition {
     pub description: Option<String>,
     pub usage: ItemUsage,
     pub effect: ItemEffect,
+    #[serde(default)]
+    pub price: Option<i32>,
+    #[serde(default)]
+    pub sellable: Option<bool>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -382,6 +386,10 @@ pub struct EquipmentDefinition {
     pub abilities: Vec<String>,
     #[serde(default)]
     pub traits: Vec<String>,
+    #[serde(default)]
+    pub price: Option<i32>,
+    #[serde(default)]
+    pub sellable: Option<bool>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -485,12 +493,44 @@ pub struct ShopDefinition {
     pub name: String,
     pub currency: String,
     pub inventory: Vec<ShopEntry>,
+    #[serde(default = "default_buy_price_multiplier")]
+    pub buy_price_multiplier: f32,
+    #[serde(default = "default_sell_price_multiplier")]
+    pub sell_price_multiplier: f32,
+    #[serde(default = "default_sell_behavior")]
+    pub sell_behavior: String,
+    #[serde(default = "default_currency_pool")]
+    pub currency_pool: String,
+    #[serde(default)]
+    pub currency_amount: Option<i32>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ShopEntry {
     pub item: String,
     pub price: i32,
+    #[serde(default)]
+    pub stock: Option<i32>,
+    #[serde(default)]
+    pub sell_price: Option<i32>,
+    #[serde(default)]
+    pub category: Option<String>,
+}
+
+fn default_buy_price_multiplier() -> f32 {
+    1.0
+}
+
+fn default_sell_price_multiplier() -> f32 {
+    0.5
+}
+
+fn default_sell_behavior() -> String {
+    "disappear".to_string()
+}
+
+fn default_currency_pool() -> String {
+    "infinite".to_string()
 }
 
 impl JobsFile {

@@ -975,6 +975,8 @@ fn build_new_item(content_dir: &Path, id: &str, name: &str, force: bool) -> Resu
             effects: Vec::new(),
             statuses: Vec::new(),
         },
+        price: None,
+        sellable: None,
     });
     write_json_pretty(path, &file)?;
     Ok(format!("Added item '{}'", id))
@@ -1013,6 +1015,8 @@ fn build_new_equipment(
         spells: Vec::new(),
         abilities: Vec::new(),
         traits: Vec::new(),
+        price: None,
+        sellable: None,
     });
     write_json_pretty(path, &file)?;
     Ok(format!("Added equipment '{}'", id))
@@ -1130,6 +1134,11 @@ fn build_new_shop(content_dir: &Path, id: &str, name: &str, force: bool) -> Resu
         name: name.to_string(),
         currency: "gold".to_string(),
         inventory: Vec::new(),
+        buy_price_multiplier: 1.0,
+        sell_price_multiplier: 0.5,
+        sell_behavior: "disappear".to_string(),
+        currency_pool: "infinite".to_string(),
+        currency_amount: None,
     });
     write_json_pretty(path, &file)?;
     Ok(format!("Added shop '{}'", id))
