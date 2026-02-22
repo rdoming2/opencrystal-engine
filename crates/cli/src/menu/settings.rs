@@ -7,6 +7,7 @@ use crate::menu::inventory::{panel_line, panel_line_spans, panel_span};
 enum SettingKind {
     Autosave,
     ReadinessSpeed,
+    DifficultyScale,
     BattleMode,
     DeathMarkers,
 }
@@ -86,7 +87,7 @@ pub fn apply_settings_confirm(runtime: &mut GameRuntime, selected: usize) {
         SettingKind::Autosave => {
             runtime.settings.autosave_enabled = !runtime.settings.autosave_enabled;
         }
-        SettingKind::ReadinessSpeed | SettingKind::BattleMode => {}
+        SettingKind::ReadinessSpeed | SettingKind::DifficultyScale | SettingKind::BattleMode => {}
         SettingKind::DeathMarkers => {
             runtime.settings.death_markers_visible = !runtime.settings.death_markers_visible;
         }
@@ -112,6 +113,14 @@ pub fn adjust_settings(runtime: &mut GameRuntime, selected: usize, direction: i3
                 value = (value / setting.step).round() * setting.step;
             }
             runtime.settings.readiness_speed = value.clamp(setting.min, setting.max);
+        }
+        SettingKind::DifficultyScale => {
+            let setting = runtime.difficulty_scale_setting();
+            let mut value = runtime.settings.difficulty_scale + setting.step * direction as f32;
+            if setting.step > 0.0 {
+                value = (value / setting.step).round() * setting.step;
+            }
+            runtime.settings.difficulty_scale = value.clamp(setting.min, setting.max);
         }
         SettingKind::BattleMode => {
             let setting = runtime.battle_mode_setting();
@@ -166,6 +175,18 @@ fn settings_entries(runtime: &GameRuntime) -> Vec<SettingsEntry> {
             value: readiness_value,
             locked: readiness_locked,
             kind: SettingKind::ReadinessSpeed,
+        });
+    }
+
+    let difficulty_setting = runtime.difficulty_scale_setting();
+    if difficulty_setting.visible {
+        let difficulty_locked = !difficulty_setting.editable;
+        let difficulty_value = format!("{:.1}", runtime.effective_difficulty_scale());
+        entries.push(SettingsEntry {
+            label: "Difficulty Scale",
+            value: difficulty_value,
+            locked: difficulty_locked,
+            kind: SettingKind::DifficultyScale,
         });
     }
 

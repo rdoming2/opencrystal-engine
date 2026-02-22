@@ -60,6 +60,8 @@ pub struct LastOverworld {
 pub struct SettingsState {
     pub autosave_enabled: bool,
     pub readiness_speed: f32,
+    #[serde(default = "default_difficulty_scale")]
+    pub difficulty_scale: f32,
     pub battle_mode: crate::rules::BattleMode,
     #[serde(default = "default_death_markers_visible")]
     pub death_markers_visible: bool,
@@ -85,6 +87,12 @@ impl SettingsState {
             .as_ref()
             .map(|setting| setting.value.clone())
             .unwrap_or(rules.game.battle_mode.clone());
+        let difficulty_scale = rules
+            .settings
+            .difficulty_scale
+            .as_ref()
+            .map(|setting| setting.value)
+            .unwrap_or(crate::rules::DIFFICULTY_SCALE_DEFAULT);
         let death_markers_visible = rules
             .settings
             .death_markers_visible
@@ -94,6 +102,7 @@ impl SettingsState {
         Self {
             autosave_enabled: autosave,
             readiness_speed: readiness,
+            difficulty_scale,
             battle_mode,
             death_markers_visible,
         }
@@ -102,6 +111,10 @@ impl SettingsState {
 
 fn default_death_markers_visible() -> bool {
     true
+}
+
+fn default_difficulty_scale() -> f32 {
+    crate::rules::DIFFICULTY_SCALE_DEFAULT
 }
 
 impl GameRuntime {
@@ -233,6 +246,20 @@ impl GameRuntime {
         value
     }
 
+    pub fn effective_difficulty_scale(&self) -> f32 {
+        let setting = self.difficulty_scale_setting();
+        let mut value = if setting.editable {
+            self.settings.difficulty_scale
+        } else {
+            setting.value
+        };
+        value = value.clamp(setting.min, setting.max);
+        if setting.step > 0.0 {
+            value = (value / setting.step).round() * setting.step;
+        }
+        value
+    }
+
     pub fn effective_battle_mode(&self) -> crate::rules::BattleMode {
         let setting = self.battle_mode_setting();
         if !setting.editable || setting.options.len() <= 1 {
@@ -281,6 +308,22 @@ impl GameRuntime {
                 min: crate::rules::READINESS_SPEED_MIN,
                 max: crate::rules::READINESS_SPEED_MAX,
                 step: crate::rules::READINESS_SPEED_STEP,
+                visible: true,
+                editable: true,
+            })
+    }
+
+    pub fn difficulty_scale_setting(&self) -> crate::rules::RangeSetting {
+        self.content
+            .rules
+            .settings
+            .difficulty_scale
+            .clone()
+            .unwrap_or(crate::rules::RangeSetting {
+                value: crate::rules::DIFFICULTY_SCALE_DEFAULT,
+                min: crate::rules::DIFFICULTY_SCALE_MIN,
+                max: crate::rules::DIFFICULTY_SCALE_MAX,
+                step: crate::rules::DIFFICULTY_SCALE_STEP,
                 visible: true,
                 editable: true,
             })

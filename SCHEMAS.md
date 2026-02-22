@@ -96,8 +96,8 @@ can still add `unlock_flag` gating for progression-driven unlocks.
 Set `systems.cooking` to enable campfire cooking.
 `settings` configures user-facing settings. Each setting can be hidden
 (`visible: false`), locked (`editable: false`), or provide allowed values. For
-`readiness_speed`, `min`, `max`, and `step` define the enforced range; for
-`battle_mode`, `options` lists the allowed choices (leave empty to lock to `value`).
+`readiness_speed` and `difficulty_scale`, `min`, `max`, and `step` define the enforced range;
+for `battle_mode`, `options` lists the allowed choices (leave empty to lock to `value`).
 `game.description` and `game.author` are optional metadata used for content selection screens.
 Tier charges are defined within each job's `magic_slots`; `magic_system` `tier_charges` uses those definitions per actor.
 `save` configures slot count. `slots_max` counts manual slots
@@ -187,6 +187,14 @@ only; autosave uses slot 0 and never reduces the manual slot total.
       "min": 0.5,
       "max": 5.0,
       "step": 0.5,
+      "visible": true,
+      "editable": true
+    },
+    "difficulty_scale": {
+      "value": 1.0,
+      "min": 0.5,
+      "max": 2.0,
+      "step": 0.1,
       "visible": true,
       "editable": true
     },
@@ -301,6 +309,11 @@ Battle row fields:
 - `back_row_defense_multiplier`: multiplier applied to physical damage taken in back row (<= 1).
 - `ranged_weapon_categories`: equipment categories that ignore the back-row attack penalty.
 - `battle_shift`: horizontal grid shift for back-row sprites in battle rendering.
+
+Difficulty reward fields:
+
+- `difficulty_rewards.exp`: when true, scale EXP rewards by the difficulty scale setting.
+- `difficulty_rewards.currency`: when true, scale currency rewards by the difficulty scale setting.
 
 ## party.json
 

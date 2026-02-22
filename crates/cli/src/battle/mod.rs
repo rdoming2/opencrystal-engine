@@ -168,6 +168,7 @@ pub fn run_battle(
         &runtime.party,
         formation,
         runtime.effective_battle_mode(),
+        runtime.effective_difficulty_scale(),
     );
     let Some(start_index) = engine::battle::next_living_party_index(
         &runtime.party,
@@ -2040,8 +2041,21 @@ fn apply_battle_rewards(
     rng: &mut impl Rng,
 ) -> BattleResult {
     let base_rewards = collect_rewards(&battle_state.enemies, rng);
+    let mut rewards = base_rewards.clone();
+    let difficulty_rewards = &runtime.content.rules.battle.difficulty_rewards;
+    if difficulty_rewards.exp || difficulty_rewards.currency {
+        let scale = runtime.effective_difficulty_scale();
+        if difficulty_rewards.exp {
+            rewards.exp = ((rewards.exp as f32) * scale).round().max(0.0) as i32;
+        }
+        if difficulty_rewards.currency {
+            for amount in rewards.currency.values_mut() {
+                *amount = ((*amount as f32) * scale).round().max(0.0) as i32;
+            }
+        }
+    }
     let mut result = BattleResult {
-        rewards: base_rewards.clone(),
+        rewards,
         level_ups: Vec::new(),
     };
 

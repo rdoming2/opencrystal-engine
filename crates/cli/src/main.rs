@@ -208,7 +208,7 @@ fn run_play(args: Vec<String>) {
 
     let _engine = Engine::new(rules.clone(), world.clone());
     let mut runtime = GameRuntime::new(content);
-    let save_dir = default_save_dir(&content_dir);
+    let save_dir = default_save_dir(&content_dir, &rules.title);
     let mut pending_carryover: Option<DefeatCarryover> = None;
 
     if session_guard.as_mut().is_none() {
@@ -605,7 +605,7 @@ fn default_content_base_dir() -> PathBuf {
     PathBuf::from("content")
 }
 
-fn default_save_dir(content_dir: &PathBuf) -> PathBuf {
+fn default_save_dir(content_dir: &PathBuf, title: &str) -> PathBuf {
     let base_dir = if let Ok(path) = env::var("XDG_DATA_HOME") {
         PathBuf::from(path)
     } else if let Ok(path) = env::var("LOCALAPPDATA") {
@@ -620,10 +620,25 @@ fn default_save_dir(content_dir: &PathBuf) -> PathBuf {
         .and_then(|name| name.to_str())
         .map(slugify)
         .unwrap_or_else(|| "content".to_string());
-    base_dir
-        .join("opencrystal")
-        .join("saves")
-        .join(content_slug)
+    let title_slug = {
+        let trimmed = title.trim();
+        if trimmed.is_empty() {
+            None
+        } else {
+            Some(slugify(trimmed))
+        }
+    };
+    let saves_root = base_dir.join("opencrystal").join("saves");
+    let title_save_dir = title_slug
+        .as_ref()
+        .map(|slug| saves_root.join(slug))
+        .unwrap_or_else(|| saves_root.join(&content_slug));
+    let legacy_save_dir = saves_root.join(&content_slug);
+    if legacy_save_dir.exists() && !title_save_dir.exists() {
+        legacy_save_dir
+    } else {
+        title_save_dir
+    }
 }
 
 fn run_load_flow(

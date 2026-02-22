@@ -35,6 +35,9 @@ It is a design reference meant to guide initial implementation.
 `--content-dir` (defaults to `~/.local/share/opencrystal/content`, `XDG_DATA_HOME/opencrystal/content`, or `%LOCALAPPDATA%\opencrystal\content` on Windows)
 and showing `rules.json` metadata (title, optional description/author).
 
+Save data is stored under `opencrystal/saves/<slugified game title>`. If the title is empty or a
+legacy save folder exists using the content directory name, the engine falls back to that folder.
+
 ## Rendering & UI
 
 ### Rendering tiers
@@ -276,6 +279,8 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
 - Spells and abilities declare target modes (`single`/`multi`) with optional attenuation for group targeting.
 - Statuses can be configured to clear at battle end; poison also ticks on overworld movement steps.
 - Battle formulas can be configured for hit, crit, and damage calculations; boss scaling is optional and gated by the `boss` trait.
+- Difficulty scale settings apply a multiplier to all enemy stats and stack with boss scaling.
+- Difficulty scale can optionally scale EXP and currency rewards when enabled in battle rules.
 
 ### Progress tracking
 
@@ -299,7 +304,7 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
   gated by save-allowed maps; row selection is shown when battle row rules are enabled.
 - Custom status/gameplay stats panels are handled via configurable menu panels in `ui/menu.json`.
 - Magic Equip is an optional submenu for equipping spell-granting items.
-- Settings submenu exposes user options (autosave, readiness speed, battle mode) that can
+- Settings submenu exposes user options (autosave, readiness speed, difficulty scale, battle mode) that can
   be hidden or locked via `rules.json` `settings` definitions.
 
 ### Journal system
@@ -438,6 +443,14 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
       "min": 0.5,
       "max": 5.0,
       "step": 0.5,
+      "visible": true,
+      "editable": true
+    },
+    "difficulty_scale": {
+      "value": 1.0,
+      "min": 0.5,
+      "max": 2.0,
+      "step": 0.1,
       "visible": true,
       "editable": true
     },

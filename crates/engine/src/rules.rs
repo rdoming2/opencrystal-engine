@@ -109,6 +109,8 @@ pub struct BattleRules {
     pub rows: BattleRowRules,
     #[serde(default)]
     pub boss_scaling: BossScalingRules,
+    #[serde(default)]
+    pub difficulty_rewards: DifficultyRewardsRules,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -149,6 +151,14 @@ pub struct BattleRowRules {
     pub ranged_weapon_categories: Vec<String>,
     #[serde(default = "default_back_row_battle_shift")]
     pub battle_shift: i32,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct DifficultyRewardsRules {
+    #[serde(default)]
+    pub exp: bool,
+    #[serde(default)]
+    pub currency: bool,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -216,6 +226,8 @@ pub struct SettingsRules {
     pub autosave_enabled: Option<ToggleSetting>,
     #[serde(default)]
     pub readiness_speed: Option<RangeSetting>,
+    #[serde(default)]
+    pub difficulty_scale: Option<RangeSetting>,
     #[serde(default)]
     pub battle_mode: Option<ChoiceSetting<BattleMode>>,
     #[serde(default)]
@@ -413,6 +425,7 @@ impl Default for SettingsRules {
         Self {
             autosave_enabled: None,
             readiness_speed: None,
+            difficulty_scale: None,
             battle_mode: None,
             death_markers_visible: None,
         }
@@ -428,6 +441,7 @@ impl Default for BattleRules {
             formulas: BattleFormulaRules::default(),
             rows: BattleRowRules::default(),
             boss_scaling: BossScalingRules::default(),
+            difficulty_rewards: DifficultyRewardsRules::default(),
         }
     }
 }
@@ -463,6 +477,15 @@ impl Default for BattleRowRules {
             back_row_defense_multiplier: default_back_row_defense_multiplier(),
             ranged_weapon_categories: Vec::new(),
             battle_shift: default_back_row_battle_shift(),
+        }
+    }
+}
+
+impl Default for DifficultyRewardsRules {
+    fn default() -> Self {
+        Self {
+            exp: false,
+            currency: false,
         }
     }
 }
@@ -540,6 +563,10 @@ fn default_readiness_speed() -> f32 {
 pub const READINESS_SPEED_MIN: f32 = 0.5;
 pub const READINESS_SPEED_MAX: f32 = 5.0;
 pub const READINESS_SPEED_STEP: f32 = 0.5;
+pub const DIFFICULTY_SCALE_DEFAULT: f32 = 1.0;
+pub const DIFFICULTY_SCALE_MIN: f32 = 0.5;
+pub const DIFFICULTY_SCALE_MAX: f32 = 2.0;
+pub const DIFFICULTY_SCALE_STEP: f32 = 0.1;
 
 fn default_setting_visible() -> bool {
     true

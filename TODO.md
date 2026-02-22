@@ -125,6 +125,8 @@
 - [x] De-duplicate grouped abilities from the generic Abilities command list.
 - [x] Add single-ability battle commands via ability_id routing.
 - [x] Add readiness speed setting to main menu.
+- [x] Add difficulty scale setting for enemy stats.
+- [x] Add optional difficulty scaling for EXP and currency rewards.
 - [ ] Remove readiness meter from turn non-Dynamic turn mode battle UI
 - [x] Add localization support for UI strings and command labels.
 

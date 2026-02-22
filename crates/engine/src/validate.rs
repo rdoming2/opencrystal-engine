@@ -160,6 +160,20 @@ pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
                 );
             }
         }
+        if let Some(difficulty) = rules.settings.difficulty_scale.as_ref() {
+            if difficulty.step <= 0.0 {
+                errors.push("rules.json: settings.difficulty_scale.step must be > 0".to_string());
+            }
+            if difficulty.min > difficulty.max {
+                errors.push("rules.json: settings.difficulty_scale.min must be <= max".to_string());
+            }
+            if difficulty.value < difficulty.min || difficulty.value > difficulty.max {
+                errors.push(
+                    "rules.json: settings.difficulty_scale.value must be within min/max"
+                        .to_string(),
+                );
+            }
+        }
         if let Some(battle_mode) = rules.settings.battle_mode.as_ref() {
             if !battle_mode.options.is_empty() && !battle_mode.options.contains(&battle_mode.value)
             {

@@ -132,6 +132,7 @@ pub fn build_battle_state(
     party: &PartyState,
     formation: &[EncounterMember],
     battle_mode: crate::rules::BattleMode,
+    difficulty_scale: f32,
 ) -> BattleState {
     let party_order = party.active_ids();
     let enemies = formation
@@ -142,7 +143,7 @@ pub fn build_battle_state(
                 .enemies
                 .iter()
                 .find(|enemy| enemy.id == member.enemy)?;
-            Some(build_enemy(content, enemy, member.pos))
+            Some(build_enemy(content, enemy, member.pos, difficulty_scale))
         })
         .collect::<Vec<_>>();
 
@@ -345,9 +346,14 @@ pub fn collect_rewards(enemies: &[BattleEnemy], rng: &mut impl Rng) -> BattleRew
     rewards
 }
 
-fn build_enemy(content: &Content, enemy: &EnemyDefinition, pos: [i32; 2]) -> BattleEnemy {
+fn build_enemy(
+    content: &Content,
+    enemy: &EnemyDefinition,
+    pos: [i32; 2],
+    difficulty_scale: f32,
+) -> BattleEnemy {
     let mut stats = enemy.stats.clone();
-    apply_boss_scaling(content, enemy, &mut stats);
+    apply_enemy_scaling(content, enemy, &mut stats, difficulty_scale);
     let max_hp = stat_value(&stats, "hp");
     let max_mp = stat_value(&stats, "mp");
     BattleEnemy {
@@ -373,24 +379,24 @@ fn stat_value(stats: &HashMap<String, i32>, key: &str) -> i32 {
     stats.get(key).copied().unwrap_or(0)
 }
 
-fn apply_boss_scaling(
+fn apply_enemy_scaling(
     content: &Content,
     enemy: &EnemyDefinition,
     stats: &mut HashMap<String, i32>,
+    difficulty_scale: f32,
 ) {
     let scaling = &content.rules.battle.boss_scaling;
-    if !scaling.enabled {
-        return;
-    }
-    if !enemy.traits.iter().any(|trait_id| trait_id == "boss") {
-        return;
-    }
+    let is_boss = scaling.enabled && enemy.traits.iter().any(|trait_id| trait_id == "boss");
+    let difficulty = difficulty_scale.max(0.0);
     for (stat, value) in stats.iter_mut() {
-        let multiplier = if stat == "hp" {
-            scaling.hp_multiplier
-        } else {
-            scaling.stat_multiplier
-        };
+        let mut multiplier = difficulty;
+        if is_boss {
+            multiplier *= if stat == "hp" {
+                scaling.hp_multiplier
+            } else {
+                scaling.stat_multiplier
+            };
+        }
         *value = ((*value as f32) * multiplier).round().max(1.0) as i32;
     }
 }
