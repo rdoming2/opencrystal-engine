@@ -98,6 +98,7 @@
 - [x] Keep item menu panels visible when no items exist (empty categories).
 - [x] Equipment swap flow with stat preview.
 - [x] Add startup content chooser when `--content` is omitted.
+- [x] Add `cryst build map` TUI editor (tiles, legend, objects, resize warnings).
 - [x] Show campfire recipe ingredient requirements with inventory counts.
 - [x] Gameover screen and optional restart logic (last battle, last save, fallback to main menu)
 - [x] Optional persistent death markers

@@ -3,6 +3,7 @@ pub mod dialog;
 pub mod input;
 pub mod layout;
 pub mod menu;
+pub mod map_editor;
 pub mod overworld;
 pub mod renderer;
 pub mod session;

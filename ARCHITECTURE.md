@@ -23,6 +23,7 @@ It is a design reference meant to guide initial implementation.
 - `cryst validate [--content path] [--content-dir path]`
 - `cryst new-project <name> [--path path]`
 - `cryst build new <kind> <id> [--content path] [--content-dir path] [--name label] [--force]`
+- `cryst build map <id> [--content path] [--content-dir path]`
 - `cryst build upgrade [--content path] [--content-dir path] [--dry-run]`
 - `cryst build new-project <name> [--path path]`
 - `cryst build docs [-s|--schemas] [-a|--architecture] [-c|--content-authoring] [-j|--jobs]`
@@ -91,6 +92,15 @@ and showing `rules.json` metadata (title, optional description/author).
 
 - The overworld map menu shows a downsampled view of the base overworld map sized
   to the current viewport.
+
+### Build-time map editor
+
+- `cryst build map <id>` opens a TUI editor (left map, right details) for editing tiles,
+  legend entries, and map objects.
+- Visual selection is rectangular (anchored) and supports yank/paste plus undo/redo.
+- Objects can be added or edited in-place at the cursor, with prompts for related IDs.
+- Resize prompts for anchor placement and warns about objects that will be removed;
+  encounter zones are truncated and included in the warnings.
 
 ## Input
 

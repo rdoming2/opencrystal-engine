@@ -25,6 +25,8 @@ compatibility.
 pack. It does not invent missing required context; for example, spell creation requires at least
 one magic school in `entities/spells.json`.
 
+`cryst build map <id>` opens a TUI map editor that edits `maps/<id>.json` in place.
+
 Supported kinds: `spell`, `ability`, `item`, `equipment`, `enemy`, `vehicle`, `shop`, `npc`,
 `encounter`, `job`.
 
@@ -437,6 +439,10 @@ Defines multiple worlds and inter-world travel.
 ## maps/*.json
 
 Map data for overworlds, towns, and dungeons.
+
+The `cryst build map` editor can create and edit these files, including resizing maps with
+explicit anchor placement. Resize warnings list objects that will be removed; encounter zones
+are truncated to fit bounds and included in the warning list.
 
 NPCs reference `entities/npcs.json` by ID. `script` is optional; if omitted, the NPC
 uses its dialog tree. Boss encounters can be triggered via NPC dialog actions that
