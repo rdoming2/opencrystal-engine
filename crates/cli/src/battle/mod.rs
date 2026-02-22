@@ -478,9 +478,23 @@ pub fn run_battle(
                 }
             });
         }
+        let selected_command = menu_state.command_id.as_deref().and_then(|command_id| {
+            command_entries
+                .iter()
+                .find(|command| command.id == command_id)
+        });
         let command_group = ability_group_for_command(runtime, menu_state.command_id.as_deref());
-        let ability_entries =
-            build_battle_ability_entries(runtime, &actor_id, command_group.as_deref());
+        let ability_entries = if let Some(command) = selected_command {
+            if command.kind == CommandKind::AbilitiesGroup {
+                build_battle_ability_entries(runtime, &actor_id, command_group.as_deref())
+            } else if command.kind == CommandKind::Abilities && command.ability_id.is_none() {
+                ability_entries_all.clone()
+            } else {
+                Vec::new()
+            }
+        } else {
+            Vec::new()
+        };
         let item_entries = build_battle_item_entries(runtime);
         command_entries.retain(|command| {
             command_is_enabled(
