@@ -123,6 +123,10 @@ fn run_build_map(args: &[String]) {
         eprintln!("Missing map id. Example: cryst build map castle_hall");
         return;
     };
+    if options.used_content_dir {
+        eprintln!("--content-dir is not supported for build map. Use --content <pack_path>.");
+        return;
+    }
     let content_dir = match resolve_content_dir(options.content_dir.as_deref()) {
         Ok(dir) => dir,
         Err(err) => {
@@ -1481,15 +1485,20 @@ impl BuildUpgradeOptions {
 struct BuildMapOptions {
     id: Option<String>,
     content_dir: Option<String>,
+    used_content_dir: bool,
 }
 
 impl BuildMapOptions {
     fn from_args(args: &[String]) -> Self {
-        let content_dir =
-            flag_value(args, "--content").or_else(|| flag_value(args, "--content-dir"));
+        let content_dir = flag_value(args, "--content");
+        let used_content_dir = flag_value(args, "--content-dir").is_some();
         let positionals = collect_positionals(args);
         let id = positionals.get(0).map(|value| slugify(value));
-        Self { id, content_dir }
+        Self {
+            id,
+            content_dir,
+            used_content_dir,
+        }
     }
 }
 
@@ -1547,7 +1556,7 @@ fn collect_positionals(args: &[String]) -> Vec<String> {
 
 fn print_build_usage() {
     println!(
-        "Build usage:\n  cryst build new <kind> <id> [--content path] [--content-dir path] [--name label] [--force]\n  cryst build map <id> [--content path] [--content-dir path]\n  cryst build upgrade [--content path] [--content-dir path] [--dry-run]\n  cryst build new-project <name> [--path path]\n  cryst build docs [-s|--schemas] [-a|--architecture] [-c|--content-authoring] [-j|--jobs]"
+        "Build usage:\n  cryst build new <kind> <id> [--content path] [--content-dir path] [--name label] [--force]\n  cryst build map <id> [--content path]\n  cryst build upgrade [--content path] [--content-dir path] [--dry-run]\n  cryst build new-project <name> [--path path]\n  cryst build docs [-s|--schemas] [-a|--architecture] [-c|--content-authoring] [-j|--jobs]"
     );
 }
 

@@ -60,6 +60,7 @@ cargo run -- play --content content/demo
 - `cryst validate [--content path] [--content-dir path]`
 - `cryst new-project <name> [--path path]`
 - `cryst build new <kind> <id> [--content path] [--content-dir path] [--name label] [--force]`
+- `cryst build map <id> [--content path]`
 - `cryst build upgrade [--content path] [--content-dir path] [--dry-run]`
 - `cryst build new-project <name> [--path path]`
 - `cryst build docs [-s|--schemas] [-a|--architecture] [-c|--content-authoring] [-j|--jobs]`
@@ -74,6 +75,14 @@ Examples:
 cryst build new spell cure --content content/demo
 cryst build new npc innkeeper --content content/demo --name "Coral Innkeeper"
 ```
+
+## Build tools (CLI)
+
+- `cryst build new`: scaffolds JSON stubs for entities like spells, items, and NPCs.
+- `cryst build upgrade`: fills in missing defaults and reports extra fields.
+- `cryst build map`: launches the TUI map editor for `maps/<id>.json`.
+  - Tile paint, rectangular visual selection, yank/paste, undo/redo.
+  - Move mode: press `m` to pick an object at the cursor; move it with arrows/HJKL; press `m` again to place.
 
 ## Documentation
 
