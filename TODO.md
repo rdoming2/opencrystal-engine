@@ -57,6 +57,16 @@
   - [x] Enforce save rules (map allow_save + save_points).
   - [x] Autosave slot after transitions.
 
+- [ ] Refactor the following into smaller modules:
+  - [ ] crates/cli/src/battle/mod.rs (2676 lines)
+  - [ ] crates/engine/src/validate.rs (2437 lines)
+  - [ ] crates/cli/src/overworld.rs (2038 lines)
+  - [ ] crates/cli/src/build.rs (1787 lines)
+  - [ ] crates/cli/src/battle/actions.rs (1562 lines)
+  - [ ] crates/engine/src/party.rs (1472 lines)
+  - [ ] crates/cli/src/main.rs (1033 lines)
+  - [ ] crates/tui/src/map_editor/objects.rs (1023 lines)
+
 ## UI + Rendering
 - [x] Title screen renderer.
   - [x] Layout from `ui/title.json`.
