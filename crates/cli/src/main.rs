@@ -706,7 +706,7 @@ fn run_session_with_gameover(
                     apply_defeat_carryover(runtime, &defeat_carryover_from_context(&context));
                     match context.source {
                         BattleSource::Random => {
-                            let mut rng = rand::thread_rng();
+                            let mut rng = rand::rng();
                             let outcome = run_battle(
                                 runtime,
                                 battle_ui,

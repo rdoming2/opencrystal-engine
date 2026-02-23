@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use engine::menu::MenuFocus;
 use engine::runtime::{GameRuntime, GameState};
-use rand::Rng;
+use rand::{Rng, RngExt};
 use tui::dialog::ChoiceView;
 use tui::input::{Action, InputBindings};
 use tui::menu::{MenuPanelView, PanelSpanStyle};
@@ -46,7 +46,7 @@ pub fn run_overworld_loop(
     let mut return_positions: HashMap<String, (String, (i32, i32))> = HashMap::new();
     let mut last_map_id = String::new();
     let mut area_name_active = false;
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     let mut encounter_meter: f32 = 0.0;
 
     let mut running = true;
@@ -1897,12 +1897,12 @@ fn update_roaming_npcs(
                 let radius = definition.behavior.radius.unwrap_or(2).max(1);
                 let origin = (npc.pos[0], npc.pos[1]);
                 let idle_chance = definition.behavior.idle_chance.clamp(0.0, 1.0);
-                if idle_chance > 0.0 && rng.r#gen::<f32>() < idle_chance {
+                if idle_chance > 0.0 && rng.random::<f32>() < idle_chance {
                     next_state = Some("roam".to_string());
                 } else {
                     let mut directions = vec![(0, -1), (0, 1), (-1, 0), (1, 0)];
                     for _ in 0..directions.len() {
-                        let index = rng.gen_range(0..directions.len());
+                        let index = rng.random_range(0..directions.len());
                         let (dx, dy) = directions.swap_remove(index);
                         let candidate = (pos.0 + dx, pos.1 + dy);
                         let manhattan =

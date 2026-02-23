@@ -179,7 +179,7 @@ pub fn draw_menu_frame(
     stats_panel: Option<&MenuPanelView>,
     footer_text: &str,
 ) {
-    let size = frame.size();
+    let size = frame.area();
     let layout = Layout::default()
         .direction(Direction::Vertical)
         .constraints([Constraint::Min(1), Constraint::Length(1)])
@@ -306,7 +306,7 @@ pub fn draw_inventory_frame(
     selected: usize,
     right_panel: &MenuPanelView,
 ) {
-    let size = frame.size();
+    let size = frame.area();
     let layout = Layout::default()
         .direction(Direction::Vertical)
         .constraints([Constraint::Min(1), Constraint::Length(1)])
@@ -401,7 +401,7 @@ where
     loop {
         session.terminal_mut().draw(|frame| {
             draw_background(frame);
-            let area = centered_rect(frame.size(), 42, 3);
+            let area = centered_rect(frame.area(), 42, 3);
             frame.render_widget(Clear, area);
             let content = vec![Line::from(Span::raw("Return to title screen? (Y/N)"))];
             let paragraph = Paragraph::new(content)
@@ -428,7 +428,7 @@ where
 }
 
 fn draw_content_frame(frame: &mut Frame, entries: &[ContentMenuEntry], selected: usize) {
-    let size = frame.size();
+    let size = frame.area();
     let layout = Layout::default()
         .direction(Direction::Vertical)
         .constraints([

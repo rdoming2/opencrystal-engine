@@ -74,7 +74,7 @@ pub fn draw_shop_frame(
     filtered_indices: &[usize],
     selected_pos: Option<usize>,
 ) {
-    let size = frame.size();
+    let size = frame.area();
     let vertical_layout = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
@@ -420,7 +420,7 @@ pub fn show_shop(
                     Action::Cancel | Action::Menu => return Ok(None),
                     Action::Quit => {
                         if confirm_quit(session, |frame| {
-                            let area = centered_rect(frame.size(), 50, 12);
+                            let area = centered_rect(frame.area(), 50, 12);
                             frame.render_widget(Clear, area);
                             let paragraph = Paragraph::new(Line::from("Shop"))
                                 .block(Block::default().borders(Borders::ALL))
@@ -485,8 +485,8 @@ pub fn show_category_picker(
             );
 
             let popup_height =
-                (categories.len() as u16 + 4).min(frame.size().height.saturating_sub(2));
-            let area = centered_rect(frame.size(), 50, popup_height);
+                (categories.len() as u16 + 4).min(frame.area().height.saturating_sub(2));
+            let area = centered_rect(frame.area(), 50, popup_height);
             frame.render_widget(Clear, area);
 
             let block = Block::default().borders(Borders::ALL).title("Categories");
@@ -539,7 +539,7 @@ pub fn show_category_picker(
                     Action::Cancel | Action::Menu => return Ok(None),
                     Action::Quit => {
                         if confirm_quit(session, |frame| {
-                            let area = centered_rect(frame.size(), 50, 12);
+                            let area = centered_rect(frame.area(), 50, 12);
                             frame.render_widget(Clear, area);
                             let paragraph = Paragraph::new(Line::from("Shop"))
                                 .block(Block::default().borders(Borders::ALL))
@@ -584,7 +584,7 @@ pub fn show_quantity_picker(
             let selected_pos = filtered.iter().position(|index| *index == selected_index);
             draw_shop_frame(frame, shop, mode, categories, 0, &filtered, selected_pos);
 
-            let area = centered_rect(frame.size(), 40, 12);
+            let area = centered_rect(frame.area(), 40, 12);
             frame.render_widget(Clear, area);
 
             let block = Block::default().borders(Borders::ALL).title(title);
@@ -702,7 +702,7 @@ pub fn show_info_popup(
             let selected_pos = filtered.iter().position(|index| *index == selected_index);
             draw_shop_frame(frame, shop, mode, categories, 0, &filtered, selected_pos);
 
-            let area = centered_rect(frame.size(), 50, 10);
+            let area = centered_rect(frame.area(), 50, 10);
             frame.render_widget(Clear, area);
 
             let block = Block::default().borders(Borders::ALL).title(title);

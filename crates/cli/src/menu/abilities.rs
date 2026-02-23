@@ -383,9 +383,9 @@ pub fn consume_ability_cost(
             true
         }
         "random" => {
-            use rand::Rng;
-            let mut rng = rand::thread_rng();
-            if rng.gen_bool(0.5) {
+            use rand::RngExt;
+            let mut rng = rand::rng();
+            if rng.random_bool(0.5) {
                 true
             } else {
                 false

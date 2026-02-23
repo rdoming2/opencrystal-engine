@@ -326,7 +326,7 @@ where
     loop {
         session.terminal_mut().draw(|frame| {
             draw_background(frame);
-            let area = centered_rect(frame.size(), 60, 18);
+            let area = centered_rect(frame.area(), 60, 18);
             frame.render_widget(ratatui::widgets::Clear, area);
             let title = "Resize Warnings";
             let mut lines = Vec::new();

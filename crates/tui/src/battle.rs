@@ -112,7 +112,7 @@ pub fn draw_battle(
 }
 
 pub fn draw_battle_frame(frame: &mut Frame, battle_ui: &BattleUiFile, state: &BattleRenderState) {
-    let size = frame.size();
+    let size = frame.area();
     let breakpoint = active_breakpoint(battle_ui, size);
     let hide_titles = breakpoint.behavior.hide_panel_titles;
 
@@ -146,7 +146,7 @@ pub fn draw_battle_frame(frame: &mut Frame, battle_ui: &BattleUiFile, state: &Ba
 }
 
 fn draw_pause_overlay(frame: &mut Frame, title: &str, hint: &str) {
-    let area = centered_rect(frame.size(), 28, 7);
+    let area = centered_rect(frame.area(), 28, 7);
     frame.render_widget(Clear, area);
     let block = Block::default()
         .borders(Borders::ALL)
@@ -183,7 +183,7 @@ pub fn draw_victory_summary(
     session
         .terminal_mut()
         .draw(|frame| {
-            let area = centered_rect(frame.size(), 40, 15);
+            let area = centered_rect(frame.area(), 40, 15);
             frame.render_widget(Clear, area);
 
             let mut lines = Vec::new();
@@ -254,7 +254,7 @@ pub fn draw_level_up_modal(
     session
         .terminal_mut()
         .draw(|frame| {
-            let area = centered_rect(frame.size(), 30, 16);
+            let area = centered_rect(frame.area(), 30, 16);
             frame.render_widget(Clear, area);
 
             let mut lines = Vec::new();

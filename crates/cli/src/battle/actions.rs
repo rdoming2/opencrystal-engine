@@ -9,7 +9,7 @@ use engine::party::{
 };
 use engine::rules::{MagicSystem, ProgressionMode};
 use engine::runtime::GameRuntime;
-use rand::Rng;
+use rand::{Rng, RngExt};
 use std::collections::HashMap;
 
 use super::state::{enemy_target_indices, BattleMenuState, TargetMode, TargetSide};
@@ -1437,12 +1437,9 @@ pub fn execute_item_action(
     if item.usage.target == "enemy" {
         if let Some(enemy_index) = target_index {
             if let Some(enemy) = battle_state.enemies.get_mut(enemy_index) {
-                if let Some(message) = apply_item_to_enemy_battle(
-                    &runtime.content,
-                    item,
-                    enemy,
-                    &mut rand::thread_rng(),
-                ) {
+                if let Some(message) =
+                    apply_item_to_enemy_battle(&runtime.content, item, enemy, &mut rand::rng())
+                {
                     super::logic::push_battle_log(&mut battle_state.log, message);
                 }
             }
@@ -1465,7 +1462,7 @@ pub fn execute_item_action(
                     &runtime.content,
                     &item.effect.effects,
                     &mut actor.statuses,
-                    &mut rand::thread_rng(),
+                    &mut rand::rng(),
                 );
                 for label in applied {
                     super::logic::push_battle_log(
@@ -1494,14 +1491,14 @@ fn try_steal_item(
     chance: f32,
     rng: &mut impl Rng,
 ) -> Option<String> {
-    if chance <= 0.0 || rng.r#gen::<f32>() > chance.min(1.0) {
+    if chance <= 0.0 || rng.random::<f32>() > chance.min(1.0) {
         return None;
     }
     for loot in &enemy.loot {
         if loot.chance <= 0.0 {
             continue;
         }
-        if rng.r#gen::<f32>() <= loot.chance {
+        if rng.random::<f32>() <= loot.chance {
             let max_stack = runtime.content.rules.inventory.max_stack;
             if let Some(item) = runtime
                 .content

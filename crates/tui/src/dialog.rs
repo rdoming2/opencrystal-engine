@@ -88,7 +88,7 @@ pub fn draw_dialog_overlay(
     speaker: &str,
     lines: &[String],
 ) {
-    let area = dialog_area(frame.size(), dialog_ui);
+    let area = dialog_area(frame.area(), dialog_ui);
     let inner_width = area.width.saturating_sub(2) as usize;
     let mut content = Vec::new();
 
@@ -129,7 +129,7 @@ pub fn draw_dialog_overlay(
 }
 
 pub fn draw_centered_dialog_overlay(frame: &mut Frame, dialog_ui: &DialogUiFile, lines: &[String]) {
-    let area = centered_dialog_area(frame.size(), dialog_ui);
+    let area = centered_dialog_area(frame.area(), dialog_ui);
     let inner_width = area.width.saturating_sub(2) as usize;
     let mut content = Vec::new();
 
@@ -244,7 +244,7 @@ where
     loop {
         session.terminal_mut().draw(|frame| {
             draw_background(frame);
-            let area = centered_rect(frame.size(), 40, 3);
+            let area = centered_rect(frame.area(), 40, 3);
             frame.render_widget(Clear, area);
             let content = vec![Line::from(Span::raw("Quit the game? (Y/N)"))];
             let paragraph = Paragraph::new(content)
@@ -371,7 +371,7 @@ pub fn draw_text_prompt_frame(
         .saturating_add(4)
         .max(30);
     let height = content.len() as u16 + 2;
-    let area = centered_rect(frame.size(), width, height);
+    let area = centered_rect(frame.area(), width, height);
     frame.render_widget(Clear, area);
     let paragraph = Paragraph::new(content)
         .block(Block::default().borders(Borders::ALL).title(title))
@@ -410,7 +410,7 @@ pub fn draw_choice_prompt_frame(
 
     let width = (max_option as u16).saturating_add(6).max(26);
     let height = (lines.len() as u16).saturating_add(2);
-    let area = centered_rect(frame.size(), width, height);
+    let area = centered_rect(frame.area(), width, height);
     frame.render_widget(Clear, area);
     let paragraph = Paragraph::new(lines)
         .block(Block::default().borders(Borders::ALL).title(title))
@@ -431,7 +431,7 @@ pub fn draw_choice_box(frame: &mut Frame, choices: &[ChoiceView], selected: usiz
         .unwrap_or(0);
     let width = (max_len as u16).saturating_add(2).max(12);
     let height = (choices.len() as u16).saturating_add(2);
-    let area = centered_rect(frame.size(), width, height);
+    let area = centered_rect(frame.area(), width, height);
 
     frame.render_widget(Clear, area);
 
@@ -501,7 +501,8 @@ pub fn centered_dialog_area(area: Rect, dialog_ui: &DialogUiFile) -> Rect {
 }
 
 pub fn centered_dialog_width(session: &TuiSession) -> usize {
-    let area = session.terminal().size().unwrap_or_default();
+    let size = session.terminal().size().unwrap_or_default();
+    let area = Rect::new(0, 0, size.width, size.height);
     let width = centered_dialog_width_for_area(area);
     width.saturating_sub(2).max(1) as usize
 }
@@ -512,7 +513,8 @@ pub fn centered_dialog_width_for_area(area: Rect) -> u16 {
 }
 
 pub fn dialog_inner_width(session: &TuiSession, dialog_ui: &DialogUiFile) -> usize {
-    let area = session.terminal().size().unwrap_or_default();
+    let size = session.terminal().size().unwrap_or_default();
+    let area = Rect::new(0, 0, size.width, size.height);
     let dialog = dialog_area(area, dialog_ui);
     dialog.width.saturating_sub(2).max(1) as usize
 }

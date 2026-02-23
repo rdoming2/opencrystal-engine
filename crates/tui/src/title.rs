@@ -211,7 +211,7 @@ pub fn draw_title_frame(
     selected: usize,
     load_enabled: bool,
 ) {
-    let size = frame.size();
+    let size = frame.area();
     let layout = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
@@ -286,7 +286,7 @@ fn draw_load_frame(
     slots: &[LoadSlotEntry],
     selected: usize,
 ) {
-    let size = frame.size();
+    let size = frame.area();
     let layout = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
@@ -372,7 +372,7 @@ fn draw_gameover_frame(
     selected: usize,
     options: &GameOverOptions,
 ) {
-    let size = frame.size();
+    let size = frame.area();
     let gameover = title_ui.gameover.as_ref();
     let title_text = gameover
         .and_then(|entry| entry.title.clone())

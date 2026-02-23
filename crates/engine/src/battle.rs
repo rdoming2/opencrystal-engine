@@ -1,4 +1,4 @@
-use rand::Rng;
+use rand::{Rng, RngExt};
 use std::collections::HashMap;
 
 use crate::content::Content;
@@ -188,13 +188,13 @@ pub fn build_battle_state(
         crate::rules::BattleMode::DynamicWait => BattleMode::DynamicWait,
     };
 
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     let readiness_party = party_order
         .iter()
-        .map(|id| (id.clone(), rng.gen_range(0.0..10.0)))
+        .map(|id| (id.clone(), rng.random_range(0.0..10.0)))
         .collect();
     let readiness_enemy = (0..enemies.len())
-        .map(|_| rng.gen_range(0.0..10.0))
+        .map(|_| rng.random_range(0.0..10.0))
         .collect();
 
     BattleState {
@@ -336,7 +336,7 @@ pub fn roll_attack(
         1.0,
     );
     hit_chance = (hit_chance + hit_bonus).clamp(0.0, 1.0);
-    if rng.r#gen::<f32>() > hit_chance {
+    if rng.random::<f32>() > hit_chance {
         return AttackRoll {
             hit: false,
             crit: false,
@@ -351,7 +351,7 @@ pub fn roll_attack(
         power,
         0.05,
     );
-    let crit = rng.r#gen::<f32>() <= crit_chance;
+    let crit = rng.random::<f32>() <= crit_chance;
     let base_damage = match kind {
         DamageKind::Physical => evaluate_damage_formula(
             rules.formulas.physical.as_deref(),
@@ -390,7 +390,7 @@ pub fn roll_damage(base: i32, rng: &mut impl Rng) -> i32 {
     if base <= 1 {
         return base.max(1);
     }
-    let variance = rng.gen_range(90..=110) as f32 / 100.0;
+    let variance = rng.random_range(90..=110) as f32 / 100.0;
     ((base as f32) * variance).round().max(1.0) as i32
 }
 
@@ -410,7 +410,7 @@ pub fn collect_rewards(enemies: &[BattleEnemy], rng: &mut impl Rng) -> BattleRew
             if loot.chance <= 0.0 {
                 continue;
             }
-            if rng.r#gen::<f32>() <= loot.chance {
+            if rng.random::<f32>() <= loot.chance {
                 let entry = rewards.items.entry(loot.item.clone()).or_insert(0);
                 *entry += 1;
             }
@@ -670,7 +670,7 @@ pub fn apply_status_effects(
             continue;
         }
         if let Some(chance) = effect.chance {
-            if chance < 1.0 && rng.r#gen::<f32>() > chance.max(0.0) {
+            if chance < 1.0 && rng.random::<f32>() > chance.max(0.0) {
                 continue;
             }
         }
@@ -721,7 +721,7 @@ pub fn apply_turn_start_statuses(
                         }
                         "skip_turn" => {
                             let chance = effect.chance.unwrap_or(1.0).max(0.0);
-                            if rng.r#gen::<f32>() <= chance {
+                            if rng.random::<f32>() <= chance {
                                 result.can_act = false;
                                 result.messages.push(format!("{} is unable to move.", name));
                             }

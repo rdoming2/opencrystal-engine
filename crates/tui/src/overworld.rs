@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::io::{self, ErrorKind};
 
-use ratatui::layout::{Alignment, Constraint, Direction, Layout};
+use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
@@ -278,7 +278,7 @@ pub fn draw_overworld(
 }
 
 pub fn draw_overworld_frame(frame: &mut Frame, map: &MapView, player_pos: (i32, i32)) {
-    let area = frame.size();
+    let area = frame.area();
     let view_width = area.width.saturating_sub(2);
     let view_height = area.height.saturating_sub(2);
     let (start_x, start_y) = viewport_origin(map, player_pos, view_width, view_height);
@@ -636,13 +636,15 @@ pub fn viewport_origin(
 }
 
 fn centered_dialog_width(session: &TuiSession) -> usize {
-    let area = session.terminal().size().unwrap_or_default();
+    let size = session.terminal().size().unwrap_or_default();
+    let area = Rect::new(0, 0, size.width, size.height);
     let width = centered_dialog_width_for_area(area);
     width.saturating_sub(2).max(1) as usize
 }
 
 fn tooltip_lines(session: &TuiSession, dialog_ui: &DialogUiFile, text: &str) -> Vec<String> {
-    let area = session.terminal().size().unwrap_or_default();
+    let size = session.terminal().size().unwrap_or_default();
+    let area = Rect::new(0, 0, size.width, size.height);
     let max_width = centered_dialog_width_for_area(area)
         .saturating_sub(2)
         .max(10) as usize;
@@ -667,7 +669,7 @@ fn draw_tooltip_overlay(frame: &mut Frame, lines: &[String]) {
         .unwrap_or(0);
     let width = (max_len as u16).saturating_add(2).max(12);
     let height = (lines.len() as u16).saturating_add(2).max(3);
-    let area = crate::utils::centered_rect(frame.size(), width, height);
+    let area = crate::utils::centered_rect(frame.area(), width, height);
     let inner_width = area.width.saturating_sub(2) as usize;
 
     frame.render_widget(ratatui::widgets::Clear, area);
@@ -693,7 +695,7 @@ fn draw_choice_details_box(
         return;
     }
 
-    let area = frame.size();
+    let area = frame.area();
     let max_choice = choices
         .iter()
         .map(|choice| choice.label.chars().count())

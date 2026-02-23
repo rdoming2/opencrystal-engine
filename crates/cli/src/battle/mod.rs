@@ -15,7 +15,7 @@ use engine::battle::{
 use engine::party::{actor_row_label, gain_exp, toggle_actor_row};
 use engine::rules::{ProgressionMode, Ruleset};
 use engine::runtime::GameRuntime;
-use rand::Rng;
+use rand::{Rng, RngExt};
 use tui::battle::{draw_battle, draw_battle_frame, BattleRenderState};
 use tui::dialog::confirm_quit;
 use tui::input::{is_actionable_key, Action, InputBindings};
@@ -1018,7 +1018,7 @@ pub fn run_battle(
                             }
                         }
                         CommandKind::Run => {
-                            if rng.r#gen::<f32>() < 0.5 {
+                            if rng.random::<f32>() < 0.5 {
                                 push_battle_log(
                                     &mut battle_state.log,
                                     ui_text(runtime, "battle.escape_success", "Escaped!"),
@@ -2000,7 +2000,7 @@ pub fn try_start_random_battle(
         return Ok(None);
     };
     let rate = map.encounter_rate.clamp(0.0, 1.0);
-    let jitter = 0.5 + rng.r#gen::<f32>();
+    let jitter = 0.5 + rng.random::<f32>();
     *encounter_meter += rate * jitter;
     if *encounter_meter < 1.0 {
         return Ok(None);
@@ -2029,7 +2029,7 @@ pub fn run_event_battle_with_result(
     formation: &[engine::events::FormationMember],
     snapshot: BattleSnapshot,
 ) -> std::io::Result<BattleReport> {
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     let formation = if formation.is_empty() {
         if encounter_id.is_empty() {
             Vec::new()
@@ -2664,7 +2664,7 @@ fn select_encounter_entry(
     if total_weight <= 0 {
         return table.entries.first().cloned();
     }
-    let roll = rng.gen_range(0..total_weight);
+    let roll = rng.random_range(0..total_weight);
     let mut cursor = 0;
     for entry in &table.entries {
         cursor += entry.weight.max(0);

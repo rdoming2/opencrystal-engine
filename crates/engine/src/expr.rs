@@ -1,4 +1,4 @@
-use rand::Rng;
+use rand::RngExt;
 use std::collections::HashMap;
 
 pub fn eval_expression(expr: &str, vars: &HashMap<String, f64>) -> Result<f64, String> {
@@ -196,8 +196,8 @@ impl<'a> Parser<'a> {
                 }
                 let min = args[0];
                 let max = args[1];
-                let mut rng = rand::thread_rng();
-                Ok(rng.gen_range(min..=max))
+                let mut rng = rand::rng();
+                Ok(rng.random_range(min..=max))
             }
             "ROUND" => {
                 if args.len() != 1 {

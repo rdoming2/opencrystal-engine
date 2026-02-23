@@ -20,7 +20,7 @@ pub(super) fn draw_editor_frame(
     vehicle_ids: &[String],
     npc_ids: &[String],
 ) {
-    let area = frame.size();
+    let area = frame.area();
     let chunks = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([Constraint::Percentage(70), Constraint::Percentage(30)])

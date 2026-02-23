@@ -4,7 +4,7 @@ use engine::battle::{
 };
 use engine::party::{actor_traits, row_defense_multiplier};
 use engine::runtime::GameRuntime;
-use rand::seq::SliceRandom;
+use rand::seq::IndexedRandom;
 use rand::Rng;
 
 use super::state::{BattleMenuState, BattleTurnActor, BattleTurnState};
