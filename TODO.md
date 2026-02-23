@@ -127,7 +127,8 @@
 - [x] Add readiness speed setting to main menu.
 - [x] Add difficulty scale setting for enemy stats.
 - [x] Add optional difficulty scaling for EXP and currency rewards.
-- [ ] Remove readiness meter from turn non-Dynamic turn mode battle UI
+- [x] Remove readiness meter from turn non-Dynamic turn mode battle UI
+- [ ] Disable RUN command for certain battles.
 - [x] Add localization support for UI strings and command labels.
 
 ## Magic System
@@ -158,6 +159,7 @@
 - [x] NPC interactions with flag gating.
 - [x] Airship unlock flow (demo completion).
 - [x] Implement overworld vehicle traversal (boarding, movement constraints, persistence).
+- [ ] Implement cross world travel
 - [x] Define NPC schema (behavior, dialog, schedules).
 - [x] Move event execution logic to engine (apply_event_step).
 - [x] Add EventExecutionResult enum for UI action communication.
@@ -198,6 +200,6 @@
   - [x] `allow_save` flag for main menu saving.
   - [x] `save_points` coordinates (always valid save spots).
 - [x] Add encounter_rate to maps schema.
-- [ ] Remove shop references from map schema.
+- [x] Remove shop references from map schema.
 - [ ] Tie system map to `maps.json` instead of `rules.json`.
 - [ ] Finalize save schema requirements and versioning rules.
