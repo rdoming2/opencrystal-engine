@@ -179,6 +179,11 @@ pub struct MapEditorConfig {
     pub event_ids: Vec<String>,
     pub vehicle_ids: Vec<String>,
     pub npc_ids: Vec<String>,
+    pub item_ids: Vec<String>,
+    pub equipment_ids: Vec<String>,
+    pub currency_ids: Vec<String>,
+    pub campfire_ids: Vec<String>,
+    pub encounter_zone_ids: Vec<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -197,10 +202,20 @@ pub fn run_map_editor(
     let mut event_ids = config.event_ids;
     let mut vehicle_ids = config.vehicle_ids;
     let mut npc_ids = config.npc_ids;
+    let mut item_ids = config.item_ids;
+    let mut equipment_ids = config.equipment_ids;
+    let mut currency_ids = config.currency_ids;
+    let mut campfire_ids = config.campfire_ids;
+    let mut encounter_zone_ids = config.encounter_zone_ids;
     map_ids.sort();
     event_ids.sort();
     vehicle_ids.sort();
     npc_ids.sort();
+    item_ids.sort();
+    equipment_ids.sort();
+    currency_ids.sort();
+    campfire_ids.sort();
+    encounter_zone_ids.sort();
 
     loop {
         session.terminal_mut().draw(|frame| {
@@ -219,6 +234,11 @@ pub fn run_map_editor(
                 &event_ids,
                 &vehicle_ids,
                 &npc_ids,
+                &item_ids,
+                &equipment_ids,
+                &currency_ids,
+                &campfire_ids,
+                &encounter_zone_ids,
                 key,
             )? {
                 EditorAction::Continue => {}

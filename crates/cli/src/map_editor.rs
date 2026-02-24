@@ -1,7 +1,8 @@
 use std::fs;
 use std::path::Path;
 
-use engine::entities::{NpcsFile, VehiclesFile};
+use engine::content::CookingFile;
+use engine::entities::{EquipmentFile, ItemsFile, NpcsFile, VehiclesFile};
 use engine::events::EventFile;
 use engine::inventory::InventoryStack;
 use engine::io::{load_json, write_json_pretty};
@@ -9,6 +10,7 @@ use engine::maps::{
     EncounterZone, MapCampfire, MapChest, MapChestLoot, MapCurrencyStack, MapDoor, MapEvent,
     MapFile, MapLoop, MapNpc, MapPuzzle, MapSign, MapTransition, MapVehicle, TileLegend,
 };
+use engine::rules::RulesFile;
 use tui::dialog::prompt_text;
 use tui::map_editor::{
     EncounterZone as UiEncounterZone, InventoryStack as UiInventoryStack,
@@ -39,6 +41,11 @@ pub fn run_map_editor(content_dir: &Path, id: &str) -> Result<(), String> {
     let event_ids = load_event_ids(content_dir);
     let vehicle_ids = load_vehicle_ids(content_dir);
     let npc_ids = load_npc_ids(content_dir);
+    let item_ids = load_item_ids(content_dir);
+    let equipment_ids = load_equipment_ids(content_dir);
+    let currency_ids = load_currency_ids(content_dir);
+    let campfire_ids = load_campfire_ids(content_dir);
+    let encounter_zone_ids = load_encounter_zone_ids(&map);
 
     let config = MapEditorConfig {
         map: map_to_ui(map),
@@ -46,6 +53,11 @@ pub fn run_map_editor(content_dir: &Path, id: &str) -> Result<(), String> {
         event_ids,
         vehicle_ids,
         npc_ids,
+        item_ids,
+        equipment_ids,
+        currency_ids,
+        campfire_ids,
+        encounter_zone_ids,
     };
 
     let outcome = match tui::map_editor::run_map_editor(&mut session, config) {
@@ -183,6 +195,50 @@ fn load_npc_ids(content_dir: &Path) -> Vec<String> {
         return file.npcs.into_iter().map(|entry| entry.id).collect();
     }
     Vec::new()
+}
+
+fn load_item_ids(content_dir: &Path) -> Vec<String> {
+    let path = content_dir.join("entities").join("items.json");
+    if let Ok(file) = load_json::<ItemsFile>(&path) {
+        return file.items.into_iter().map(|entry| entry.id).collect();
+    }
+    Vec::new()
+}
+
+fn load_equipment_ids(content_dir: &Path) -> Vec<String> {
+    let path = content_dir.join("entities").join("equipment.json");
+    if let Ok(file) = load_json::<EquipmentFile>(&path) {
+        return file.equipment.into_iter().map(|entry| entry.id).collect();
+    }
+    Vec::new()
+}
+
+fn load_currency_ids(content_dir: &Path) -> Vec<String> {
+    let path = content_dir.join("rules.json");
+    if let Ok(file) = load_json::<RulesFile>(&path) {
+        return file
+            .game
+            .currencies
+            .into_iter()
+            .map(|entry| entry.id)
+            .collect();
+    }
+    Vec::new()
+}
+
+fn load_campfire_ids(content_dir: &Path) -> Vec<String> {
+    let path = content_dir.join("cooking.json");
+    if let Ok(file) = load_json::<CookingFile>(&path) {
+        return file.campfires.into_iter().map(|entry| entry.id).collect();
+    }
+    Vec::new()
+}
+
+fn load_encounter_zone_ids(map: &MapFile) -> Vec<String> {
+    map.encounters
+        .iter()
+        .map(|entry| entry.zone_id.clone())
+        .collect()
 }
 
 fn map_to_ui(map: MapFile) -> UiMapData {

@@ -69,10 +69,14 @@ fn draw_map_panel(frame: &mut Frame, area: Rect, state: &EditorState) {
                 .map(|palette| palette_style(true, Some(palette)))
                 .unwrap_or_default();
             if let Some(object_glyph) = object_glyph_at(state, map_x, map_y) {
-                glyph = object_glyph;
-                style = Style::default()
-                    .fg(Color::Cyan)
-                    .add_modifier(Modifier::BOLD);
+                glyph = object_glyph.glyph;
+                style = if let Some(palette) = object_glyph.palette.as_deref() {
+                    palette_style(true, Some(palette)).add_modifier(Modifier::BOLD)
+                } else {
+                    Style::default()
+                        .fg(Color::Cyan)
+                        .add_modifier(Modifier::BOLD)
+                };
             }
             if let Some((min_x, min_y, max_x, max_y)) = selection_rect(state) {
                 if map_x >= min_x && map_x <= max_x && map_y >= min_y && map_y <= max_y {
@@ -118,6 +122,7 @@ fn draw_info_panel(
     lines.push(format!("Mode: {}", mode));
     lines.push(format!("Size: {}x{}", state.map.width, state.map.height));
     lines.push(format!("Active tile: {}", state.active_glyph()));
+    lines.push(format!("Object glyphs: {}", state.object_glyphs_label()));
     if let Some(buffer) = &state.yank {
         lines.push(format!("Yank: {}x{}", buffer.width, buffer.height));
     }
@@ -128,6 +133,7 @@ fn draw_info_panel(
     lines.push("R paint, t tile, L legend".to_string());
     lines.push("o add, e edit, m move".to_string());
     lines.push("x delete, u undo, U redo".to_string());
+    lines.push("g glyphs".to_string());
     lines.push("= resize".to_string());
     lines.push("s save, q quit".to_string());
     lines.push(String::new());

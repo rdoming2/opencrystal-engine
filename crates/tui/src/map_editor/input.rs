@@ -13,7 +13,7 @@ use super::prompts::{prompt_glyph, prompt_yes_no};
 use super::resize::resize_map;
 use super::state::{
     cycle_active_tile, move_cursor, paint_active_tile, paste_selection, push_undo, redo,
-    replace_tile_glyph, toggle_visual, undo, yank_selection, EditorState,
+    replace_tile_glyph, toggle_object_glyphs, toggle_visual, undo, yank_selection, EditorState,
 };
 use super::MapEditorOutcome;
 
@@ -65,6 +65,11 @@ pub(super) fn handle_key(
     event_ids: &[String],
     vehicle_ids: &[String],
     npc_ids: &[String],
+    item_ids: &[String],
+    equipment_ids: &[String],
+    currency_ids: &[String],
+    campfire_ids: &[String],
+    encounter_zone_ids: &[String],
     key: KeyEvent,
 ) -> io::Result<EditorAction> {
     if let Some(action) = handle_immediate_key(state, key.code) {
@@ -78,6 +83,11 @@ pub(super) fn handle_key(
         event_ids,
         vehicle_ids,
         npc_ids,
+        item_ids,
+        equipment_ids,
+        currency_ids,
+        campfire_ids,
+        encounter_zone_ids,
         key.code,
     )? {
         return Ok(action);
@@ -139,6 +149,10 @@ fn handle_immediate_key(state: &mut EditorState, code: KeyCode) -> Option<Editor
             delete_object_at_cursor(state);
             Some(EditorAction::Continue)
         }
+        KeyCode::Char('g') => {
+            toggle_object_glyphs(state);
+            Some(EditorAction::Continue)
+        }
         KeyCode::Char('s') => {
             state.dirty = false;
             Some(EditorAction::Exit(MapEditorOutcome::Saved(
@@ -157,6 +171,11 @@ fn handle_prompted_key(
     event_ids: &[String],
     vehicle_ids: &[String],
     npc_ids: &[String],
+    item_ids: &[String],
+    equipment_ids: &[String],
+    currency_ids: &[String],
+    campfire_ids: &[String],
+    encounter_zone_ids: &[String],
     code: KeyCode,
 ) -> io::Result<Option<EditorAction>> {
     match code {
@@ -177,6 +196,11 @@ fn handle_prompted_key(
                 event_ids,
                 vehicle_ids,
                 npc_ids,
+                item_ids,
+                equipment_ids,
+                currency_ids,
+                campfire_ids,
+                encounter_zone_ids,
             )?;
             Ok(Some(EditorAction::Continue))
         }
@@ -185,7 +209,20 @@ fn handle_prompted_key(
             Ok(Some(EditorAction::Continue))
         }
         KeyCode::Char('e') => {
-            edit_object_at_cursor(session, bindings, state, map_ids, event_ids, vehicle_ids)?;
+            edit_object_at_cursor(
+                session,
+                bindings,
+                state,
+                map_ids,
+                event_ids,
+                vehicle_ids,
+                npc_ids,
+                item_ids,
+                equipment_ids,
+                currency_ids,
+                campfire_ids,
+                encounter_zone_ids,
+            )?;
             Ok(Some(EditorAction::Continue))
         }
         KeyCode::Char('=') => {

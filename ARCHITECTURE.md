@@ -102,9 +102,11 @@ legacy save folder exists using the content directory name, the engine falls bac
 - `cryst build map <id>` opens a TUI editor (left map, right details) for editing tiles,
   legend entries, and map objects.
 - Visual selection is rectangular (anchored) and supports yank/paste plus undo/redo.
-- Objects can be added or edited in-place at the cursor, with prompts for related IDs.
+- Objects can be added or edited in-place at the cursor, with prompts for related IDs and
+  schema fields (glyphs, palettes, costs, loot, and flags) using lookup lists where available.
 - Resize prompts for anchor placement and warns about objects that will be removed;
   encounter zones are truncated and included in the warnings.
+- Object rendering can toggle between configured glyphs and type markers.
 
 ## Input
 

@@ -212,7 +212,7 @@
 - [ ] Validate content before gameplay starts and surface louder errors.
 - [x] Add content authoring guide.
 - [x] Add game builder tool for schema stubs, upgrades, and project scaffolding.
-- [ ] Map builder glyph display
+- [x] Map builder glyph display
 - [x] Add build docs command to print reference docs to stdout.
 - [x] Add `ui/menu.json` schema + validation.
 - [x] Add `party.json` schema + validation.

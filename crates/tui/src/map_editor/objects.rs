@@ -8,10 +8,10 @@ use super::prompts::{
     choose_from_list_or_custom, choose_optional_from_list_or_custom, flags_to_string, prompt_flags,
     prompt_optional_glyph_string, prompt_optional_text, prompt_pos, prompt_yes_no,
 };
-use super::state::{push_undo, CursorObject, EditorState, MovingObject};
+use super::state::{push_undo, CursorObject, EditorState, MovingObject, ObjectGlyphMode};
 use super::{
-    MapCampfire, MapChest, MapChestLoot, MapDoor, MapEvent, MapPuzzle, MapSign, MapTransition,
-    MapVehicle,
+    InventoryStack, MapCampfire, MapChest, MapChestLoot, MapCurrencyStack, MapDoor, MapEvent,
+    MapNpc, MapPuzzle, MapSign, MapTransition, MapVehicle,
 };
 
 pub(super) fn edit_objects(
@@ -21,7 +21,12 @@ pub(super) fn edit_objects(
     map_ids: &[String],
     event_ids: &[String],
     vehicle_ids: &[String],
-    _npc_ids: &[String],
+    npc_ids: &[String],
+    item_ids: &[String],
+    equipment_ids: &[String],
+    currency_ids: &[String],
+    campfire_ids: &[String],
+    encounter_zone_ids: &[String],
 ) -> io::Result<()> {
     let options = vec![
         "Add transition".to_string(),
@@ -33,6 +38,7 @@ pub(super) fn edit_objects(
         "Add campfire".to_string(),
         "Add save point".to_string(),
         "Add event".to_string(),
+        "Add npc".to_string(),
     ];
     let Some(choice) = prompt_choice(
         session,
@@ -46,15 +52,23 @@ pub(super) fn edit_objects(
         return Ok(());
     };
     match choice {
-        0 => add_transition(session, bindings, state, map_ids)?,
+        0 => add_transition(session, bindings, state, map_ids, currency_ids)?,
         1 => add_door(session, bindings, state, map_ids)?,
         2 => add_puzzle(session, state)?,
         3 => add_sign(session, state)?,
-        4 => add_chest(session, state)?,
+        4 => add_chest(
+            session,
+            bindings,
+            state,
+            item_ids,
+            equipment_ids,
+            currency_ids,
+        )?,
         5 => add_vehicle(session, bindings, state, vehicle_ids)?,
-        6 => add_campfire(session, state)?,
+        6 => add_campfire(session, bindings, state, campfire_ids)?,
         7 => add_save_point(state),
-        8 => add_event(session, bindings, state, event_ids)?,
+        8 => add_event(session, bindings, state, event_ids, encounter_zone_ids)?,
+        9 => add_npc(session, bindings, state, npc_ids)?,
         _ => {}
     }
     Ok(())
@@ -67,6 +81,12 @@ pub(super) fn edit_object_at_cursor(
     map_ids: &[String],
     event_ids: &[String],
     vehicle_ids: &[String],
+    npc_ids: &[String],
+    item_ids: &[String],
+    equipment_ids: &[String],
+    currency_ids: &[String],
+    campfire_ids: &[String],
+    encounter_zone_ids: &[String],
 ) -> io::Result<()> {
     let pos = [state.cursor.0, state.cursor.1];
     let (choices, refs) = cursor_objects(state, pos);
@@ -89,7 +109,7 @@ pub(super) fn edit_object_at_cursor(
 
     match refs[choice] {
         CursorObject::Transition(index) => {
-            edit_transition(session, bindings, state, map_ids, index)?;
+            edit_transition(session, bindings, state, map_ids, currency_ids, index)?;
         }
         CursorObject::Door(index) => {
             edit_door(session, bindings, state, map_ids, index)?;
@@ -101,19 +121,34 @@ pub(super) fn edit_object_at_cursor(
             edit_sign(session, state, index)?;
         }
         CursorObject::Chest(index) => {
-            edit_chest(session, state, index)?;
+            edit_chest(
+                session,
+                bindings,
+                state,
+                item_ids,
+                equipment_ids,
+                currency_ids,
+                index,
+            )?;
         }
         CursorObject::Vehicle(index) => {
             edit_vehicle(session, bindings, state, vehicle_ids, index)?;
         }
         CursorObject::Campfire(index) => {
-            edit_campfire(session, state, index)?;
+            edit_campfire(session, bindings, state, campfire_ids, index)?;
         }
         CursorObject::Event(index) => {
-            edit_event(session, bindings, state, event_ids, index)?;
+            edit_event(
+                session,
+                bindings,
+                state,
+                event_ids,
+                encounter_zone_ids,
+                index,
+            )?;
         }
         CursorObject::Npc(index) => {
-            edit_npc(session, state, index)?;
+            edit_npc(session, bindings, state, npc_ids, index)?;
         }
         CursorObject::SavePoint => {
             push_undo(state);
@@ -175,53 +210,99 @@ fn cursor_objects(state: &EditorState, pos: [i32; 2]) -> (Vec<String>, Vec<Curso
 struct ObjectEntry {
     label: String,
     cursor: CursorObject,
-    glyph: Option<char>,
+    marker_glyph: char,
+    configured_glyph: Option<char>,
+    palette: Option<String>,
+}
+
+pub(super) struct ObjectGlyph {
+    pub(super) glyph: char,
+    pub(super) palette: Option<String>,
 }
 
 fn object_entries_at_pos(state: &EditorState, pos: [i32; 2]) -> Vec<ObjectEntry> {
     let mut entries = Vec::new();
     for (index, item) in state.map.transitions.iter().enumerate() {
         if item.pos == pos {
+            let configured_glyph = glyph_from_option(&item.glyph);
             entries.push(ObjectEntry {
-                label: format!("transition:{}", item.id),
+                label: format!(
+                    "transition:{} -> {}@{},{}",
+                    item.id, item.target_map, item.target_pos[0], item.target_pos[1]
+                ),
                 cursor: CursorObject::Transition(index),
-                glyph: Some('T'),
+                marker_glyph: 'T',
+                configured_glyph,
+                palette: configured_glyph.and(item.palette.clone()),
             });
         }
     }
     for (index, item) in state.map.doors.iter().enumerate() {
         if item.pos == pos {
+            let configured_glyph = glyph_from_option(&item.glyph);
+            let label = if let Some(target_map) = item.target_map.as_deref() {
+                if let Some(target_pos) = item.target_pos {
+                    format!(
+                        "door:{} -> {}@{},{}",
+                        item.id, target_map, target_pos[0], target_pos[1]
+                    )
+                } else {
+                    format!("door:{} -> {}", item.id, target_map)
+                }
+            } else {
+                format!("door:{}", item.id)
+            };
             entries.push(ObjectEntry {
-                label: format!("door:{}", item.id),
+                label,
                 cursor: CursorObject::Door(index),
-                glyph: Some('+'),
+                marker_glyph: '+',
+                configured_glyph,
+                palette: configured_glyph.and(item.palette.clone()),
             });
         }
     }
     for (index, item) in state.map.puzzles.iter().enumerate() {
         if item.pos == pos {
+            let configured_glyph = glyph_from_option(&item.glyph);
+            let label = if let Some(event) = item.event.as_deref() {
+                format!("puzzle:{} event:{}", item.id, event)
+            } else if let Some(set_flag) = item.set_flag.as_deref() {
+                format!("puzzle:{} set:{}", item.id, set_flag)
+            } else {
+                format!("puzzle:{}", item.id)
+            };
             entries.push(ObjectEntry {
-                label: format!("puzzle:{}", item.id),
+                label,
                 cursor: CursorObject::Puzzle(index),
-                glyph: Some('?'),
+                marker_glyph: '?',
+                configured_glyph,
+                palette: configured_glyph.and(item.palette.clone()),
             });
         }
     }
     for (index, item) in state.map.signs.iter().enumerate() {
         if item.pos == pos {
+            let configured_glyph = glyph_from_option(&item.glyph);
+            let preview = truncate_label(&item.text, 24);
             entries.push(ObjectEntry {
-                label: format!("sign:{}", item.id),
+                label: format!("sign:{} \"{}\"", item.id, preview),
                 cursor: CursorObject::Sign(index),
-                glyph: Some('!'),
+                marker_glyph: '!',
+                configured_glyph,
+                palette: configured_glyph.and(item.palette.clone()),
             });
         }
     }
     for (index, item) in state.map.chests.iter().enumerate() {
         if item.pos == pos {
+            let configured_glyph = glyph_from_option(&item.glyph_closed)
+                .or_else(|| glyph_from_option(&item.glyph_open));
             entries.push(ObjectEntry {
-                label: format!("chest:{}", item.id),
+                label: format!("chest:{} flag:{}", item.id, item.opened_flag),
                 cursor: CursorObject::Chest(index),
-                glyph: Some('C'),
+                marker_glyph: 'C',
+                configured_glyph,
+                palette: configured_glyph.and(item.palette.clone()),
             });
         }
     }
@@ -230,34 +311,52 @@ fn object_entries_at_pos(state: &EditorState, pos: [i32; 2]) -> Vec<ObjectEntry>
             entries.push(ObjectEntry {
                 label: format!("vehicle:{}", item.vehicle_id),
                 cursor: CursorObject::Vehicle(index),
-                glyph: Some('V'),
+                marker_glyph: 'V',
+                configured_glyph: None,
+                palette: None,
             });
         }
     }
     for (index, item) in state.map.campfires.iter().enumerate() {
         if item.pos == pos {
+            let configured_glyph = glyph_from_option(&item.glyph);
             entries.push(ObjectEntry {
-                label: format!("campfire:{}", item.id),
+                label: format!("campfire:{} set:{}", item.id, item.campfire_id),
                 cursor: CursorObject::Campfire(index),
-                glyph: Some('F'),
+                marker_glyph: 'F',
+                configured_glyph,
+                palette: configured_glyph.and(item.palette.clone()),
             });
         }
     }
     for (index, item) in state.map.events.iter().enumerate() {
         if item.pos == Some(pos) {
+            let mut label = format!("event:{} {} script:{}", item.id, item.trigger, item.script);
+            if let Some(zone) = item.zone.as_deref() {
+                label.push_str(&format!(" zone:{}", zone));
+            }
             entries.push(ObjectEntry {
-                label: format!("event:{}", item.id),
+                label,
                 cursor: CursorObject::Event(index),
-                glyph: Some('E'),
+                marker_glyph: 'E',
+                configured_glyph: None,
+                palette: None,
             });
         }
     }
     for (index, item) in state.map.npcs.iter().enumerate() {
         if item.pos == pos {
+            let label = if let Some(script) = item.script.as_deref() {
+                format!("npc:{} script:{}", item.id, script)
+            } else {
+                format!("npc:{}", item.id)
+            };
             entries.push(ObjectEntry {
-                label: format!("npc:{}", item.id),
+                label,
                 cursor: CursorObject::Npc(index),
-                glyph: Some('N'),
+                marker_glyph: 'N',
+                configured_glyph: None,
+                palette: None,
             });
         }
     }
@@ -265,10 +364,26 @@ fn object_entries_at_pos(state: &EditorState, pos: [i32; 2]) -> Vec<ObjectEntry>
         entries.push(ObjectEntry {
             label: "save_point".to_string(),
             cursor: CursorObject::SavePoint,
-            glyph: Some('S'),
+            marker_glyph: 'S',
+            configured_glyph: None,
+            palette: None,
         });
     }
     entries
+}
+
+fn glyph_from_option(value: &Option<String>) -> Option<char> {
+    value.as_ref().and_then(|glyph| glyph.chars().next())
+}
+
+fn truncate_label(value: &str, max: usize) -> String {
+    let mut chars = value.chars();
+    let collected: String = chars.by_ref().take(max).collect();
+    if chars.next().is_some() {
+        format!("{}...", collected)
+    } else {
+        collected
+    }
 }
 
 pub(super) fn moving_label(target: &CursorObject) -> String {
@@ -291,6 +406,7 @@ fn add_transition(
     bindings: &InputBindings,
     state: &mut EditorState,
     map_ids: &[String],
+    currency_ids: &[String],
 ) -> io::Result<()> {
     let id = prompt_text(session, "Transition", "Id:", "to_location", 32)?;
     let Some(id) = id else {
@@ -309,6 +425,12 @@ fn add_transition(
     let requires_flag =
         prompt_optional_text(session, "Transition", "Requires flag (optional):", "", 48)?;
     let return_to_last = prompt_yes_no(session, "Transition", "Return to last?", false)?;
+    let cost = prompt_cost(session, bindings, "Transition", currency_ids, None)?;
+    let Some(cost) = cost else {
+        return Ok(());
+    };
+    let glyph = prompt_optional_glyph_string(session, "Transition", "Glyph (optional):", "")?;
+    let palette = prompt_optional_text(session, "Transition", "Palette (optional):", "", 24)?;
     push_undo(state);
     state.map.transitions.push(MapTransition {
         id,
@@ -317,10 +439,10 @@ fn add_transition(
         target_pos,
         label,
         requires_flag,
-        cost: None,
+        cost,
         return_to_last,
-        glyph: None,
-        palette: None,
+        glyph,
+        palette,
     });
     mark_dirty(state, "Transition added");
     Ok(())
@@ -353,6 +475,8 @@ fn add_door(
     let locked_text = prompt_optional_text(session, "Door", "Locked text (optional):", "", 64)?;
     let locked_event = prompt_optional_text(session, "Door", "Locked event (optional):", "", 32)?;
     let return_to_last = prompt_yes_no(session, "Door", "Return to last?", false)?;
+    let glyph = prompt_optional_glyph_string(session, "Door", "Glyph (optional):", "")?;
+    let palette = prompt_optional_text(session, "Door", "Palette (optional):", "", 24)?;
     push_undo(state);
     state.map.doors.push(MapDoor {
         id,
@@ -363,8 +487,8 @@ fn add_door(
         target_map,
         target_pos,
         return_to_last,
-        glyph: None,
-        palette: None,
+        glyph,
+        palette,
     });
     mark_dirty(state, "Door added");
     Ok(())
@@ -379,6 +503,8 @@ fn add_puzzle(session: &mut TuiSession, state: &mut EditorState) -> io::Result<(
     let text = prompt_optional_text(session, "Puzzle", "Text (optional):", "", 72)?;
     let event = prompt_optional_text(session, "Puzzle", "Event (optional):", "", 32)?;
     let set_flag = prompt_optional_text(session, "Puzzle", "Set flag (optional):", "", 48)?;
+    let glyph = prompt_optional_glyph_string(session, "Puzzle", "Glyph (optional):", "")?;
+    let palette = prompt_optional_text(session, "Puzzle", "Palette (optional):", "", 24)?;
     push_undo(state);
     state.map.puzzles.push(MapPuzzle {
         id,
@@ -387,8 +513,8 @@ fn add_puzzle(session: &mut TuiSession, state: &mut EditorState) -> io::Result<(
         text,
         event,
         set_flag,
-        glyph: None,
-        palette: None,
+        glyph,
+        palette,
     });
     mark_dirty(state, "Puzzle added");
     Ok(())
@@ -403,19 +529,28 @@ fn add_sign(session: &mut TuiSession, state: &mut EditorState) -> io::Result<()>
     let Some(text) = text else {
         return Ok(());
     };
+    let glyph = prompt_optional_glyph_string(session, "Sign", "Glyph (optional):", "")?;
+    let palette = prompt_optional_text(session, "Sign", "Palette (optional):", "", 24)?;
     push_undo(state);
     state.map.signs.push(MapSign {
         id,
         pos: [state.cursor.0, state.cursor.1],
-        glyph: None,
-        palette: None,
+        glyph,
+        palette,
         text,
     });
     mark_dirty(state, "Sign added");
     Ok(())
 }
 
-fn add_chest(session: &mut TuiSession, state: &mut EditorState) -> io::Result<()> {
+fn add_chest(
+    session: &mut TuiSession,
+    bindings: &InputBindings,
+    state: &mut EditorState,
+    item_ids: &[String],
+    equipment_ids: &[String],
+    currency_ids: &[String],
+) -> io::Result<()> {
     let id = prompt_text(session, "Chest", "Id:", "chest", 32)?;
     let Some(id) = id else {
         return Ok(());
@@ -424,19 +559,32 @@ fn add_chest(session: &mut TuiSession, state: &mut EditorState) -> io::Result<()
     let Some(opened_flag) = opened_flag else {
         return Ok(());
     };
+    let glyph_closed =
+        prompt_optional_glyph_string(session, "Chest", "Closed glyph (optional):", "")?;
+    let glyph_open = prompt_optional_glyph_string(session, "Chest", "Open glyph (optional):", "")?;
+    let palette = prompt_optional_text(session, "Chest", "Palette (optional):", "", 24)?;
+    let mut loot = MapChestLoot {
+        items: Vec::new(),
+        equipment: Vec::new(),
+        currency: Vec::new(),
+    };
+    edit_chest_loot(
+        session,
+        bindings,
+        &mut loot,
+        item_ids,
+        equipment_ids,
+        currency_ids,
+    )?;
     push_undo(state);
     state.map.chests.push(MapChest {
         id,
         pos: [state.cursor.0, state.cursor.1],
-        glyph_closed: None,
-        glyph_open: None,
-        palette: None,
+        glyph_closed,
+        glyph_open,
+        palette,
         opened_flag,
-        loot: MapChestLoot {
-            items: Vec::new(),
-            equipment: Vec::new(),
-            currency: Vec::new(),
-        },
+        loot,
     });
     mark_dirty(state, "Chest added");
     Ok(())
@@ -470,24 +618,38 @@ fn add_vehicle(
     Ok(())
 }
 
-fn add_campfire(session: &mut TuiSession, state: &mut EditorState) -> io::Result<()> {
+fn add_campfire(
+    session: &mut TuiSession,
+    bindings: &InputBindings,
+    state: &mut EditorState,
+    campfire_ids: &[String],
+) -> io::Result<()> {
     let id = prompt_text(session, "Campfire", "Id:", "campfire", 32)?;
     let Some(id) = id else {
         return Ok(());
     };
-    let campfire_id = prompt_text(session, "Campfire", "Campfire set id:", "campfire", 32)?;
+    let campfire_id = choose_from_list_or_custom(
+        session,
+        bindings,
+        "Campfire",
+        "Campfire set id:",
+        campfire_ids,
+        "campfire",
+    )?;
     let Some(campfire_id) = campfire_id else {
         return Ok(());
     };
     let requires_flags = prompt_flags(session, "Campfire", "Requires flags (comma):", "")?;
+    let glyph = prompt_optional_glyph_string(session, "Campfire", "Glyph (optional):", "")?;
+    let palette = prompt_optional_text(session, "Campfire", "Palette (optional):", "", 24)?;
     push_undo(state);
     state.map.campfires.push(MapCampfire {
         id,
         pos: [state.cursor.0, state.cursor.1],
         campfire_id,
         requires_flags,
-        glyph: None,
-        palette: None,
+        glyph,
+        palette,
     });
     mark_dirty(state, "Campfire added");
     Ok(())
@@ -509,6 +671,7 @@ fn add_event(
     bindings: &InputBindings,
     state: &mut EditorState,
     event_ids: &[String],
+    encounter_zone_ids: &[String],
 ) -> io::Result<()> {
     let id = prompt_text(session, "Event", "Id:", "event", 32)?;
     let Some(id) = id else {
@@ -523,15 +686,50 @@ fn add_event(
     let Some(script) = script else {
         return Ok(());
     };
+    let location = prompt_event_location(
+        session,
+        bindings,
+        "Event",
+        encounter_zone_ids,
+        None,
+        Some([state.cursor.0, state.cursor.1]),
+        [state.cursor.0, state.cursor.1],
+    )?;
+    let Some((zone, pos)) = location else {
+        return Ok(());
+    };
     push_undo(state);
     state.map.events.push(MapEvent {
         id,
         trigger,
         script,
-        zone: None,
-        pos: Some([state.cursor.0, state.cursor.1]),
+        zone,
+        pos,
     });
     mark_dirty(state, "Event added");
+    Ok(())
+}
+
+fn add_npc(
+    session: &mut TuiSession,
+    bindings: &InputBindings,
+    state: &mut EditorState,
+    npc_ids: &[String],
+) -> io::Result<()> {
+    let npc_id = choose_from_list_or_custom(session, bindings, "NPC", "NPC id:", npc_ids, "npc")?;
+    let Some(npc_id) = npc_id else {
+        return Ok(());
+    };
+    let script = prompt_optional_text(session, "NPC", "Script (optional):", "", 32)?;
+    let requires_flags = prompt_flags(session, "NPC", "Requires flags (comma):", "")?;
+    push_undo(state);
+    state.map.npcs.push(MapNpc {
+        id: npc_id,
+        pos: [state.cursor.0, state.cursor.1],
+        script,
+        requires_flags,
+    });
+    mark_dirty(state, "NPC added");
     Ok(())
 }
 
@@ -540,6 +738,7 @@ fn edit_transition(
     bindings: &InputBindings,
     state: &mut EditorState,
     map_ids: &[String],
+    currency_ids: &[String],
     index: usize,
 ) -> io::Result<()> {
     let entry = state.map.transitions.get(index).cloned();
@@ -587,6 +786,16 @@ fn edit_transition(
         "Return to last?",
         entry.return_to_last,
     )?;
+    let cost = prompt_cost(
+        session,
+        bindings,
+        "Transition",
+        currency_ids,
+        entry.cost.as_ref(),
+    )?;
+    let Some(cost) = cost else {
+        return Ok(());
+    };
     let glyph = prompt_optional_glyph_string(
         session,
         "Transition",
@@ -607,6 +816,7 @@ fn edit_transition(
         slot.label = label;
         slot.requires_flag = requires_flag;
         slot.return_to_last = return_to_last;
+        slot.cost = cost;
         slot.glyph = glyph;
         slot.palette = palette;
     }
@@ -697,7 +907,13 @@ fn edit_puzzle(session: &mut TuiSession, state: &mut EditorState, index: usize) 
     let Some(entry) = entry else {
         return Ok(());
     };
-    let requires_flags = prompt_flags(session, "Puzzle", "Requires flags (comma):", "")?;
+    let requires_default = flags_to_string(entry.requires_flags.as_ref());
+    let requires_flags = prompt_flags(
+        session,
+        "Puzzle",
+        "Requires flags (comma):",
+        &requires_default,
+    )?;
     let text = prompt_optional_text(
         session,
         "Puzzle",
@@ -777,7 +993,15 @@ fn edit_sign(session: &mut TuiSession, state: &mut EditorState, index: usize) ->
     Ok(())
 }
 
-fn edit_chest(session: &mut TuiSession, state: &mut EditorState, index: usize) -> io::Result<()> {
+fn edit_chest(
+    session: &mut TuiSession,
+    bindings: &InputBindings,
+    state: &mut EditorState,
+    item_ids: &[String],
+    equipment_ids: &[String],
+    currency_ids: &[String],
+    index: usize,
+) -> io::Result<()> {
     let entry = state.map.chests.get(index).cloned();
     let Some(entry) = entry else {
         return Ok(());
@@ -805,12 +1029,22 @@ fn edit_chest(session: &mut TuiSession, state: &mut EditorState, index: usize) -
         entry.palette.as_deref().unwrap_or(""),
         24,
     )?;
+    let mut loot = entry.loot.clone();
+    edit_chest_loot(
+        session,
+        bindings,
+        &mut loot,
+        item_ids,
+        equipment_ids,
+        currency_ids,
+    )?;
     push_undo(state);
     if let Some(slot) = state.map.chests.get_mut(index) {
         slot.opened_flag = opened_flag;
         slot.glyph_closed = glyph_closed;
         slot.glyph_open = glyph_open;
         slot.palette = palette;
+        slot.loot = loot;
     }
     mark_dirty(state, "Chest updated");
     Ok(())
@@ -850,24 +1084,33 @@ fn edit_vehicle(
 
 fn edit_campfire(
     session: &mut TuiSession,
+    bindings: &InputBindings,
     state: &mut EditorState,
+    campfire_ids: &[String],
     index: usize,
 ) -> io::Result<()> {
     let entry = state.map.campfires.get(index).cloned();
     let Some(entry) = entry else {
         return Ok(());
     };
-    let campfire_id = prompt_text(
+    let campfire_id = choose_from_list_or_custom(
         session,
+        bindings,
         "Campfire",
         "Campfire set id:",
+        campfire_ids,
         &entry.campfire_id,
-        32,
     )?;
     let Some(campfire_id) = campfire_id else {
         return Ok(());
     };
-    let requires_flags = prompt_flags(session, "Campfire", "Requires flags (comma):", "")?;
+    let requires_default = flags_to_string(entry.requires_flags.as_ref());
+    let requires_flags = prompt_flags(
+        session,
+        "Campfire",
+        "Requires flags (comma):",
+        &requires_default,
+    )?;
     let glyph = prompt_optional_glyph_string(
         session,
         "Campfire",
@@ -897,6 +1140,7 @@ fn edit_event(
     bindings: &InputBindings,
     state: &mut EditorState,
     event_ids: &[String],
+    encounter_zone_ids: &[String],
     index: usize,
 ) -> io::Result<()> {
     let entry = state.map.events.get(index).cloned();
@@ -918,27 +1162,43 @@ fn edit_event(
     let Some(script) = script else {
         return Ok(());
     };
-    let zone = prompt_optional_text(
+    let location = prompt_event_location(
         session,
+        bindings,
         "Event",
-        "Zone (optional):",
-        entry.zone.as_deref().unwrap_or(""),
-        32,
+        encounter_zone_ids,
+        entry.zone.clone(),
+        entry.pos,
+        [state.cursor.0, state.cursor.1],
     )?;
+    let Some((zone, pos)) = location else {
+        return Ok(());
+    };
     push_undo(state);
     if let Some(slot) = state.map.events.get_mut(index) {
         slot.trigger = trigger;
         slot.script = script;
         slot.zone = zone;
-        slot.pos = Some([state.cursor.0, state.cursor.1]);
+        slot.pos = pos;
     }
     mark_dirty(state, "Event updated");
     Ok(())
 }
 
-fn edit_npc(session: &mut TuiSession, state: &mut EditorState, index: usize) -> io::Result<()> {
+fn edit_npc(
+    session: &mut TuiSession,
+    bindings: &InputBindings,
+    state: &mut EditorState,
+    npc_ids: &[String],
+    index: usize,
+) -> io::Result<()> {
     let entry = state.map.npcs.get(index).cloned();
     let Some(entry) = entry else {
+        return Ok(());
+    };
+    let npc_id =
+        choose_from_list_or_custom(session, bindings, "NPC", "NPC id:", npc_ids, &entry.id)?;
+    let Some(npc_id) = npc_id else {
         return Ok(());
     };
     let script = prompt_optional_text(
@@ -953,11 +1213,389 @@ fn edit_npc(session: &mut TuiSession, state: &mut EditorState, index: usize) -> 
         prompt_flags(session, "NPC", "Requires flags (comma):", &requires_default)?;
     push_undo(state);
     if let Some(slot) = state.map.npcs.get_mut(index) {
+        slot.id = npc_id;
         slot.script = script;
         slot.requires_flags = requires_flags;
     }
     mark_dirty(state, "NPC updated");
     Ok(())
+}
+
+fn prompt_cost(
+    session: &mut TuiSession,
+    bindings: &InputBindings,
+    title: &str,
+    currency_ids: &[String],
+    default_cost: Option<&MapCurrencyStack>,
+) -> io::Result<Option<Option<MapCurrencyStack>>> {
+    let has_cost = prompt_yes_no(session, title, "Has cost?", default_cost.is_some())?;
+    if !has_cost {
+        return Ok(Some(None));
+    }
+    let default_id = default_cost.map(|cost| cost.id.as_str()).unwrap_or("");
+    let currency_id = choose_from_list_or_custom(
+        session,
+        bindings,
+        title,
+        "Currency id:",
+        currency_ids,
+        default_id,
+    )?;
+    let Some(currency_id) = currency_id else {
+        return Ok(None);
+    };
+    let default_amount = default_cost
+        .map(|cost| cost.amount.to_string())
+        .unwrap_or_else(|| "1".to_string());
+    let amount_text = prompt_text(session, title, "Amount:", &default_amount, 8)?;
+    let Some(amount_text) = amount_text else {
+        return Ok(None);
+    };
+    let amount: i32 = amount_text.trim().parse().unwrap_or(0);
+    if amount <= 0 {
+        return Ok(Some(None));
+    }
+    Ok(Some(Some(MapCurrencyStack {
+        id: currency_id,
+        amount,
+    })))
+}
+
+fn prompt_event_location(
+    session: &mut TuiSession,
+    bindings: &InputBindings,
+    title: &str,
+    encounter_zone_ids: &[String],
+    default_zone: Option<String>,
+    default_pos: Option<[i32; 2]>,
+    cursor: [i32; 2],
+) -> io::Result<Option<(Option<String>, Option<[i32; 2]>)>> {
+    let options = vec![
+        "Position (cursor)".to_string(),
+        "Zone".to_string(),
+        "Clear".to_string(),
+    ];
+    let default_index = if default_zone.is_some() {
+        1
+    } else if default_pos.is_some() {
+        0
+    } else {
+        2
+    };
+    let selection = prompt_choice(
+        session,
+        bindings,
+        title,
+        "Location:",
+        &options,
+        default_index,
+    )?;
+    let Some(selection) = selection else {
+        return Ok(None);
+    };
+    match selection {
+        0 => Ok(Some((None, Some(cursor)))),
+        1 => {
+            let zone_default = default_zone.as_deref().unwrap_or("");
+            let zone = choose_from_list_or_custom(
+                session,
+                bindings,
+                title,
+                "Zone id:",
+                encounter_zone_ids,
+                zone_default,
+            )?;
+            let Some(zone) = zone else {
+                return Ok(None);
+            };
+            Ok(Some((Some(zone), None)))
+        }
+        _ => Ok(Some((None, None))),
+    }
+}
+
+fn edit_chest_loot(
+    session: &mut TuiSession,
+    bindings: &InputBindings,
+    loot: &mut MapChestLoot,
+    item_ids: &[String],
+    equipment_ids: &[String],
+    currency_ids: &[String],
+) -> io::Result<()> {
+    loop {
+        let options = vec![
+            "Items".to_string(),
+            "Equipment".to_string(),
+            "Currency".to_string(),
+            "Done".to_string(),
+        ];
+        let selection = prompt_choice(
+            session,
+            bindings,
+            "Chest Loot",
+            "Select section:",
+            &options,
+            0,
+        )?;
+        let Some(selection) = selection else {
+            break;
+        };
+        match selection {
+            0 => edit_loot_items(session, bindings, &mut loot.items, item_ids)?,
+            1 => edit_loot_equipment(session, bindings, &mut loot.equipment, equipment_ids)?,
+            2 => edit_loot_currency(session, bindings, &mut loot.currency, currency_ids)?,
+            _ => break,
+        }
+    }
+    Ok(())
+}
+
+fn edit_loot_items(
+    session: &mut TuiSession,
+    bindings: &InputBindings,
+    items: &mut Vec<InventoryStack>,
+    item_ids: &[String],
+) -> io::Result<()> {
+    loop {
+        let options = vec![
+            "Add or update".to_string(),
+            "Remove".to_string(),
+            "Back".to_string(),
+        ];
+        let selection = prompt_choice(
+            session,
+            bindings,
+            "Loot Items",
+            "Select action:",
+            &options,
+            0,
+        )?;
+        let Some(selection) = selection else {
+            break;
+        };
+        match selection {
+            0 => {
+                let item_id = choose_from_list_or_custom(
+                    session,
+                    bindings,
+                    "Loot Items",
+                    "Item id:",
+                    item_ids,
+                    "",
+                )?;
+                let Some(item_id) = item_id else {
+                    continue;
+                };
+                let default_qty = items
+                    .iter()
+                    .find(|item| item.id == item_id)
+                    .map(|item| item.qty.to_string())
+                    .unwrap_or_else(|| "1".to_string());
+                let qty_text = prompt_text(session, "Loot Items", "Qty:", &default_qty, 8)?;
+                let Some(qty_text) = qty_text else {
+                    continue;
+                };
+                let qty: i32 = qty_text.trim().parse().unwrap_or(0);
+                if qty <= 0 {
+                    continue;
+                }
+                upsert_inventory_stack(items, item_id, qty);
+            }
+            1 => {
+                if items.is_empty() {
+                    continue;
+                }
+                let options = items
+                    .iter()
+                    .map(|item| format!("{} x{}", item.id, item.qty))
+                    .collect::<Vec<_>>();
+                let selection = prompt_choice(
+                    session,
+                    bindings,
+                    "Loot Items",
+                    "Remove which?",
+                    &options,
+                    0,
+                )?;
+                if let Some(index) = selection {
+                    items.remove(index);
+                }
+            }
+            _ => break,
+        }
+    }
+    Ok(())
+}
+
+fn edit_loot_equipment(
+    session: &mut TuiSession,
+    bindings: &InputBindings,
+    equipment: &mut Vec<InventoryStack>,
+    equipment_ids: &[String],
+) -> io::Result<()> {
+    loop {
+        let options = vec![
+            "Add or update".to_string(),
+            "Remove".to_string(),
+            "Back".to_string(),
+        ];
+        let selection = prompt_choice(
+            session,
+            bindings,
+            "Loot Equipment",
+            "Select action:",
+            &options,
+            0,
+        )?;
+        let Some(selection) = selection else {
+            break;
+        };
+        match selection {
+            0 => {
+                let equipment_id = choose_from_list_or_custom(
+                    session,
+                    bindings,
+                    "Loot Equipment",
+                    "Equipment id:",
+                    equipment_ids,
+                    "",
+                )?;
+                let Some(equipment_id) = equipment_id else {
+                    continue;
+                };
+                let default_qty = equipment
+                    .iter()
+                    .find(|item| item.id == equipment_id)
+                    .map(|item| item.qty.to_string())
+                    .unwrap_or_else(|| "1".to_string());
+                let qty_text = prompt_text(session, "Loot Equipment", "Qty:", &default_qty, 8)?;
+                let Some(qty_text) = qty_text else {
+                    continue;
+                };
+                let qty: i32 = qty_text.trim().parse().unwrap_or(0);
+                if qty <= 0 {
+                    continue;
+                }
+                upsert_inventory_stack(equipment, equipment_id, qty);
+            }
+            1 => {
+                if equipment.is_empty() {
+                    continue;
+                }
+                let options = equipment
+                    .iter()
+                    .map(|item| format!("{} x{}", item.id, item.qty))
+                    .collect::<Vec<_>>();
+                let selection = prompt_choice(
+                    session,
+                    bindings,
+                    "Loot Equipment",
+                    "Remove which?",
+                    &options,
+                    0,
+                )?;
+                if let Some(index) = selection {
+                    equipment.remove(index);
+                }
+            }
+            _ => break,
+        }
+    }
+    Ok(())
+}
+
+fn edit_loot_currency(
+    session: &mut TuiSession,
+    bindings: &InputBindings,
+    currency: &mut Vec<MapCurrencyStack>,
+    currency_ids: &[String],
+) -> io::Result<()> {
+    loop {
+        let options = vec![
+            "Add or update".to_string(),
+            "Remove".to_string(),
+            "Back".to_string(),
+        ];
+        let selection = prompt_choice(
+            session,
+            bindings,
+            "Loot Currency",
+            "Select action:",
+            &options,
+            0,
+        )?;
+        let Some(selection) = selection else {
+            break;
+        };
+        match selection {
+            0 => {
+                let currency_id = choose_from_list_or_custom(
+                    session,
+                    bindings,
+                    "Loot Currency",
+                    "Currency id:",
+                    currency_ids,
+                    "",
+                )?;
+                let Some(currency_id) = currency_id else {
+                    continue;
+                };
+                let default_amount = currency
+                    .iter()
+                    .find(|item| item.id == currency_id)
+                    .map(|item| item.amount.to_string())
+                    .unwrap_or_else(|| "1".to_string());
+                let amount_text =
+                    prompt_text(session, "Loot Currency", "Amount:", &default_amount, 8)?;
+                let Some(amount_text) = amount_text else {
+                    continue;
+                };
+                let amount: i32 = amount_text.trim().parse().unwrap_or(0);
+                if amount <= 0 {
+                    continue;
+                }
+                upsert_currency_stack(currency, currency_id, amount);
+            }
+            1 => {
+                if currency.is_empty() {
+                    continue;
+                }
+                let options = currency
+                    .iter()
+                    .map(|item| format!("{} x{}", item.id, item.amount))
+                    .collect::<Vec<_>>();
+                let selection = prompt_choice(
+                    session,
+                    bindings,
+                    "Loot Currency",
+                    "Remove which?",
+                    &options,
+                    0,
+                )?;
+                if let Some(index) = selection {
+                    currency.remove(index);
+                }
+            }
+            _ => break,
+        }
+    }
+    Ok(())
+}
+
+fn upsert_inventory_stack(items: &mut Vec<InventoryStack>, id: String, qty: i32) {
+    if let Some(item) = items.iter_mut().find(|item| item.id == id) {
+        item.qty = qty;
+    } else {
+        items.push(InventoryStack { id, qty });
+    }
+}
+
+fn upsert_currency_stack(currency: &mut Vec<MapCurrencyStack>, id: String, amount: i32) {
+    if let Some(item) = currency.iter_mut().find(|item| item.id == id) {
+        item.amount = amount;
+    } else {
+        currency.push(MapCurrencyStack { id, amount });
+    }
 }
 
 pub(super) fn delete_object_at_cursor(state: &mut EditorState) {
@@ -976,11 +1614,22 @@ fn has_object_at_cursor(state: &EditorState, pos: [i32; 2]) -> bool {
     !object_entries_at_pos(state, pos).is_empty()
 }
 
-pub(super) fn object_glyph_at(state: &EditorState, x: i32, y: i32) -> Option<char> {
+pub(super) fn object_glyph_at(state: &EditorState, x: i32, y: i32) -> Option<ObjectGlyph> {
     let pos = [x, y];
+    let use_configured = matches!(state.object_glyphs, ObjectGlyphMode::Configured);
     object_entries_at_pos(state, pos)
         .into_iter()
-        .find_map(|entry| entry.glyph)
+        .next()
+        .map(|entry| {
+            let (glyph, palette) = if use_configured {
+                let glyph = entry.configured_glyph.unwrap_or(entry.marker_glyph);
+                let palette = entry.configured_glyph.and_then(|_| entry.palette.clone());
+                (glyph, palette)
+            } else {
+                (entry.marker_glyph, None)
+            };
+            ObjectGlyph { glyph, palette }
+        })
 }
 
 pub(super) fn objects_at_cursor(state: &EditorState) -> Vec<String> {
@@ -1000,6 +1649,7 @@ fn remove_objects_at_pos(state: &mut EditorState, pos: [i32; 2]) -> bool {
     removed |= retain_by_pos(&mut state.map.chests, pos, |item, pos| item.pos == pos);
     removed |= retain_by_pos(&mut state.map.vehicles, pos, |item, pos| item.pos == pos);
     removed |= retain_by_pos(&mut state.map.campfires, pos, |item, pos| item.pos == pos);
+    removed |= retain_by_pos(&mut state.map.npcs, pos, |item, pos| item.pos == pos);
     removed |= retain_by_pos(&mut state.map.save_points, pos, |item, pos| *item == pos);
     removed |= retain_by_pos(&mut state.map.events, pos, |item, pos| {
         item.pos == Some(pos)

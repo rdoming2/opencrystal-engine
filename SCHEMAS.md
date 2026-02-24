@@ -519,6 +519,9 @@ The `cryst build map` editor can create and edit these files, including resizing
 explicit anchor placement. Resize warnings list objects that will be removed; encounter zones
 are truncated to fit bounds and included in the warning list.
 
+The editor exposes object schema fields (glyphs, palettes, costs, loot, and flags) and can
+toggle object rendering between configured glyphs and type markers.
+
 NPCs reference `entities/npcs.json` by ID. `script` is optional; if omitted, the NPC
 uses its dialog tree. Boss encounters can be triggered via NPC dialog actions that
 start an event, then the event can `npc_hide` to prevent re-triggering. Map NPCs can

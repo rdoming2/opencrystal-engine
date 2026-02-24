@@ -21,6 +21,7 @@ pub(super) struct EditorState {
     pub(super) selection: Option<Selection>,
     pub(super) yank: Option<YankBuffer>,
     pub(super) active_tile_index: usize,
+    pub(super) object_glyphs: ObjectGlyphMode,
     pub(super) moving: Option<MovingObject>,
     pub(super) undo_stack: Vec<MapData>,
     pub(super) redo_stack: Vec<MapData>,
@@ -49,6 +50,12 @@ pub(super) enum CursorObject {
     SavePoint,
 }
 
+#[derive(Clone, Copy, Debug)]
+pub(super) enum ObjectGlyphMode {
+    Configured,
+    Markers,
+}
+
 impl EditorState {
     pub(super) fn new(mut map: MapData) -> Self {
         normalize_tiles(&mut map, None);
@@ -61,6 +68,7 @@ impl EditorState {
             selection: None,
             yank: None,
             active_tile_index,
+            object_glyphs: ObjectGlyphMode::Configured,
             moving: None,
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
@@ -76,6 +84,27 @@ impl EditorState {
             .map(|entry| entry.glyph)
             .unwrap_or('.')
     }
+
+    pub(super) fn object_glyphs_label(&self) -> &'static str {
+        match self.object_glyphs {
+            ObjectGlyphMode::Configured => "configured",
+            ObjectGlyphMode::Markers => "markers",
+        }
+    }
+}
+
+impl ObjectGlyphMode {
+    fn toggle(self) -> Self {
+        match self {
+            ObjectGlyphMode::Configured => ObjectGlyphMode::Markers,
+            ObjectGlyphMode::Markers => ObjectGlyphMode::Configured,
+        }
+    }
+}
+
+pub(super) fn toggle_object_glyphs(state: &mut EditorState) {
+    state.object_glyphs = state.object_glyphs.toggle();
+    state.status = format!("Object glyphs: {}", state.object_glyphs_label());
 }
 
 pub(super) fn move_cursor(state: &mut EditorState, dx: i32, dy: i32) {
