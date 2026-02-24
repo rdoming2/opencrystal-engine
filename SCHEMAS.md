@@ -1726,6 +1726,18 @@ Localization notes:
 Localized UI strings keyed by id. The engine falls back to built-in defaults when a key is
 missing, so this file is optional but recommended.
 
+Use `cryst build strings` to generate a full stub for the current engine keys.
+
+Key patterns:
+
+- `command.<id>`: battle command labels (matches `rules.json` command IDs).
+- `gameover.*`: title screen gameover labels.
+- `battle.*` and `battle.log.*`: battle prompts and log messages.
+
+Battle strings may contain placeholders such as `{actor}`, `{target}`, `{damage}`,
+`{spell}`, `{ability}`, `{item}`, `{row}`, `{coverer}`, `{current}`, `{max}`,
+`{amount}`, `{status}`, `{level}`. Keep the placeholders intact in translations.
+
 ```json
 {
   "version": 1,

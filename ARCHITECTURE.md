@@ -25,6 +25,7 @@ It is a design reference meant to guide initial implementation.
 - `cryst build new <kind> <id> [--content path] [--content-dir path] [--name label] [--force]`
 - `cryst build map <id> [--content path] [--content-dir path]`
 - `cryst build upgrade [--content path] [--content-dir path] [--dry-run]`
+- `cryst build strings [--content path] [--content-dir path] [--force]`
 - `cryst build new-project <name> [--path path]`
 - `cryst build docs [-s|--schemas] [-a|--architecture] [-c|--content-authoring] [-j|--jobs]`
 

@@ -99,6 +99,7 @@ See `SCHEMAS.md`, `ARCHITECTURE.md`, `JOBS.md` and `CONTENT_AUTHORING_GUIDE.md` 
 - `cryst build new <kind> <id> [--content path] [--content-dir path] [--name label] [--force]`
 - `cryst build map <id> [--content path]`
 - `cryst build upgrade [--content path] [--content-dir path] [--dry-run]`
+- `cryst build strings [--content path] [--content-dir path] [--force]`
 - `cryst build new-project <name> [--path path]`
 - `cryst build docs [-s|--schemas] [-a|--architecture] [-c|--content-authoring] [-j|--jobs]`
 
@@ -117,6 +118,7 @@ cryst build new npc innkeeper --content content/demo --name "Coral Innkeeper"
 
 - `cryst build new`: scaffolds JSON stubs for entities like spells, items, and NPCs.
 - `cryst build upgrade`: fills in missing defaults and reports extra fields.
+- `cryst build strings`: writes a `ui/strings.json` localization stub.
 - `cryst build map`: launches the TUI map editor for `maps/<id>.json`.
   - Tile paint, rectangular visual selection, yank/paste, undo/redo.
   - Move mode: press `m` to pick an object at the cursor; move it with arrows/HJKL; press `m` again to place.

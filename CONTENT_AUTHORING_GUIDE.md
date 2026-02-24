@@ -49,6 +49,7 @@ Content packs live under `content/<pack_name>/` and typically include:
   - Kinds: `spell`, `ability`, `item`, `equipment`, `enemy`, `vehicle`, `shop`, `npc`, `encounter`, `job`.
 - `cryst build map <id> --content <pack_path>` opens the TUI map editor for `maps/<id>.json`.
 - `cryst build upgrade --content <pack_path>` fills in missing defaults and reports extra fields.
+- `cryst build strings --content <pack_path>` writes a `ui/strings.json` localization stub.
 - `cryst build docs` prints reference documentation to stdout.
 
 Examples:
@@ -97,6 +98,28 @@ cryst build new encounter grasslands_skirmish --content content/demo
 - Menu subviews should keep the main menu on the left with details on the right.
 - Use the same panel titles, colors, and layout patterns established in demo content.
 - Only override UI files when the default behavior does not fit your content needs.
+
+## Localization
+
+OpenCrystal localizes UI and battle text through `ui/strings.json`. The engine looks up
+keys and falls back to built-in defaults (or UI labels) when a key is missing, so you
+can translate incrementally.
+
+Use the builder to generate a full key list:
+
+```bash
+cryst build strings --content content/<pack_name>
+```
+
+Key patterns:
+
+- `command.<id>` overrides battle command labels; `<id>` must match `rules.json` command IDs.
+- `gameover.*` overrides the title screen gameover strings.
+- `battle.*` and `battle.log.*` control battle prompts and log messages.
+
+Many battle strings support placeholders such as `{actor}`, `{target}`, `{damage}`,
+`{spell}`, `{ability}`, `{item}`, `{row}`, `{coverer}`, `{current}`, `{max}`,
+`{amount}`, `{status}`, `{level}`. Keep the placeholder names intact in translations.
 
 ## Validation and review
 
