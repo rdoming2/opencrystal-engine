@@ -30,7 +30,7 @@ use super::panels::{
 use super::party::{party_actions, party_list_entries, PartyList};
 use super::save::{build_save_slots, default_save_selection, move_save_selection, SaveMessage};
 use super::settings::settings_entry_count;
-use super::status::build_status_panel;
+use super::status::build_status_screen_view;
 use super::{
     build_menu_entries, journal_entry_count, map_save_allowed, wrap_index, MenuOutcome, PanelSize,
 };
@@ -90,7 +90,8 @@ pub fn run_menu_loop(
             .to_string();
         let stats_view = build_menu_stats_view(runtime);
         let panel_size = menu_panel_size(session, menu_ui, Some(&stats_view));
-        let right_panel = if matches!(focus, MenuPane::Detail) {
+        let show_status = matches!(focus, MenuPane::Detail) && submenu_action == "status";
+        let right_panel = if matches!(focus, MenuPane::Detail) && !show_status {
             menu_detail_panel(
                 label,
                 submenu_action.as_str(),
@@ -112,16 +113,29 @@ pub fn run_menu_loop(
             runtime.menu_state.detail_page,
             allow_overworld_travel,
         );
-        tui::menu::draw_menu(
-            session,
-            menu_ui,
-            &entry_views,
-            runtime.menu_state.selected,
-            focus,
-            &right_panel,
-            Some(&stats_view),
-            footer_text,
-        )?;
+        if show_status {
+            let status_view = build_status_screen_view(runtime, runtime.menu_state.detail_actor);
+            tui::menu::draw_menu_status(
+                session,
+                menu_ui,
+                &entry_views,
+                runtime.menu_state.selected,
+                focus,
+                &status_view,
+                footer_text,
+            )?;
+        } else {
+            tui::menu::draw_menu(
+                session,
+                menu_ui,
+                &entry_views,
+                runtime.menu_state.selected,
+                focus,
+                &right_panel,
+                Some(&stats_view),
+                footer_text,
+            )?;
+        }
 
         if let Some(action) = read_action(bindings) {
             match action {
@@ -240,12 +254,17 @@ pub fn run_menu_loop(
                 }
                 Action::MoveLeft | Action::MoveRight => {
                     if matches!(focus, MenuPane::Detail) && submenu_action == "status" {
-                        runtime.menu_state.detail_page = if runtime.menu_state.detail_page == 0 {
-                            1
-                        } else {
-                            0
-                        };
-                        runtime.menu_state.detail_scroll = 0;
+                        let actor_count = runtime.party.active_ids().len();
+                        if actor_count > 0 {
+                            runtime.menu_state.detail_actor = if matches!(action, Action::MoveRight)
+                            {
+                                (runtime.menu_state.detail_actor + 1) % actor_count
+                            } else if runtime.menu_state.detail_actor == 0 {
+                                actor_count - 1
+                            } else {
+                                runtime.menu_state.detail_actor - 1
+                            };
+                        }
                     } else if matches!(focus, MenuPane::Detail) && submenu_action == "settings" {
                         let direction = if matches!(action, Action::MoveRight) {
                             1
@@ -423,16 +442,30 @@ pub fn run_menu_loop(
                 Action::Quit => {
                     let confirm_stats = build_menu_stats_view(runtime);
                     if tui::dialog::confirm_quit(session, |frame| {
-                        tui::menu::draw_menu_frame(
-                            frame,
-                            menu_ui,
-                            &entry_views,
-                            runtime.menu_state.selected,
-                            focus,
-                            &right_panel,
-                            Some(&confirm_stats),
-                            footer_text,
-                        );
+                        if show_status {
+                            let status_view =
+                                build_status_screen_view(runtime, runtime.menu_state.detail_actor);
+                            tui::menu::draw_menu_status_frame(
+                                frame,
+                                menu_ui,
+                                &entry_views,
+                                runtime.menu_state.selected,
+                                focus,
+                                &status_view,
+                                footer_text,
+                            );
+                        } else {
+                            tui::menu::draw_menu_frame(
+                                frame,
+                                menu_ui,
+                                &entry_views,
+                                runtime.menu_state.selected,
+                                focus,
+                                &right_panel,
+                                Some(&confirm_stats),
+                                footer_text,
+                            );
+                        }
                     })? {
                         return Err(std::io::Error::new(std::io::ErrorKind::Interrupted, "quit"));
                     }
@@ -454,16 +487,10 @@ fn handle_move_up(
     player_pos: (i32, i32),
     entry_views_len: usize,
 ) {
-    if matches!(focus, MenuPane::Detail)
-        && (submenu_action == "status" || submenu_action == "gameplay_stats")
-    {
-        let lines_len = if submenu_action == "status" {
-            build_status_panel(runtime, runtime.menu_state.detail_page).len()
-        } else {
-            build_progress_panel(label.to_string(), progress_ui, runtime)
-                .lines
-                .len()
-        };
+    if matches!(focus, MenuPane::Detail) && submenu_action == "gameplay_stats" {
+        let lines_len = build_progress_panel(label.to_string(), progress_ui, runtime)
+            .lines
+            .len();
         let page_size = panel_size.height as usize;
         if page_size > 0 && lines_len > page_size {
             let total_pages = (lines_len + page_size - 1) / page_size;
@@ -635,16 +662,10 @@ fn handle_move_down(
     player_pos: (i32, i32),
     entry_views_len: usize,
 ) {
-    if matches!(focus, MenuPane::Detail)
-        && (submenu_action == "status" || submenu_action == "gameplay_stats")
-    {
-        let lines_len = if submenu_action == "status" {
-            build_status_panel(runtime, runtime.menu_state.detail_page).len()
-        } else {
-            build_progress_panel(label.to_string(), progress_ui, runtime)
-                .lines
-                .len()
-        };
+    if matches!(focus, MenuPane::Detail) && submenu_action == "gameplay_stats" {
+        let lines_len = build_progress_panel(label.to_string(), progress_ui, runtime)
+            .lines
+            .len();
         let page_size = panel_size.height as usize;
         if page_size > 0 && lines_len > page_size {
             let total_pages = (lines_len + page_size - 1) / page_size;

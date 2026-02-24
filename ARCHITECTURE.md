@@ -314,6 +314,7 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
 - The stats strip shows playtime, non-zero currency balances, and the current map coordinates.
 - Menu entries are optional and can be gated by rules `systems` toggles and optional
   unlock flags (e.g., Summons, Job Change, Journal, Save).
+- Status submenu shows a focused actor card layout (including equipment) in the right pane; Left/Right cycles actors.
 - Party submenu exposes actions per member (reorder, swap with reserve, switch row). Swap actions are
   gated by save-allowed maps; row selection is shown when battle row rules are enabled.
 - Custom status/gameplay stats panels are handled via configurable menu panels in `ui/menu.json`.

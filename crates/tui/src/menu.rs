@@ -1,7 +1,7 @@
 use std::io;
 
 use crossterm::event::{self, Event};
-use ratatui::layout::{Alignment, Constraint, Direction, Layout};
+use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, Paragraph, Wrap};
@@ -30,6 +30,18 @@ pub struct MenuEntryView {
 pub struct MenuPanelView {
     pub title: String,
     pub lines: Vec<MenuPanelLine>,
+}
+
+#[derive(Clone, Debug)]
+pub struct StatusCard {
+    pub title: String,
+    pub lines: Vec<MenuPanelLine>,
+}
+
+#[derive(Clone, Debug)]
+pub struct StatusScreenView {
+    pub title: String,
+    pub cards: Vec<StatusCard>,
 }
 
 #[derive(Clone, Debug)]
@@ -154,6 +166,31 @@ pub fn draw_menu(
         .map(|_| ())
 }
 
+pub fn draw_menu_status(
+    session: &mut TuiSession,
+    menu_ui: &MenuUiFile,
+    entries: &[MenuEntryView],
+    selected: usize,
+    focus: MenuPane,
+    status_view: &StatusScreenView,
+    footer_text: &str,
+) -> io::Result<()> {
+    session
+        .terminal_mut()
+        .draw(|frame| {
+            draw_menu_status_frame(
+                frame,
+                menu_ui,
+                entries,
+                selected,
+                focus,
+                status_view,
+                footer_text,
+            );
+        })
+        .map(|_| ())
+}
+
 pub fn draw_inventory(
     session: &mut TuiSession,
     header: &InventoryHeader,
@@ -165,6 +202,19 @@ pub fn draw_inventory(
         .terminal_mut()
         .draw(|frame| {
             draw_inventory_frame(frame, header, entries, selected, right_panel);
+        })
+        .map(|_| ())
+}
+
+pub fn draw_status_screen(
+    session: &mut TuiSession,
+    view: &StatusScreenView,
+    footer_text: &str,
+) -> io::Result<()> {
+    session
+        .terminal_mut()
+        .draw(|frame| {
+            draw_status_frame(frame, view, footer_text);
         })
         .map(|_| ())
 }
@@ -299,6 +349,79 @@ pub fn draw_menu_frame(
     frame.render_widget(footer, layout[1]);
 }
 
+pub fn draw_menu_status_frame(
+    frame: &mut Frame,
+    menu_ui: &MenuUiFile,
+    entries: &[MenuEntryView],
+    selected: usize,
+    focus: MenuPane,
+    status_view: &StatusScreenView,
+    footer_text: &str,
+) {
+    let size = frame.area();
+    let layout = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Min(1), Constraint::Length(1)])
+        .split(size);
+    let (left_percent, right_percent) = menu_layout_percentages(&menu_ui.layout);
+    let columns = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Percentage(left_percent),
+            Constraint::Percentage(right_percent),
+        ])
+        .split(layout[0]);
+
+    let available_lines = columns[0].height.saturating_sub(2) as usize;
+    let page_size = available_lines.max(1);
+    let page = if entries.is_empty() {
+        0
+    } else {
+        selected / page_size
+    };
+    let start = page.saturating_mul(page_size);
+    let end = (start + page_size).min(entries.len());
+    let menu_lines = entries
+        .iter()
+        .enumerate()
+        .skip(start)
+        .take(end.saturating_sub(start))
+        .map(|(index, entry)| {
+            let is_selected = index == selected;
+            let mut style = if entry.enabled {
+                Style::default().fg(Color::White)
+            } else {
+                Style::default().fg(Color::DarkGray)
+            };
+            if is_selected {
+                style = match focus {
+                    MenuPane::List => style.fg(Color::Yellow).add_modifier(Modifier::BOLD),
+                    MenuPane::Detail => style.fg(Color::Cyan),
+                };
+            }
+            let prefix = if is_selected && matches!(focus, MenuPane::List) {
+                "> "
+            } else {
+                "  "
+            };
+            Line::from(Span::styled(format!("{}{}", prefix, entry.label), style))
+        })
+        .collect::<Vec<_>>();
+
+    let menu_panel = Paragraph::new(menu_lines)
+        .block(Block::default().borders(Borders::ALL).title("Menu"))
+        .alignment(Alignment::Left)
+        .wrap(Wrap { trim: false });
+    frame.render_widget(menu_panel, columns[0]);
+
+    render_status_cards_in_area(frame, columns[1], status_view);
+
+    let footer = Paragraph::new(footer_text)
+        .alignment(Alignment::Center)
+        .block(Block::default().borders(Borders::NONE));
+    frame.render_widget(footer, layout[1]);
+}
+
 pub fn draw_inventory_frame(
     frame: &mut Frame,
     header: &InventoryHeader,
@@ -389,6 +512,21 @@ pub fn draw_inventory_frame(
     frame.render_widget(detail_panel, columns[1]);
 
     let footer = Paragraph::new("Confirm: use/equip  Cancel: back  Pause: sort")
+        .alignment(Alignment::Center)
+        .block(Block::default().borders(Borders::NONE));
+    frame.render_widget(footer, layout[1]);
+}
+
+pub fn draw_status_frame(frame: &mut Frame, view: &StatusScreenView, footer_text: &str) {
+    let size = frame.area();
+    let layout = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Min(1), Constraint::Length(1)])
+        .split(size);
+
+    render_status_cards_in_area(frame, layout[0], view);
+
+    let footer = Paragraph::new(footer_text)
         .alignment(Alignment::Center)
         .block(Block::default().borders(Borders::NONE));
     frame.render_widget(footer, layout[1]);
@@ -571,6 +709,90 @@ fn menu_layout_percentages(layout: &MenuLayout) -> (u16, u16) {
     let left_percent = (left_ratio * 100.0).round().clamp(10.0, 90.0) as u16;
     let right_percent = 100u16.saturating_sub(left_percent).max(1);
     (left_percent, right_percent)
+}
+
+fn status_screen_columns(width: u16) -> usize {
+    let min_card_width = 26u16;
+    let mut columns = (width / min_card_width).max(1) as usize;
+    columns = columns.min(3);
+    columns
+}
+
+fn render_status_cards_in_area(frame: &mut Frame, area: Rect, view: &StatusScreenView) {
+    let outer_block = Block::default()
+        .borders(Borders::ALL)
+        .title(view.title.as_str());
+    let inner_area = outer_block.inner(area);
+    frame.render_widget(outer_block, area);
+    let columns = status_screen_columns(inner_area.width);
+    let column_constraints = status_column_constraints(columns);
+    let column_areas = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints(column_constraints)
+        .split(inner_area);
+
+    let column_cards = assign_status_cards(&view.cards, columns);
+    for (column_index, cards) in column_cards.iter().enumerate() {
+        let Some(column_area) = column_areas.get(column_index) else {
+            continue;
+        };
+        if cards.is_empty() {
+            continue;
+        }
+        let mut constraints = Vec::with_capacity(cards.len());
+        for card in cards.iter() {
+            let height = card.lines.len().saturating_add(2) as u16;
+            constraints.push(Constraint::Length(height.max(3)));
+        }
+        let rows = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints(constraints)
+            .split(*column_area);
+        for (card_index, card) in cards.iter().enumerate() {
+            let Some(area) = rows.get(card_index) else {
+                continue;
+            };
+            let card_lines = card.lines.iter().map(render_panel_line).collect::<Vec<_>>();
+            let card_panel = Paragraph::new(card_lines)
+                .block(
+                    Block::default()
+                        .borders(Borders::ALL)
+                        .title(card.title.as_str()),
+                )
+                .alignment(Alignment::Left)
+                .wrap(Wrap { trim: false });
+            frame.render_widget(card_panel, *area);
+        }
+    }
+}
+
+fn status_column_constraints(columns: usize) -> Vec<Constraint> {
+    let columns = columns.max(1);
+    let base = 100u16 / columns as u16;
+    let remainder = 100u16 % columns as u16;
+    (0..columns)
+        .map(|index| {
+            let extra = if (index as u16) < remainder { 1 } else { 0 };
+            Constraint::Percentage(base + extra)
+        })
+        .collect()
+}
+
+fn assign_status_cards<'a>(cards: &'a [StatusCard], columns: usize) -> Vec<Vec<&'a StatusCard>> {
+    let columns = columns.max(1);
+    let mut column_cards: Vec<Vec<&StatusCard>> = vec![Vec::new(); columns];
+    let mut column_heights: Vec<u16> = vec![0; columns];
+    for card in cards {
+        let card_height = card.lines.len().saturating_add(2) as u16;
+        let (index, _) = column_heights
+            .iter()
+            .enumerate()
+            .min_by_key(|(_, height)| *height)
+            .unwrap_or((0, &0));
+        column_cards[index].push(card);
+        column_heights[index] = column_heights[index].saturating_add(card_height);
+    }
+    column_cards
 }
 
 pub fn render_panel_line(line: &MenuPanelLine) -> Line<'_> {

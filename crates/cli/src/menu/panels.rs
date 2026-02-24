@@ -591,13 +591,7 @@ pub(super) fn menu_footer_text(
         MenuPane::List => "Confirm: open  Cancel: close",
         MenuPane::Detail => match submenu {
             "save" => "Confirm: save  Cancel: back",
-            "status" => {
-                if page == 0 {
-                    "Left/Right: details  Cancel: back"
-                } else {
-                    "Left/Right: summary  Cancel: back"
-                }
-            }
+            "status" => "Left/Right: actor  Cancel: back",
             "overworld_map" => {
                 if allow_overworld_travel {
                     "Confirm: travel  Up/Down: select  Cancel: back"

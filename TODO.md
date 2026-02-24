@@ -116,6 +116,7 @@
 - [x] Update item player selection UI to show default status panel
 - [x] When selecting items in menu UI to "use", "drop", "move"
 - [x] Add persistent inventory ordering with autosort actions
+- [x] Add status submenu card view with actor cycling, sprite, and equipment
 
 ## Battle System
 - [x] Turn-based flow (command selection, targeting, resolve action).
@@ -144,6 +145,7 @@
 - [x] Remove readiness meter from turn non-Dynamic turn mode battle UI
 - [ ] Disable RUN command for certain battles.
 - [ ] Optional penalty on party defeat
+- [ ] Support for multiple hits per turn
 - [x] Add localization support for UI strings and command labels.
 
 ## Magic System

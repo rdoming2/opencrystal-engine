@@ -1636,6 +1636,7 @@ Runtime notes:
   a disabled entry even if the save system exists.
 - The Overworld Map menu panel is view-only until fast travel is unlocked via the
   world `fast_travel` config and the `systems.fast_travel` rule toggle.
+- The Status entry opens a focused actor card view in the right pane with equipment and Left/Right cycling.
 
 ## ui/title.json
 

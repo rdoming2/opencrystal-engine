@@ -169,6 +169,11 @@ fn enter_submenu_from_list(
             runtime.menu_state.detail_page = 0;
             runtime.menu_state.detail_selection = 0;
         }
+        "status" => {
+            runtime.menu_state.detail_page = 0;
+            runtime.menu_state.detail_actor = 0;
+            runtime.menu_state.detail_scroll = 0;
+        }
         "jobs" => {
             runtime.menu_state.detail_page = 0;
             runtime.menu_state.detail_slot = 0;
