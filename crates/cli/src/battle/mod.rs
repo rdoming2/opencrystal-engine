@@ -149,10 +149,53 @@ fn format_currency_rewards(
         .collect();
     extras.sort_by(|left, right| left.0.cmp(right.0));
     for (currency_id, amount) in extras {
-        lines.push(format!("{} {}", amount, currency_id));
+        if let Some(definition) = rules.game.currency(currency_id) {
+            if definition.symbol.trim().is_empty() {
+                lines.push(format!("{} {}", amount, definition.name));
+            } else {
+                lines.push(format!("{}{}", definition.symbol, amount));
+            }
+        } else {
+            lines.push(format!("{} {}", amount, currency_id));
+        }
     }
 
     lines
+}
+
+fn build_reward_item_lines(runtime: &GameRuntime, rewards: &HashMap<String, i32>) -> Vec<String> {
+    let mut lines = rewards
+        .iter()
+        .filter(|(_, qty)| **qty > 0)
+        .map(|(item_id, qty)| {
+            let label = reward_item_label(runtime, item_id.as_str());
+            format!("{} x{}", label, qty)
+        })
+        .collect::<Vec<_>>();
+    lines.sort();
+    lines
+}
+
+fn reward_item_label(runtime: &GameRuntime, item_id: &str) -> String {
+    if let Some(item) = runtime
+        .content
+        .items
+        .items
+        .iter()
+        .find(|entry| entry.id == item_id)
+    {
+        return item.name.clone();
+    }
+    if let Some(item) = runtime
+        .content
+        .equipment
+        .equipment
+        .iter()
+        .find(|entry| entry.id == item_id)
+    {
+        return item.name.clone();
+    }
+    item_id.to_string()
 }
 
 const MODAL_LINES_PER_PAGE: usize = 8;
@@ -599,13 +642,14 @@ pub fn run_battle(
                             &runtime.content.rules,
                             &result.rewards.currency,
                         );
+                        let item_lines = build_reward_item_lines(runtime, &result.rewards.items);
                         tui::battle::draw_victory_summary(
                             session,
                             result.rewards.exp,
                             result.rewards.jp,
                             runtime.content.rules.progression_mode == ProgressionMode::JobPoints,
                             &currency_lines,
-                            &result.rewards.items,
+                            &item_lines,
                             &ui_text(runtime, "battle.victory_title", "Victory!"),
                             &ui_text(runtime, "battle.items_found", "Items found:"),
                             &ui_text(

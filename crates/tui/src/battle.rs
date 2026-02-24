@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::io;
 
 use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
@@ -175,7 +174,7 @@ pub fn draw_victory_summary(
     jp: i32,
     show_jp: bool,
     currency_lines: &[String],
-    items: &HashMap<String, i32>,
+    item_lines: &[String],
     victory_title: &str,
     items_label: &str,
     prompt_label: &str,
@@ -218,11 +217,11 @@ pub fn draw_victory_summary(
                 Style::default(),
             )));
 
-            if !items.is_empty() {
+            if !item_lines.is_empty() {
                 lines.push(Line::from(Span::raw(items_label)));
-                for (item, qty) in items {
+                for item_line in item_lines {
                     lines.push(Line::from(Span::styled(
-                        format!("  {} x{}", item, qty),
+                        format!("  {}", item_line),
                         Style::default(),
                     )));
                 }

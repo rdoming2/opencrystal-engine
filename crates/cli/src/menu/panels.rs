@@ -711,7 +711,15 @@ pub(super) fn build_menu_stats_view(runtime: &GameRuntime) -> MenuPanelView {
     extra_currency_ids.sort();
     for currency_id in extra_currency_ids {
         let amount = runtime.inventory.currency_amount(currency_id);
-        lines.push(panel_line(format!("{}: {}", currency_id, amount)));
+        if let Some(definition) = runtime.content.rules.game.currency(currency_id) {
+            if definition.symbol.trim().is_empty() {
+                lines.push(panel_line(format!("{}: {}", definition.name, amount)));
+            } else {
+                lines.push(panel_line(format!("{}{}", definition.symbol, amount)));
+            }
+        } else {
+            lines.push(panel_line(format!("{}: {}", currency_id, amount)));
+        }
     }
 
     MenuPanelView {
