@@ -1307,7 +1307,7 @@ Supported event step types:
 - `require_flags` (fields: `flags` list)
 - `give_item` (fields: `item`, `qty`)
 - `give_equipment` (fields: `item`, `qty`)
-- `require_items` (fields: `item`, `qty`, optional `text` shown when missing)
+- `require_items` (fields: `item`, `qty`, optional `text` shown when missing, optional `speaker`)
 - `remove_item` (fields: `item`, `qty`)
 - `learn_spell` (fields: `member`, `spell`)
 - `party_add` (fields: `member`)
@@ -1949,6 +1949,12 @@ Save data captures the full runtime state. This format is stored as JSON in phas
 `settings` stores user-configurable settings captured at save time. Rules overrides
 are still applied when loading.
 
+Inventory ordering:
+
+- `inventory.items_order` and `inventory.equipment_order` persist the current menu order.
+- Order lists only need to include ids that are currently in inventory; missing ids fall back to a
+  deterministic ordering at load time.
+
 Vehicle fields:
 
 - `world.vehicle`: active vehicle id or null when on foot.
@@ -2023,7 +2029,9 @@ Vehicle fields:
   "inventory": {
     "currency": {"gold": 250},
     "items": [{"id": "potion", "qty": 3}],
-    "equipment": [{"id": "bronze_sword", "qty": 1}]
+    "equipment": [{"id": "bronze_sword", "qty": 1}],
+    "items_order": ["potion"],
+    "equipment_order": ["bronze_sword"]
   },
   "settings": {
     "autosave_enabled": true,

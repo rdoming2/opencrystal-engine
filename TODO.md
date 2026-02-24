@@ -112,9 +112,10 @@
 - [x] Show campfire recipe ingredient requirements with inventory counts.
 - [x] Gameover screen and optional restart logic (last battle, last save, fallback to main menu)
 - [x] Optional persistent death markers
-- [ ] Update UI display to show names/labels instead of ids
-- [ ] Update item player selection UI to show default status panel
-- [ ] When selecting items in menu UI to "use", "drop", "move"
+- [x] Update UI display to show names/labels instead of ids
+- [x] Update item player selection UI to show default status panel
+- [x] When selecting items in menu UI to "use", "drop", "move"
+- [x] Add persistent inventory ordering with autosort actions
 
 ## Battle System
 - [x] Turn-based flow (command selection, targeting, resolve action).

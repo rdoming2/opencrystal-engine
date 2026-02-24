@@ -176,29 +176,56 @@ fn items_selected_line(runtime: &GameRuntime) -> Option<usize> {
     let entries = build_inventory_entries(
         runtime,
         &super::common::filter_from_index(runtime.menu_state.detail_filter),
-        &super::common::sort_from_index(runtime.menu_state.detail_sort),
     );
     if entries.is_empty() {
         return None;
     }
-    let selection = runtime
-        .menu_state
-        .detail_selection
-        .min(entries.len().saturating_sub(1));
-    if runtime.menu_state.detail_page == 1 {
-        let targets = entries
-            .get(selection)
-            .map(|entry| item_targets_for_entry(runtime, entry))
-            .unwrap_or_default();
-        if !targets.is_empty() {
+    let list_selection = if runtime.menu_state.detail_page == 0 {
+        runtime
+            .menu_state
+            .detail_selection
+            .min(entries.len().saturating_sub(1))
+    } else {
+        runtime
+            .menu_state
+            .detail_slot
+            .min(entries.len().saturating_sub(1))
+    };
+    match runtime.menu_state.detail_page {
+        1 => {
+            let actions_len = super::inventory::item_actions_len(entries.get(list_selection));
+            if actions_len == 0 {
+                return Some(1 + list_selection);
+            }
+            let action_selection = runtime
+                .menu_state
+                .detail_selection
+                .min(actions_len.saturating_sub(1));
+            Some(1 + entries.len() + 2 + action_selection)
+        }
+        2 => {
+            let targets = entries
+                .get(list_selection)
+                .map(|entry| item_targets_for_entry(runtime, entry))
+                .unwrap_or_default();
+            if targets.is_empty() {
+                return Some(1 + list_selection);
+            }
             let target_selection = runtime
                 .menu_state
                 .detail_target
                 .min(targets.len().saturating_sub(1));
-            return Some(1 + entries.len() + 2 + target_selection);
+            Some(1 + entries.len() + 2 + target_selection)
         }
+        3 => {
+            let target_selection = runtime
+                .menu_state
+                .detail_target
+                .min(entries.len().saturating_sub(1));
+            Some(1 + entries.len() + 2 + target_selection)
+        }
+        _ => Some(1 + list_selection),
     }
-    Some(1 + selection)
 }
 
 fn magic_selected_line(runtime: &GameRuntime) -> Option<usize> {
@@ -579,13 +606,13 @@ pub(super) fn menu_footer_text(
                 }
             }
             "settings" => "Confirm: toggle  Left/Right: adjust  Cancel: back",
-            "items" => {
-                if page == 0 {
-                    "Confirm: use  Left/Right: filter  Pause: sort  Cancel: back"
-                } else {
-                    "Confirm: use  Cancel: back"
-                }
-            }
+            "items" => match page {
+                0 => "Confirm: actions  Left/Right: filter  Pause: sort  Cancel: back",
+                1 => "Confirm: select  Cancel: back",
+                2 => "Confirm: use  Cancel: back",
+                3 => "Confirm: place  Cancel: back",
+                _ => "Cancel: back",
+            },
             "magic" => {
                 if page == 0 {
                     "Confirm: cast  Left/Right: actor  Cancel: back"

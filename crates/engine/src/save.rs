@@ -89,6 +89,10 @@ pub struct SaveInventory {
     pub items: HashMap<String, i32>,
     pub equipment: HashMap<String, i32>,
     pub currency: HashMap<String, i32>,
+    #[serde(default)]
+    pub items_order: Vec<String>,
+    #[serde(default)]
+    pub equipment_order: Vec<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -373,14 +377,20 @@ impl SaveInventory {
             items: inventory.items.clone(),
             equipment: inventory.equipment.clone(),
             currency: inventory.currency.clone(),
+            items_order: inventory.items_order.clone(),
+            equipment_order: inventory.equipment_order.clone(),
         }
     }
 
     fn to_inventory(&self) -> crate::inventory::InventoryState {
-        crate::inventory::InventoryState {
+        let mut inventory = crate::inventory::InventoryState {
             items: self.items.clone(),
             equipment: self.equipment.clone(),
             currency: self.currency.clone(),
-        }
+            items_order: self.items_order.clone(),
+            equipment_order: self.equipment_order.clone(),
+        };
+        inventory.normalize_orders();
+        inventory
     }
 }

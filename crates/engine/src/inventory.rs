@@ -6,6 +6,8 @@ pub struct InventoryState {
     pub items: HashMap<String, i32>,
     pub equipment: HashMap<String, i32>,
     pub currency: HashMap<String, i32>,
+    pub items_order: Vec<String>,
+    pub equipment_order: Vec<String>,
 }
 
 impl InventoryState {
@@ -17,16 +19,24 @@ impl InventoryState {
         if qty <= 0 {
             return;
         }
+        let is_new = !self.items.contains_key(item_id);
         let entry = self.items.entry(item_id.to_string()).or_insert(0);
         *entry = (*entry + qty).min(max_stack);
+        if is_new {
+            self.items_order.push(item_id.to_string());
+        }
     }
 
     pub fn add_equipment(&mut self, item_id: &str, qty: i32, max_stack: i32) {
         if qty <= 0 {
             return;
         }
+        let is_new = !self.equipment.contains_key(item_id);
         let entry = self.equipment.entry(item_id.to_string()).or_insert(0);
         *entry = (*entry + qty).min(max_stack);
+        if is_new {
+            self.equipment_order.push(item_id.to_string());
+        }
     }
 
     pub fn remove_equipment(&mut self, item_id: &str, qty: i32) -> bool {
@@ -42,6 +52,7 @@ impl InventoryState {
         *entry -= qty;
         if *entry == 0 {
             self.equipment.remove(item_id);
+            self.equipment_order.retain(|id| id != item_id);
         }
         true
     }
@@ -72,6 +83,7 @@ impl InventoryState {
         *entry -= qty;
         if *entry == 0 {
             self.items.remove(item_id);
+            self.items_order.retain(|id| id != item_id);
         }
         true
     }
@@ -83,6 +95,27 @@ impl InventoryState {
     pub fn equipment_qty(&self, item_id: &str) -> i32 {
         self.equipment.get(item_id).copied().unwrap_or(0)
     }
+
+    pub fn normalize_orders(&mut self) {
+        normalize_order(&mut self.items_order, &self.items);
+        normalize_order(&mut self.equipment_order, &self.equipment);
+    }
+}
+
+fn normalize_order(order: &mut Vec<String>, entries: &HashMap<String, i32>) {
+    order.retain(|id| entries.get(id).copied().unwrap_or(0) > 0);
+    let mut missing = entries
+        .iter()
+        .filter_map(|(id, qty)| {
+            if *qty > 0 && !order.iter().any(|existing| existing == id) {
+                Some(id.clone())
+            } else {
+                None
+            }
+        })
+        .collect::<Vec<_>>();
+    missing.sort();
+    order.extend(missing);
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

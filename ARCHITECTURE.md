@@ -137,6 +137,7 @@ All runtime data is loaded from JSON. Files are organized into top-level categor
 - `input.json`: key bindings.
 - `stats.json`: base and derived stat definitions.
 - `save.json`: runtime save format.
+- Inventory ordering is persisted in save data to keep item/equipment menu order stable across loads.
 
 ## Key systems
 

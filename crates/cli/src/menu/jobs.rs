@@ -50,7 +50,7 @@ pub fn build_jobs_dashboard(runtime: &GameRuntime) -> MenuPanelView {
         if runtime.content.rules.progression_mode == ProgressionMode::JobPoints {
             lines.push(panel_line(format!(
                 "JP ({}): {}",
-                actor.job_id,
+                job_label(runtime, &actor.job_id),
                 job_jp(actor, &actor.job_id)
             )));
         }
@@ -70,7 +70,7 @@ pub fn build_jobs_dashboard(runtime: &GameRuntime) -> MenuPanelView {
             let label = match option {
                 JobMenuOption::Primary => format!(
                     "Primary: {}{}",
-                    actor.job_id,
+                    job_label(runtime, &actor.job_id),
                     if show_job_level {
                         format!(" (Lv {})", job_level(actor, &actor.job_id))
                     } else {
@@ -79,7 +79,11 @@ pub fn build_jobs_dashboard(runtime: &GameRuntime) -> MenuPanelView {
                 ),
                 JobMenuOption::Secondary => format!(
                     "Secondary: {}",
-                    actor.secondary_job_id.as_deref().unwrap_or("None")
+                    actor
+                        .secondary_job_id
+                        .as_deref()
+                        .map(|id| job_label(runtime, id))
+                        .unwrap_or_else(|| "None".to_string())
                 ),
                 JobMenuOption::Learn => "Learn Abilities".to_string(),
             };
@@ -225,9 +229,13 @@ fn build_learn_entries(
                 let unlock_level = spell.unlock_level.unwrap_or(0);
                 let level_locked = unlock_level > 0 && current_level < unlock_level;
                 let label = if level_locked {
-                    format!("{} (Locked Lv {})", spell.id, unlock_level)
+                    format!(
+                        "{} (Locked Lv {})",
+                        spell_label(runtime, &spell.id),
+                        unlock_level
+                    )
                 } else {
-                    format!("{} (JP {})", spell.id, jp_cost)
+                    format!("{} (JP {})", spell_label(runtime, &spell.id), jp_cost)
                 };
                 entries.push(LearnEntry {
                     kind: "spell",
@@ -244,9 +252,9 @@ fn build_learn_entries(
                 }
                 let level_locked = current_level < level;
                 let label = if level_locked {
-                    format!("{} (Locked Lv {})", spell.id, level)
+                    format!("{} (Locked Lv {})", spell_label(runtime, &spell.id), level)
                 } else {
-                    format!("{} (Lv {})", spell.id, level)
+                    format!("{} (Lv {})", spell_label(runtime, &spell.id), level)
                 };
                 entries.push(LearnEntry {
                     kind: "spell",
@@ -277,9 +285,13 @@ fn build_learn_entries(
                 let unlock_level = ability.unlock_level.unwrap_or(0);
                 let level_locked = unlock_level > 0 && current_level < unlock_level;
                 let label = if level_locked {
-                    format!("{} (Locked Lv {})", ability.id, unlock_level)
+                    format!(
+                        "{} (Locked Lv {})",
+                        ability_label(runtime, &ability.id),
+                        unlock_level
+                    )
                 } else {
-                    format!("{} (JP {})", ability.id, jp_cost)
+                    format!("{} (JP {})", ability_label(runtime, &ability.id), jp_cost)
                 };
                 entries.push(LearnEntry {
                     kind: "ability",
@@ -296,9 +308,13 @@ fn build_learn_entries(
                 }
                 let level_locked = current_level < level;
                 let label = if level_locked {
-                    format!("{} (Locked Lv {})", ability.id, level)
+                    format!(
+                        "{} (Locked Lv {})",
+                        ability_label(runtime, &ability.id),
+                        level
+                    )
                 } else {
-                    format!("{} (Lv {})", ability.id, level)
+                    format!("{} (Lv {})", ability_label(runtime, &ability.id), level)
                 };
                 entries.push(LearnEntry {
                     kind: "ability",
@@ -433,7 +449,7 @@ pub fn build_learn_panel(runtime: &GameRuntime) -> MenuPanelView {
         lines.push(panel_line(format!("Actor: {}", actor.name)));
         lines.push(panel_line(format!(
             "JP ({}): {}",
-            actor.job_id,
+            job_label(runtime, &actor.job_id),
             job_jp(actor, &actor.job_id)
         )));
     } else {
@@ -477,6 +493,39 @@ pub fn build_learn_panel(runtime: &GameRuntime) -> MenuPanelView {
         title: "Learn".to_string(),
         lines,
     }
+}
+
+fn job_label(runtime: &GameRuntime, job_id: &str) -> String {
+    runtime
+        .content
+        .jobs
+        .jobs
+        .iter()
+        .find(|job| job.id == job_id)
+        .map(|job| job.name.clone())
+        .unwrap_or_else(|| job_id.to_string())
+}
+
+fn spell_label(runtime: &GameRuntime, spell_id: &str) -> String {
+    runtime
+        .content
+        .spells
+        .spells
+        .iter()
+        .find(|spell| spell.id == spell_id)
+        .map(|spell| spell.name.clone())
+        .unwrap_or_else(|| spell_id.to_string())
+}
+
+fn ability_label(runtime: &GameRuntime, ability_id: &str) -> String {
+    runtime
+        .content
+        .abilities
+        .abilities
+        .iter()
+        .find(|ability| ability.id == ability_id)
+        .map(|ability| ability.name.clone())
+        .unwrap_or_else(|| ability_id.to_string())
 }
 
 pub fn learnable_count(runtime: &GameRuntime) -> usize {

@@ -12,7 +12,10 @@ use super::common::MenuEntryState;
 use super::equipment::{
     detail_actor_id, equip_item, equipment_entries_for_menu, equipment_slot_for_menu,
 };
-use super::inventory::{apply_item_to_targets, build_inventory_entries, item_targets_for_entry};
+use super::inventory::{
+    apply_item_to_targets, build_inventory_entries, item_action_for_entry, item_targets_for_entry,
+    move_inventory_entry, ItemActionId,
+};
 use super::jobs::{
     apply_learn_purchase, apply_primary_change, apply_secondary_change, job_menu_options,
     JobMenuOption,
@@ -115,6 +118,7 @@ fn enter_submenu_from_list(
             runtime.menu_state.detail_filter = 0;
             runtime.menu_state.detail_sort = 0;
             runtime.menu_state.detail_target = 0;
+            runtime.menu_state.detail_slot = usize::MAX;
         }
         "magic" => {
             runtime.menu_state.detail_page = 0;
@@ -238,48 +242,136 @@ fn confirm_items(
     let entries = build_inventory_entries(
         runtime,
         &super::common::filter_from_index(runtime.menu_state.detail_filter),
-        &super::common::sort_from_index(runtime.menu_state.detail_sort),
     );
-    if let Some(entry) = entries.get(runtime.menu_state.detail_selection) {
-        if entry.kind == super::common::InventoryKind::Item && entry.usable {
-            if runtime.menu_state.detail_page == 0 {
-                let targets = item_targets_for_entry(runtime, entry);
-                if entry.usage_target == "party" {
-                    let result = apply_item_to_targets(runtime, entry, &targets);
-                    if result.consumed {
-                        runtime.inventory.remove_item(&entry.id, 1);
+    if entries.is_empty() {
+        return Ok(());
+    }
+    let list_selection = if runtime.menu_state.detail_page == 0 {
+        runtime
+            .menu_state
+            .detail_selection
+            .min(entries.len().saturating_sub(1))
+    } else {
+        runtime
+            .menu_state
+            .detail_slot
+            .min(entries.len().saturating_sub(1))
+    };
+    let Some(entry) = entries.get(list_selection) else {
+        return Ok(());
+    };
+    match runtime.menu_state.detail_page {
+        0 => {
+            runtime.menu_state.detail_page = 1;
+            runtime.menu_state.detail_slot = list_selection;
+            runtime.menu_state.detail_selection = 0;
+            runtime.menu_state.detail_target = 0;
+        }
+        1 => {
+            let action_selection = runtime.menu_state.detail_selection;
+            let Some((action_id, enabled)) = item_action_for_entry(Some(entry), action_selection)
+            else {
+                return Ok(());
+            };
+            if !enabled {
+                return Ok(());
+            }
+            match action_id {
+                ItemActionId::Use => {
+                    if entry.kind != super::common::InventoryKind::Item {
+                        return Ok(());
                     }
-                    if result.consumed {
-                        if let Some(message) = result.warp_message {
-                            tui::dialog::show_dialog(session, dialog_ui, bindings, "", &message)?;
+                    let targets = item_targets_for_entry(runtime, entry);
+                    if entry.usage_target == "party" {
+                        let result = apply_item_to_targets(runtime, entry, &targets);
+                        if result.consumed {
+                            runtime.inventory.remove_item(&entry.id, 1);
+                        }
+                        if result.consumed {
+                            if let Some(message) = result.warp_message {
+                                tui::dialog::show_dialog(
+                                    session, dialog_ui, bindings, "", &message,
+                                )?;
+                            }
+                        }
+                        runtime.menu_state.detail_page = 0;
+                        runtime.menu_state.detail_selection = list_selection;
+                        runtime.menu_state.detail_slot = usize::MAX;
+                        runtime.menu_state.detail_target = 0;
+                    } else if targets.is_empty() {
+                        runtime.menu_state.detail_page = 0;
+                        runtime.menu_state.detail_selection = list_selection;
+                        runtime.menu_state.detail_slot = usize::MAX;
+                        runtime.menu_state.detail_target = 0;
+                    } else {
+                        runtime.menu_state.detail_page = 2;
+                        runtime.menu_state.detail_target = 0;
+                    }
+                }
+                ItemActionId::Drop => {
+                    match entry.kind {
+                        super::common::InventoryKind::Item => {
+                            runtime.inventory.remove_item(&entry.id, 1);
+                        }
+                        super::common::InventoryKind::Equipment => {
+                            if entry.available_qty > 0 {
+                                runtime.inventory.remove_equipment(&entry.id, 1);
+                            }
                         }
                     }
-                } else if targets.is_empty() {
                     runtime.menu_state.detail_page = 0;
-                } else {
-                    runtime.menu_state.detail_page = 1;
+                    runtime.menu_state.detail_selection = list_selection;
+                    runtime.menu_state.detail_slot = usize::MAX;
                     runtime.menu_state.detail_target = 0;
                 }
-            } else {
-                let targets = item_targets_for_entry(runtime, entry);
-                if let Some(target_id) = targets.get(runtime.menu_state.detail_target) {
-                    let result = apply_item_to_targets(runtime, entry, &[target_id.clone()]);
-                    if result.consumed {
-                        runtime.inventory.remove_item(&entry.id, 1);
-                    }
-                    if result.consumed {
-                        if let Some(message) = result.warp_message {
-                            tui::dialog::show_dialog(session, dialog_ui, bindings, "", &message)?;
-                        }
+                ItemActionId::Move => {
+                    runtime.menu_state.detail_page = 3;
+                    runtime.menu_state.detail_target = list_selection;
+                }
+            }
+        }
+        2 => {
+            let targets = item_targets_for_entry(runtime, entry);
+            if let Some(target_id) = targets.get(runtime.menu_state.detail_target) {
+                let result = apply_item_to_targets(runtime, entry, &[target_id.clone()]);
+                if result.consumed {
+                    runtime.inventory.remove_item(&entry.id, 1);
+                }
+                if result.consumed {
+                    if let Some(message) = result.warp_message {
+                        tui::dialog::show_dialog(session, dialog_ui, bindings, "", &message)?;
                     }
                 }
-                runtime.menu_state.detail_page = 0;
-                runtime.menu_state.detail_target = 0;
             }
-            runtime.menu_state.detail_selection = runtime
+            runtime.menu_state.detail_page = 0;
+            runtime.menu_state.detail_selection =
+                list_selection.min(entries.len().saturating_sub(1));
+            runtime.menu_state.detail_slot = usize::MAX;
+            runtime.menu_state.detail_target = 0;
+        }
+        3 => {
+            let target_index = runtime
                 .menu_state
-                .detail_selection
+                .detail_target
                 .min(entries.len().saturating_sub(1));
+            move_inventory_entry(runtime, &entries, list_selection, target_index);
+            runtime.menu_state.detail_page = 0;
+            runtime.menu_state.detail_selection = target_index;
+            runtime.menu_state.detail_slot = usize::MAX;
+            runtime.menu_state.detail_target = 0;
+            runtime.menu_state.detail_sort = 0;
+        }
+        _ => {}
+    }
+    if runtime.menu_state.detail_page == 0 {
+        let refreshed = build_inventory_entries(
+            runtime,
+            &super::common::filter_from_index(runtime.menu_state.detail_filter),
+        );
+        if refreshed.is_empty() {
+            runtime.menu_state.detail_selection = 0;
+        } else if runtime.menu_state.detail_selection >= refreshed.len() {
+            runtime.menu_state.detail_selection = refreshed.len() - 1;
         }
     }
     Ok(())

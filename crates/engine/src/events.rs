@@ -159,6 +159,14 @@ pub fn apply_event_step(runtime: &mut GameRuntime, step: &EventStep) -> EventExe
                     .text
                     .as_deref()
                     .unwrap_or("You do not have the required items.");
+                if let Some(speaker) = step.speaker.as_deref() {
+                    if !speaker.trim().is_empty() {
+                        return EventExecutionResult::Dialog {
+                            speaker: speaker.to_string(),
+                            text: text.to_string(),
+                        };
+                    }
+                }
                 return EventExecutionResult::Narration {
                     text: text.to_string(),
                 };

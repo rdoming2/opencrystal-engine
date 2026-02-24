@@ -14,7 +14,9 @@ use super::abilities::{build_ability_entries, selected_ability_targets};
 use super::common::{filter_from_index, sort_from_index};
 use super::confirm::handle_confirm;
 use super::equipment::{equipment_entries_for_menu, equipment_slots_for_menu};
-use super::inventory::{build_inventory_entries, item_targets_for_entry};
+use super::inventory::{
+    apply_inventory_sort_action, build_inventory_entries, item_targets_for_entry,
+};
 use super::jobs::{job_menu_options, learnable_count};
 use super::magic::{build_spell_entries, selected_spell_targets};
 use super::magic_equip::{magic_equip_entries_for_menu, magic_equip_slots_for_menu};
@@ -184,6 +186,17 @@ pub fn run_menu_loop(
                             runtime.menu_state.detail_selection = runtime.menu_state.detail_slot;
                         } else if submenu_action == "items" && runtime.menu_state.detail_page == 1 {
                             runtime.menu_state.detail_page = 0;
+                            if runtime.menu_state.detail_slot != usize::MAX {
+                                runtime.menu_state.detail_selection =
+                                    runtime.menu_state.detail_slot;
+                            }
+                            runtime.menu_state.detail_slot = usize::MAX;
+                            runtime.menu_state.detail_target = 0;
+                        } else if submenu_action == "items"
+                            && (runtime.menu_state.detail_page == 2
+                                || runtime.menu_state.detail_page == 3)
+                        {
+                            runtime.menu_state.detail_page = 1;
                             runtime.menu_state.detail_target = 0;
                         } else if submenu_action == "party" && runtime.menu_state.detail_page == 2 {
                             runtime.menu_state.detail_page = 1;
@@ -286,11 +299,8 @@ pub fn run_menu_loop(
                                 PartyList::Reserve
                             };
                             let entries = party_list_entries(runtime, list);
-                            if entries.is_empty() {
-                                runtime.menu_state.detail_selection = 0;
-                            } else if runtime.menu_state.detail_selection >= entries.len() {
-                                runtime.menu_state.detail_selection = entries.len() - 1;
-                            }
+                            runtime.menu_state.detail_selection =
+                                if entries.is_empty() { 0 } else { 0 };
                         }
                     } else if matches!(focus, MenuPane::Detail) && submenu_action == "magic_equip" {
                         let actor_count = runtime.party.active_ids().len();
@@ -320,8 +330,37 @@ pub fn run_menu_loop(
                             runtime.menu_state.detail_page = 0;
                             runtime.menu_state.detail_selection = 0;
                         }
+                    } else if matches!(focus, MenuPane::Detail) && submenu_action == "abilities" {
+                        let actor_count = runtime.party.active_ids().len();
+                        if actor_count > 0 {
+                            runtime.menu_state.detail_actor = if matches!(action, Action::MoveRight)
+                            {
+                                (runtime.menu_state.detail_actor + 1) % actor_count
+                            } else if runtime.menu_state.detail_actor == 0 {
+                                actor_count - 1
+                            } else {
+                                runtime.menu_state.detail_actor - 1
+                            };
+                            runtime.menu_state.detail_page = 0;
+                            runtime.menu_state.detail_selection = 0;
+                            runtime.menu_state.detail_target = 0;
+                        }
                     } else if matches!(focus, MenuPane::Detail) && submenu_action == "jobs" {
-                        if runtime.menu_state.detail_page == 1 {
+                        if runtime.menu_state.detail_page == 0 {
+                            let actor_count = runtime.party.active_ids().len();
+                            if actor_count > 0 {
+                                runtime.menu_state.detail_actor =
+                                    if matches!(action, Action::MoveRight) {
+                                        (runtime.menu_state.detail_actor + 1) % actor_count
+                                    } else if runtime.menu_state.detail_actor == 0 {
+                                        actor_count - 1
+                                    } else {
+                                        runtime.menu_state.detail_actor - 1
+                                    };
+                                runtime.menu_state.detail_selection = 0;
+                                runtime.menu_state.detail_target = 0;
+                            }
+                        } else if runtime.menu_state.detail_page == 1 {
                             let jobs = runtime.content.jobs.jobs.len();
                             if jobs > 0 {
                                 runtime.menu_state.detail_selection =
@@ -342,8 +381,33 @@ pub fn run_menu_loop(
                         && submenu_action == "items"
                         && runtime.menu_state.detail_page == 0
                     {
+                        let current_entries = build_inventory_entries(
+                            runtime,
+                            &filter_from_index(runtime.menu_state.detail_filter),
+                        );
+                        let selected_id = current_entries
+                            .get(runtime.menu_state.detail_selection)
+                            .map(|entry| entry.id.clone());
                         runtime.menu_state.detail_sort =
                             super::common::toggle_sort_index(runtime.menu_state.detail_sort);
+                        let sort = sort_from_index(runtime.menu_state.detail_sort);
+                        apply_inventory_sort_action(runtime, sort);
+                        let updated_entries = build_inventory_entries(
+                            runtime,
+                            &filter_from_index(runtime.menu_state.detail_filter),
+                        );
+                        if let Some(selected_id) = selected_id {
+                            if let Some(index) = updated_entries
+                                .iter()
+                                .position(|entry| entry.id == selected_id)
+                            {
+                                runtime.menu_state.detail_selection = index;
+                            } else {
+                                runtime.menu_state.detail_selection = 0;
+                            }
+                        } else {
+                            runtime.menu_state.detail_selection = 0;
+                        }
                     }
                 }
                 Action::Learn => {
@@ -415,26 +479,41 @@ fn handle_move_up(
         runtime.menu_state.detail_selection =
             move_save_selection(runtime.menu_state.detail_selection, &slots, -1);
     } else if submenu_action == "items" {
-        if runtime.menu_state.detail_page == 0 {
-            let entries = build_inventory_entries(
-                runtime,
-                &filter_from_index(runtime.menu_state.detail_filter),
-                &sort_from_index(runtime.menu_state.detail_sort),
-            );
-            runtime.menu_state.detail_selection =
-                wrap_index(runtime.menu_state.detail_selection, entries.len(), -1);
-        } else {
-            let entries = build_inventory_entries(
-                runtime,
-                &filter_from_index(runtime.menu_state.detail_filter),
-                &sort_from_index(runtime.menu_state.detail_sort),
-            );
-            let target_len = entries
-                .get(runtime.menu_state.detail_selection)
-                .map(|entry| item_targets_for_entry(runtime, entry).len())
-                .unwrap_or(0);
-            runtime.menu_state.detail_target =
-                wrap_index(runtime.menu_state.detail_target, target_len, -1);
+        let entries = build_inventory_entries(
+            runtime,
+            &filter_from_index(runtime.menu_state.detail_filter),
+        );
+        match runtime.menu_state.detail_page {
+            0 => {
+                runtime.menu_state.detail_selection =
+                    wrap_index(runtime.menu_state.detail_selection, entries.len(), -1);
+            }
+            1 => {
+                let list_selection = runtime
+                    .menu_state
+                    .detail_slot
+                    .min(entries.len().saturating_sub(1));
+                let action_len = super::inventory::item_actions_len(entries.get(list_selection));
+                runtime.menu_state.detail_selection =
+                    wrap_index(runtime.menu_state.detail_selection, action_len, -1);
+            }
+            2 => {
+                let list_selection = runtime
+                    .menu_state
+                    .detail_slot
+                    .min(entries.len().saturating_sub(1));
+                let target_len = entries
+                    .get(list_selection)
+                    .map(|entry| item_targets_for_entry(runtime, entry).len())
+                    .unwrap_or(0);
+                runtime.menu_state.detail_target =
+                    wrap_index(runtime.menu_state.detail_target, target_len, -1);
+            }
+            3 => {
+                runtime.menu_state.detail_target =
+                    wrap_index(runtime.menu_state.detail_target, entries.len(), -1);
+            }
+            _ => {}
         }
     } else if submenu_action == "magic" {
         if runtime.menu_state.detail_page == 0 {
@@ -581,26 +660,41 @@ fn handle_move_down(
         runtime.menu_state.detail_selection =
             move_save_selection(runtime.menu_state.detail_selection, &slots, 1);
     } else if submenu_action == "items" {
-        if runtime.menu_state.detail_page == 0 {
-            let entries = build_inventory_entries(
-                runtime,
-                &filter_from_index(runtime.menu_state.detail_filter),
-                &sort_from_index(runtime.menu_state.detail_sort),
-            );
-            runtime.menu_state.detail_selection =
-                wrap_index(runtime.menu_state.detail_selection, entries.len(), 1);
-        } else {
-            let entries = build_inventory_entries(
-                runtime,
-                &filter_from_index(runtime.menu_state.detail_filter),
-                &sort_from_index(runtime.menu_state.detail_sort),
-            );
-            let targets = entries
-                .get(runtime.menu_state.detail_selection)
-                .map(|entry| item_targets_for_entry(runtime, entry))
-                .unwrap_or_default();
-            runtime.menu_state.detail_target =
-                wrap_index(runtime.menu_state.detail_target, targets.len(), 1);
+        let entries = build_inventory_entries(
+            runtime,
+            &filter_from_index(runtime.menu_state.detail_filter),
+        );
+        match runtime.menu_state.detail_page {
+            0 => {
+                runtime.menu_state.detail_selection =
+                    wrap_index(runtime.menu_state.detail_selection, entries.len(), 1);
+            }
+            1 => {
+                let list_selection = runtime
+                    .menu_state
+                    .detail_slot
+                    .min(entries.len().saturating_sub(1));
+                let action_len = super::inventory::item_actions_len(entries.get(list_selection));
+                runtime.menu_state.detail_selection =
+                    wrap_index(runtime.menu_state.detail_selection, action_len, 1);
+            }
+            2 => {
+                let list_selection = runtime
+                    .menu_state
+                    .detail_slot
+                    .min(entries.len().saturating_sub(1));
+                let targets = entries
+                    .get(list_selection)
+                    .map(|entry| item_targets_for_entry(runtime, entry))
+                    .unwrap_or_default();
+                runtime.menu_state.detail_target =
+                    wrap_index(runtime.menu_state.detail_target, targets.len(), 1);
+            }
+            3 => {
+                runtime.menu_state.detail_target =
+                    wrap_index(runtime.menu_state.detail_target, entries.len(), 1);
+            }
+            _ => {}
         }
     } else if submenu_action == "magic" {
         if runtime.menu_state.detail_page == 0 {

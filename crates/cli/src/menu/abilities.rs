@@ -577,7 +577,8 @@ pub fn ability_cost_label(runtime: &GameRuntime, entry: &AbilityEntry) -> String
         "currency" => format_currency_cost(runtime, entry),
         "item" => {
             if let Some(item_id) = &entry.cost_item_id {
-                format!(" {} x{}", item_id, entry.cost_value)
+                let item_name = item_label(runtime, item_id);
+                format!(" {} x{}", item_name, entry.cost_value)
             } else {
                 "".to_string()
             }
@@ -668,8 +669,8 @@ fn build_ability_description(
         panel_span(actor.name.clone(), PanelSpanStyle::Highlight),
     ]));
     lines.push(panel_line_spans(vec![
-        panel_span("ID: ", PanelSpanStyle::Normal),
-        panel_span(entry.id.clone(), PanelSpanStyle::Accent),
+        panel_span("Ability: ", PanelSpanStyle::Normal),
+        panel_span(entry.name.clone(), PanelSpanStyle::Accent),
     ]));
     let allowed_targets = if entry.allowed_targets.is_empty() {
         entry.default_target.clone()
@@ -798,4 +799,15 @@ fn build_ability_description(
         ]));
     }
     lines
+}
+
+fn item_label(runtime: &GameRuntime, item_id: &str) -> String {
+    runtime
+        .content
+        .items
+        .items
+        .iter()
+        .find(|item| item.id == item_id)
+        .map(|item| item.name.clone())
+        .unwrap_or_else(|| item_id.to_string())
 }

@@ -245,7 +245,7 @@ fn build_magic_equipped_detail(
         if !item.spells.is_empty() {
             lines.push(panel_line("Spells:"));
             for spell in &item.spells {
-                lines.push(panel_line(format!("  - {}", spell)));
+                lines.push(panel_line(format!("  - {}", spell_label(runtime, spell))));
             }
         }
         lines
@@ -278,7 +278,7 @@ fn build_magic_item_detail(
         if !item.spells.is_empty() {
             lines.push(panel_line("Grants Spells:"));
             for spell in &item.spells {
-                lines.push(panel_line(format!("  - {}", spell)));
+                lines.push(panel_line(format!("  - {}", spell_label(runtime, spell))));
             }
         }
         if let Some(owner) = equipped_label(entry) {
@@ -327,4 +327,15 @@ fn build_magic_item_detail(
             lines: vec![panel_line("Item not found.")],
         }
     }
+}
+
+fn spell_label(runtime: &GameRuntime, spell_id: &str) -> String {
+    runtime
+        .content
+        .spells
+        .spells
+        .iter()
+        .find(|spell| spell.id == spell_id)
+        .map(|spell| spell.name.clone())
+        .unwrap_or_else(|| spell_id.to_string())
 }

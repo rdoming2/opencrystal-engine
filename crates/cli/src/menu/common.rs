@@ -18,8 +18,9 @@ pub enum InventoryFilter {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum InventorySort {
+    Manual,
     Name,
-    Type,
+    TypePower,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -34,7 +35,9 @@ pub struct InventoryEntry {
     pub available_qty: i32,
     pub total_qty: i32,
     pub kind: InventoryKind,
+    #[allow(dead_code)]
     pub slot: Option<String>,
+    #[allow(dead_code)]
     pub category: Option<String>,
     pub usable: bool,
     pub equipped_by: Vec<String>,
@@ -91,10 +94,10 @@ pub fn filter_from_index(index: usize) -> InventoryFilter {
 }
 
 pub fn sort_from_index(index: usize) -> InventorySort {
-    if index % 2 == 0 {
-        InventorySort::Name
-    } else {
-        InventorySort::Type
+    match index % 3 {
+        0 => InventorySort::Manual,
+        1 => InventorySort::Name,
+        _ => InventorySort::TypePower,
     }
 }
 
@@ -111,9 +114,5 @@ pub fn prev_filter_index(index: usize) -> usize {
 }
 
 pub fn toggle_sort_index(index: usize) -> usize {
-    if index == 0 {
-        1
-    } else {
-        0
-    }
+    (index + 1) % 3
 }

@@ -1,4 +1,6 @@
 use engine::rules::MagicAcquisition;
+use std::collections::{HashMap, HashSet};
+
 use engine::runtime::GameRuntime;
 use tui::menu::{MenuPanelLine, MenuPanelSpan, MenuPanelView, PanelSpanStyle};
 
@@ -11,7 +13,7 @@ use super::equipment::build_equipped_map;
 pub fn build_items_panel(runtime: &GameRuntime) -> MenuPanelView {
     let filter = filter_from_index(runtime.menu_state.detail_filter);
     let sort = sort_from_index(runtime.menu_state.detail_sort);
-    let entries = build_inventory_entries(runtime, &filter, &sort);
+    let entries = build_inventory_entries(runtime, &filter);
     if entries.is_empty() {
         let header = inventory_filter_line(&filter, &sort);
         let mut lines = Vec::new();
@@ -32,23 +34,47 @@ pub fn build_items_panel(runtime: &GameRuntime) -> MenuPanelView {
         .menu_state
         .detail_selection
         .min(entries.len().saturating_sub(1));
+    let list_selection = if runtime.menu_state.detail_page == 0 {
+        selection
+    } else {
+        runtime
+            .menu_state
+            .detail_slot
+            .min(entries.len().saturating_sub(1))
+    };
     let header = inventory_filter_line(&filter, &sort);
     let mut lines = Vec::new();
     let width = list_line_width(&entries);
     lines.push(header);
     for (index, entry) in entries.iter().enumerate() {
-        lines.push(build_list_line(entry, index == selection, width));
+        lines.push(build_list_line(entry, index == list_selection, width));
     }
     lines.push(panel_line("------------------------------"));
     if runtime.menu_state.detail_page == 1 {
-        lines.extend(build_item_target_panel(runtime, entries.get(selection)));
+        lines.extend(build_item_action_panel(
+            runtime,
+            entries.get(list_selection),
+        ));
+        lines.push(panel_line("------------------------------"));
+    } else if runtime.menu_state.detail_page == 2 {
+        lines.extend(build_item_target_panel(
+            runtime,
+            entries.get(list_selection),
+        ));
+        lines.push(panel_line("------------------------------"));
+    } else if runtime.menu_state.detail_page == 3 {
+        lines.extend(build_item_move_panel(runtime, &entries));
         lines.push(panel_line("------------------------------"));
     }
     lines.push(panel_line_spans(vec![panel_span(
         "Details",
         PanelSpanStyle::Accent,
     )]));
-    lines.extend(build_item_description(runtime, entries.get(selection)));
+    if runtime.menu_state.detail_page == 2 {
+        lines.extend(build_party_summary_panel(runtime));
+    } else {
+        lines.extend(build_item_description(runtime, entries.get(list_selection)));
+    }
 
     MenuPanelView {
         title: "Items".to_string(),
@@ -59,17 +85,19 @@ pub fn build_items_panel(runtime: &GameRuntime) -> MenuPanelView {
 pub fn build_inventory_entries(
     runtime: &GameRuntime,
     filter: &InventoryFilter,
-    sort: &InventorySort,
 ) -> Vec<InventoryEntry> {
     let equipped_map = build_equipped_map(runtime);
     let mut entries = Vec::new();
 
     if matches!(filter, InventoryFilter::Items | InventoryFilter::KeyItems) {
-        for item in &runtime.content.items.items {
-            let qty = runtime.inventory.item_qty(&item.id);
+        for item_id in ordered_item_ids(runtime) {
+            let qty = runtime.inventory.item_qty(&item_id);
             if qty <= 0 {
                 continue;
             }
+            let Some(item) = find_item_definition(runtime, &item_id) else {
+                continue;
+            };
             if !matches_item_filter(filter, item) {
                 continue;
             }
@@ -88,7 +116,10 @@ pub fn build_inventory_entries(
             });
         }
     } else {
-        for equipment in &runtime.content.equipment.equipment {
+        for equipment_id in ordered_equipment_ids(runtime, &equipped_map) {
+            let Some(equipment) = find_equipment_definition(runtime, &equipment_id) else {
+                continue;
+            };
             if !matches_filter_equipment(filter, equipment) {
                 continue;
             }
@@ -112,9 +143,154 @@ pub fn build_inventory_entries(
             });
         }
     }
-
-    entries.sort_by(|left, right| inventory_sort_key(left, right, sort));
     entries
+}
+
+pub fn apply_inventory_sort_action(runtime: &mut GameRuntime, sort: InventorySort) {
+    match sort {
+        InventorySort::Manual => {}
+        InventorySort::Name => {
+            let mut item_ids = runtime
+                .inventory
+                .items
+                .iter()
+                .filter_map(|(id, qty)| if *qty > 0 { Some(id.clone()) } else { None })
+                .collect::<Vec<_>>();
+            item_ids.sort_by(|a, b| {
+                let left = find_item_definition(runtime, a)
+                    .map(|item| item.name.as_str())
+                    .unwrap_or(a.as_str());
+                let right = find_item_definition(runtime, b)
+                    .map(|item| item.name.as_str())
+                    .unwrap_or(b.as_str());
+                left.cmp(right)
+            });
+            runtime.inventory.items_order = item_ids;
+
+            let mut equipment_ids = runtime
+                .inventory
+                .equipment
+                .iter()
+                .filter_map(|(id, qty)| if *qty > 0 { Some(id.clone()) } else { None })
+                .collect::<Vec<_>>();
+            equipment_ids.sort_by(|a, b| {
+                let left = find_equipment_definition(runtime, a)
+                    .map(|item| item.name.as_str())
+                    .unwrap_or(a.as_str());
+                let right = find_equipment_definition(runtime, b)
+                    .map(|item| item.name.as_str())
+                    .unwrap_or(b.as_str());
+                left.cmp(right)
+            });
+            runtime.inventory.equipment_order = equipment_ids;
+        }
+        InventorySort::TypePower => {
+            let mut item_ids = runtime
+                .inventory
+                .items
+                .iter()
+                .filter_map(|(id, qty)| if *qty > 0 { Some(id.clone()) } else { None })
+                .collect::<Vec<_>>();
+            item_ids.sort_by(|a, b| {
+                let left = find_item_definition(runtime, a);
+                let right = find_item_definition(runtime, b);
+                let left_type = left.map(|item| item.r#type.as_str()).unwrap_or("");
+                let right_type = right.map(|item| item.r#type.as_str()).unwrap_or("");
+                let left_power = left.map(item_power).unwrap_or(0);
+                let right_power = right.map(item_power).unwrap_or(0);
+                left_type
+                    .cmp(right_type)
+                    .then_with(|| left_power.cmp(&right_power))
+                    .then_with(|| {
+                        let left_name = left.map(|item| item.name.as_str()).unwrap_or(a.as_str());
+                        let right_name = right.map(|item| item.name.as_str()).unwrap_or(b.as_str());
+                        left_name.cmp(right_name)
+                    })
+            });
+            runtime.inventory.items_order = item_ids;
+
+            let mut equipment_ids = runtime
+                .inventory
+                .equipment
+                .iter()
+                .filter_map(|(id, qty)| if *qty > 0 { Some(id.clone()) } else { None })
+                .collect::<Vec<_>>();
+            equipment_ids.sort_by(|a, b| {
+                let left = find_equipment_definition(runtime, a);
+                let right = find_equipment_definition(runtime, b);
+                let left_slot = left.map(|item| item.slot.as_str()).unwrap_or("");
+                let right_slot = right.map(|item| item.slot.as_str()).unwrap_or("");
+                let left_category = left.map(|item| item.category.as_str()).unwrap_or("");
+                let right_category = right.map(|item| item.category.as_str()).unwrap_or("");
+                let left_power = left.map(equipment_power).unwrap_or(0);
+                let right_power = right.map(equipment_power).unwrap_or(0);
+                left_slot
+                    .cmp(right_slot)
+                    .then_with(|| left_category.cmp(right_category))
+                    .then_with(|| left_power.cmp(&right_power))
+                    .then_with(|| {
+                        let left_name = left.map(|item| item.name.as_str()).unwrap_or(a.as_str());
+                        let right_name = right.map(|item| item.name.as_str()).unwrap_or(b.as_str());
+                        left_name.cmp(right_name)
+                    })
+            });
+            runtime.inventory.equipment_order = equipment_ids;
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum ItemActionId {
+    Use,
+    Drop,
+    Move,
+}
+
+#[derive(Clone, Debug)]
+struct ItemActionEntry {
+    id: ItemActionId,
+    label: &'static str,
+    enabled: bool,
+}
+
+fn item_action_entries(entry: Option<&InventoryEntry>) -> Vec<ItemActionEntry> {
+    let Some(entry) = entry else {
+        return Vec::new();
+    };
+    let can_use = entry.kind == InventoryKind::Item && entry.usable;
+    let can_drop = match entry.kind {
+        InventoryKind::Item => entry.total_qty > 0,
+        InventoryKind::Equipment => entry.available_qty > 0,
+    };
+    vec![
+        ItemActionEntry {
+            id: ItemActionId::Use,
+            label: "Use",
+            enabled: can_use,
+        },
+        ItemActionEntry {
+            id: ItemActionId::Drop,
+            label: "Drop",
+            enabled: can_drop,
+        },
+        ItemActionEntry {
+            id: ItemActionId::Move,
+            label: "Move",
+            enabled: true,
+        },
+    ]
+}
+
+pub(super) fn item_actions_len(entry: Option<&InventoryEntry>) -> usize {
+    item_action_entries(entry).len()
+}
+
+pub(super) fn item_action_for_entry(
+    entry: Option<&InventoryEntry>,
+    index: usize,
+) -> Option<(ItemActionId, bool)> {
+    let actions = item_action_entries(entry);
+    actions.get(index).map(|action| (action.id, action.enabled))
 }
 
 pub fn item_targets_for_entry(runtime: &GameRuntime, entry: &InventoryEntry) -> Vec<String> {
@@ -276,12 +452,104 @@ pub fn equipped_label(entry: &InventoryEntry) -> Option<String> {
     }
 }
 
+fn ordered_item_ids(runtime: &GameRuntime) -> Vec<String> {
+    let mut ids = runtime.inventory.items_order.clone();
+    let seen = ids.iter().cloned().collect::<HashSet<_>>();
+    let mut missing = runtime
+        .inventory
+        .items
+        .iter()
+        .filter_map(|(id, qty)| {
+            if *qty > 0 && !seen.contains(id) {
+                Some(id.clone())
+            } else {
+                None
+            }
+        })
+        .collect::<Vec<_>>();
+    missing.sort();
+    ids.extend(missing);
+    ids
+}
+
+fn ordered_equipment_ids(
+    runtime: &GameRuntime,
+    equipped_map: &HashMap<String, Vec<String>>,
+) -> Vec<String> {
+    let mut ids = runtime.inventory.equipment_order.clone();
+    let seen = ids.iter().cloned().collect::<HashSet<_>>();
+    let mut missing = runtime
+        .inventory
+        .equipment
+        .iter()
+        .filter_map(|(id, qty)| {
+            if *qty > 0 && !seen.contains(id) {
+                Some(id.clone())
+            } else {
+                None
+            }
+        })
+        .collect::<Vec<_>>();
+    for id in equipped_map.keys() {
+        if !seen.contains(id) {
+            missing.push(id.clone());
+        }
+    }
+    missing.sort_by(|a, b| {
+        let left = find_equipment_definition(runtime, a)
+            .map(|item| item.name.as_str())
+            .unwrap_or(a.as_str());
+        let right = find_equipment_definition(runtime, b)
+            .map(|item| item.name.as_str())
+            .unwrap_or(b.as_str());
+        left.cmp(right)
+    });
+    ids.extend(missing);
+    ids
+}
+
 pub fn item_usage_allows_field(context: &str) -> bool {
     matches!(context, "field" | "both")
 }
 
 pub fn item_usage_allows_battle(context: &str) -> bool {
     matches!(context, "battle" | "both")
+}
+
+fn find_item_definition<'a>(
+    runtime: &'a GameRuntime,
+    item_id: &str,
+) -> Option<&'a engine::entities::ItemDefinition> {
+    runtime
+        .content
+        .items
+        .items
+        .iter()
+        .find(|item| item.id == item_id)
+}
+
+fn find_equipment_definition<'a>(
+    runtime: &'a GameRuntime,
+    item_id: &str,
+) -> Option<&'a engine::entities::EquipmentDefinition> {
+    runtime
+        .content
+        .equipment
+        .equipment
+        .iter()
+        .find(|item| item.id == item_id)
+}
+
+fn item_power(item: &engine::entities::ItemDefinition) -> i32 {
+    item.effect.power.unwrap_or(0)
+}
+
+fn equipment_power(item: &engine::entities::EquipmentDefinition) -> i32 {
+    item.stats
+        .values()
+        .filter(|value| **value > 0)
+        .copied()
+        .sum()
 }
 
 pub fn apply_item_to_actor(
@@ -357,31 +625,6 @@ fn matches_item_filter(filter: &InventoryFilter, item: &engine::entities::ItemDe
     }
 }
 
-fn inventory_sort_key(
-    left: &InventoryEntry,
-    right: &InventoryEntry,
-    sort: &InventorySort,
-) -> std::cmp::Ordering {
-    match sort {
-        InventorySort::Name => left.label.cmp(&right.label),
-        InventorySort::Type => {
-            let left_kind = match left.kind {
-                InventoryKind::Item => 0,
-                InventoryKind::Equipment => 1,
-            };
-            let right_kind = match right.kind {
-                InventoryKind::Item => 0,
-                InventoryKind::Equipment => 1,
-            };
-            left_kind
-                .cmp(&right_kind)
-                .then_with(|| left.slot.cmp(&right.slot))
-                .then_with(|| left.category.cmp(&right.category))
-                .then_with(|| left.label.cmp(&right.label))
-        }
-    }
-}
-
 fn inventory_filters() -> Vec<String> {
     vec![
         "Items".to_string(),
@@ -407,8 +650,9 @@ fn filter_label(filter: &InventoryFilter) -> String {
 
 fn sort_label(sort: &InventorySort) -> &'static str {
     match sort {
+        InventorySort::Manual => "Manual",
         InventorySort::Name => "Name",
-        InventorySort::Type => "Type",
+        InventorySort::TypePower => "Type/Power",
     }
 }
 
@@ -426,7 +670,7 @@ fn inventory_filter_line(filter: &InventoryFilter, sort: &InventorySort) -> Menu
         };
         spans.push(panel_span(entry, style));
     }
-    spans.push(panel_span("  Sort: ", PanelSpanStyle::Normal));
+    spans.push(panel_span("  Order: ", PanelSpanStyle::Normal));
     spans.push(panel_span(sort_label(sort), PanelSpanStyle::Accent));
     panel_line_spans(spans)
 }
@@ -479,6 +723,214 @@ fn build_item_target_panel(
         ]));
     }
     lines
+}
+
+fn build_item_action_panel(
+    runtime: &GameRuntime,
+    entry: Option<&InventoryEntry>,
+) -> Vec<MenuPanelLine> {
+    let actions = item_action_entries(entry);
+    if actions.is_empty() {
+        return vec![panel_line("No actions available."), panel_line("")];
+    }
+    let selection = runtime
+        .menu_state
+        .detail_selection
+        .min(actions.len().saturating_sub(1));
+    let mut lines = Vec::new();
+    lines.push(panel_line_spans(vec![panel_span(
+        "Actions",
+        PanelSpanStyle::Accent,
+    )]));
+    for (index, action) in actions.iter().enumerate() {
+        let is_selected = index == selection;
+        let mut style = if action.enabled {
+            PanelSpanStyle::Normal
+        } else {
+            PanelSpanStyle::Muted
+        };
+        if is_selected {
+            style = PanelSpanStyle::Highlight;
+        }
+        let prefix = if is_selected { "> " } else { "  " };
+        lines.push(panel_line_spans(vec![panel_span(
+            format!("{}{}", prefix, action.label),
+            style,
+        )]));
+    }
+    lines
+}
+
+fn build_item_move_panel(runtime: &GameRuntime, entries: &[InventoryEntry]) -> Vec<MenuPanelLine> {
+    if entries.is_empty() {
+        return vec![panel_line("No items available."), panel_line("")];
+    }
+    let selection = runtime
+        .menu_state
+        .detail_target
+        .min(entries.len().saturating_sub(1));
+    let mut lines = Vec::new();
+    lines.push(panel_line_spans(vec![panel_span(
+        "Move To",
+        PanelSpanStyle::Accent,
+    )]));
+    for (index, entry) in entries.iter().enumerate() {
+        let is_selected = index == selection;
+        lines.push(panel_line_spans(vec![
+            panel_span(
+                if is_selected { "> " } else { "  " },
+                if is_selected {
+                    PanelSpanStyle::Highlight
+                } else {
+                    PanelSpanStyle::Normal
+                },
+            ),
+            panel_span(
+                entry.label.as_str(),
+                if is_selected {
+                    PanelSpanStyle::Highlight
+                } else {
+                    PanelSpanStyle::Normal
+                },
+            ),
+        ]));
+    }
+    lines
+}
+
+fn build_party_summary_panel(runtime: &GameRuntime) -> Vec<MenuPanelLine> {
+    if runtime.party.active_count() == 0 {
+        return vec![panel_line("No party members.")];
+    }
+    let mut lines = Vec::new();
+    let magic_system = runtime.content.rules.game.magic_system.clone();
+    let rows_enabled = runtime.content.rules.battle.rows.enabled;
+    for member_id in runtime.party.active_ids() {
+        if let Some(actor) = runtime.party.roster.get(&member_id) {
+            let max_hp = actor.derived_stats.get("hp").copied().unwrap_or(0);
+            let job_name = runtime
+                .content
+                .jobs
+                .jobs
+                .iter()
+                .find(|job| job.id == actor.job_id)
+                .map(|job| job.name.as_str())
+                .unwrap_or(actor.job_id.as_str());
+            let summary_line = if magic_system == engine::rules::MagicSystem::TierCharges {
+                let job = runtime
+                    .content
+                    .jobs
+                    .jobs
+                    .iter()
+                    .find(|job| job.id == actor.job_id);
+                let mut tiers = Vec::new();
+                if let Some(job) = job {
+                    if let Some(magic_slots) = &job.magic_slots {
+                        for tier in magic_slots.keys() {
+                            let current = actor.magic_tier_charges.get(tier).copied().unwrap_or(0);
+                            let max = engine::party::get_actor_max_charges(
+                                &runtime.content,
+                                actor,
+                                *tier,
+                            );
+                            if max > 0 {
+                                tiers.push(format!("T{} {}/{}", tier, current, max));
+                            }
+                        }
+                    }
+                }
+                let charge_text = if tiers.is_empty() {
+                    "".to_string()
+                } else {
+                    format!("  {}", tiers.join("  "))
+                };
+                format!(
+                    "{}  Lv{}  HP {}/{}{}",
+                    actor.name, actor.level, actor.current_hp, max_hp, charge_text
+                )
+            } else {
+                let max_mp = actor.derived_stats.get("mp").copied().unwrap_or(0);
+                format!(
+                    "{}  Lv{}  HP {}/{}  MP {}/{}",
+                    actor.name, actor.level, actor.current_hp, max_hp, actor.current_mp, max_mp
+                )
+            };
+            lines.push(panel_line(summary_line));
+            lines.push(panel_line(format!("Job: {}", job_name)));
+            if rows_enabled {
+                lines.push(panel_line(format!(
+                    "Row: {}",
+                    engine::party::actor_row_label(actor)
+                )));
+            }
+            if runtime.content.rules.progression_mode == engine::rules::ProgressionMode::JobPoints {
+                lines.push(panel_line(format!(
+                    "JP {}",
+                    engine::party::job_jp(actor, &actor.job_id)
+                )));
+            }
+            lines.push(panel_line(""));
+        }
+    }
+    lines
+}
+
+pub fn move_inventory_entry(
+    runtime: &mut GameRuntime,
+    entries: &[InventoryEntry],
+    from_index: usize,
+    to_index: usize,
+) {
+    if entries.is_empty() || from_index >= entries.len() || to_index >= entries.len() {
+        return;
+    }
+    if from_index == to_index {
+        return;
+    }
+    let kind = entries[from_index].kind.clone();
+    let filtered_ids = entries
+        .iter()
+        .map(|entry| entry.id.clone())
+        .collect::<Vec<_>>();
+    let mut reordered = filtered_ids.clone();
+    let moving = reordered.remove(from_index);
+    reordered.insert(to_index, moving);
+    match kind {
+        InventoryKind::Item => {
+            runtime.inventory.items_order =
+                reorder_order_list(&runtime.inventory.items_order, &filtered_ids, &reordered);
+        }
+        InventoryKind::Equipment => {
+            runtime.inventory.equipment_order = reorder_order_list(
+                &runtime.inventory.equipment_order,
+                &filtered_ids,
+                &reordered,
+            );
+        }
+    }
+}
+
+fn reorder_order_list(
+    existing: &[String],
+    filtered_ids: &[String],
+    reordered: &[String],
+) -> Vec<String> {
+    let filtered_set = filtered_ids.iter().cloned().collect::<HashSet<_>>();
+    let mut remaining = reordered.iter();
+    let mut new_order = Vec::new();
+    for id in existing {
+        if filtered_set.contains(id) {
+            if let Some(next_id) = remaining.next() {
+                new_order.push(next_id.clone());
+            }
+        } else {
+            new_order.push(id.clone());
+        }
+    }
+    for id in remaining {
+        new_order.push(id.clone());
+    }
+    new_order
 }
 
 fn build_item_targets(
@@ -655,7 +1107,10 @@ fn resolve_magic_acquisition(
 
 pub fn build_battle_item_entries(runtime: &GameRuntime) -> Vec<InventoryEntry> {
     let mut entries = Vec::new();
-    for item in &runtime.content.items.items {
+    for item_id in ordered_item_ids(runtime) {
+        let Some(item) = find_item_definition(runtime, &item_id) else {
+            continue;
+        };
         let qty = runtime.inventory.item_qty(&item.id);
         if qty <= 0 {
             continue;
