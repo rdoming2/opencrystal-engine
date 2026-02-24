@@ -226,6 +226,26 @@ fn handle_event_step_console(
                 }
             }
         }
+        "require_items" => {
+            let item = step.item.as_deref().unwrap_or("");
+            let qty = step.qty.unwrap_or(1);
+            let available = runtime.inventory.item_qty(item);
+            if item.is_empty() || available < qty {
+                println!("Require items missing: {} x{}", item, qty.max(1));
+            } else {
+                println!("Require items met: {} x{}", item, qty);
+            }
+        }
+        "remove_item" => {
+            let item = step.item.as_deref().unwrap_or("");
+            let qty = step.qty.unwrap_or(1);
+            if item.is_empty() {
+                println!("Remove item missing id");
+            } else {
+                let removed = runtime.inventory.remove_item(item, qty);
+                println!("Remove item: {} x{} => {}", item, qty, removed);
+            }
+        }
         _ => {
             println!("Event step: {}", step.r#type);
         }

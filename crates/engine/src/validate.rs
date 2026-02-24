@@ -18,13 +18,15 @@ use crate::world::WorldsFile;
 
 const BATTLE_POS_MAX_X: i32 = 9;
 const BATTLE_POS_MAX_Y: i32 = 5;
-const EVENT_TYPES: [&str; 21] = [
+const EVENT_TYPES: [&str; 23] = [
     "dialog",
     "narration",
     "set_flag",
     "require_flags",
     "give_item",
     "give_equipment",
+    "require_items",
+    "remove_item",
     "warp",
     "start_battle",
     "start_dialog",
@@ -970,6 +972,10 @@ pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
     }
 
     let event_types: HashSet<&str> = EVENT_TYPES.iter().copied().collect();
+    let item_ids: HashSet<&str> = items
+        .as_ref()
+        .map(|items| items.items.iter().map(|item| item.id.as_str()).collect())
+        .unwrap_or_default();
     for event in &events {
         for step in &event.steps {
             if !event_types.contains(step.r#type.as_str()) {
@@ -977,6 +983,26 @@ pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
                     "events/{}: unknown step type '{}'",
                     event.id, step.r#type
                 ));
+            }
+            if step.r#type == "require_items" || step.r#type == "remove_item" {
+                let item_id = step.item.as_deref().unwrap_or("");
+                if item_id.trim().is_empty() {
+                    errors.push(format!(
+                        "events/{}: {} step missing item",
+                        event.id, step.r#type
+                    ));
+                } else if !item_ids.contains(item_id) {
+                    errors.push(format!(
+                        "events/{}: {} step references unknown item '{}'",
+                        event.id, step.r#type, item_id
+                    ));
+                }
+                if step.qty.unwrap_or(1) <= 0 {
+                    errors.push(format!(
+                        "events/{}: {} step requires qty > 0",
+                        event.id, step.r#type
+                    ));
+                }
             }
             if step.r#type == "warp" {
                 let Some(target) = &step.target else {

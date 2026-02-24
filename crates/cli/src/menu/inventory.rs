@@ -64,10 +64,13 @@ pub fn build_inventory_entries(
     let equipped_map = build_equipped_map(runtime);
     let mut entries = Vec::new();
 
-    if matches!(filter, InventoryFilter::Items) {
+    if matches!(filter, InventoryFilter::Items | InventoryFilter::KeyItems) {
         for item in &runtime.content.items.items {
             let qty = runtime.inventory.item_qty(&item.id);
             if qty <= 0 {
+                continue;
+            }
+            if !matches_item_filter(filter, item) {
                 continue;
             }
             let usable = item_usage_allows_field(&item.usage.context);
@@ -337,11 +340,20 @@ fn matches_filter_equipment(
     equipment: &engine::entities::EquipmentDefinition,
 ) -> bool {
     match filter {
+        InventoryFilter::KeyItems => false,
         InventoryFilter::Equipment => true,
         InventoryFilter::Weapons => equipment.slot == "weapon",
         InventoryFilter::Armor => equipment.slot == "armor",
         InventoryFilter::Accessory => equipment.slot == "accessory",
         InventoryFilter::Items => false,
+    }
+}
+
+fn matches_item_filter(filter: &InventoryFilter, item: &engine::entities::ItemDefinition) -> bool {
+    match filter {
+        InventoryFilter::Items => item.r#type != "key_item",
+        InventoryFilter::KeyItems => item.r#type == "key_item",
+        _ => false,
     }
 }
 
@@ -373,6 +385,7 @@ fn inventory_sort_key(
 fn inventory_filters() -> Vec<String> {
     vec![
         "Items".to_string(),
+        "Key Items".to_string(),
         "Equipment".to_string(),
         "Weapons".to_string(),
         "Armor".to_string(),
@@ -383,6 +396,7 @@ fn inventory_filters() -> Vec<String> {
 fn filter_label(filter: &InventoryFilter) -> String {
     match filter {
         InventoryFilter::Items => "Items",
+        InventoryFilter::KeyItems => "Key Items",
         InventoryFilter::Equipment => "Equipment",
         InventoryFilter::Weapons => "Weapons",
         InventoryFilter::Armor => "Armor",

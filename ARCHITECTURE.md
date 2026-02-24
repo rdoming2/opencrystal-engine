@@ -170,7 +170,7 @@ All runtime data is loaded from JSON. Files are organized into top-level categor
   or load recent saves before returning to the title screen.
 
 Event execution is handled by `GameRuntime.apply_event_step`, which:
-- Manages state changes (flag setting, item grants, warps to new maps).
+- Manages state changes (flag setting, item grants, item requirements/removals, warps to new maps).
 - Returns `EventExecutionResult` for UI requests (dialogs, battles, shops).
 
 ### Random encounters

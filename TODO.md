@@ -112,6 +112,9 @@
 - [x] Show campfire recipe ingredient requirements with inventory counts.
 - [x] Gameover screen and optional restart logic (last battle, last save, fallback to main menu)
 - [x] Optional persistent death markers
+- [ ] Update UI display to show names/labels instead of ids
+- [ ] Update item player selection UI to show default status panel
+- [ ] When selecting items in menu UI to "use", "drop", "move"
 
 ## Battle System
 - [x] Turn-based flow (command selection, targeting, resolve action).
@@ -139,6 +142,7 @@
 - [x] Add optional difficulty scaling for EXP and currency rewards.
 - [x] Remove readiness meter from turn non-Dynamic turn mode battle UI
 - [ ] Disable RUN command for certain battles.
+- [ ] Optional penalty on party defeat
 - [x] Add localization support for UI strings and command labels.
 
 ## Magic System
@@ -182,6 +186,7 @@
 - [x] Add quest step reveal flags (show_flag) and acquisition gating.
 - [x] Implement NPC roaming (persisted positions).
 - [x] Implement event-driven NPC controls (show/hide/move/set_sprite).
+- [x] Add event steps for item requirements/removal.
 - [x] Implement inn rest feature (dialog action `rest_party`).
 - [x] Add configurable NPC interaction range (default 1 tile).
 - [x] Add event action to teach spells (learn_spell).
@@ -191,6 +196,7 @@
 - [x] Add puzzle interactions.
 - [ ] Add party talk interactions.
 - [x] Add cooking system.
+- [ ] Encounter locking/unlocking by flag
 
 ## Content + Validation
 - [x] Add missing demo content (town map, shop UI, basic quests).
@@ -203,6 +209,7 @@
 - [ ] Validate content before gameplay starts and surface louder errors.
 - [x] Add content authoring guide.
 - [x] Add game builder tool for schema stubs, upgrades, and project scaffolding.
+- [ ] Map builder glyph display
 - [x] Add build docs command to print reference docs to stdout.
 - [x] Add `ui/menu.json` schema + validation.
 - [x] Add `party.json` schema + validation.

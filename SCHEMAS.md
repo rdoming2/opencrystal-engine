@@ -1093,6 +1093,7 @@ Item usage defines where and how items can be used. `context` values: `field`,
 `battle`, or `both`. `target` values: `self`, `ally`, `party`, `enemy`.
 
 `description` is optional text displayed in item menus.
+`type` is used for inventory/shop filtering; `key_item` shows under the Key Items filter.
 `price` is an optional map of currency IDs to sell values used by shops (and for shops that
 restock sold items). Items can list multiple currencies; selling is only allowed in shops whose
 currency matches one of the listed prices (unless a shop entry overrides the sell price).
@@ -1306,6 +1307,8 @@ Supported event step types:
 - `require_flags` (fields: `flags` list)
 - `give_item` (fields: `item`, `qty`)
 - `give_equipment` (fields: `item`, `qty`)
+- `require_items` (fields: `item`, `qty`, optional `text` shown when missing)
+- `remove_item` (fields: `item`, `qty`)
 - `learn_spell` (fields: `member`, `spell`)
 - `party_add` (fields: `member`)
 - `party_remove` (fields: `member`)

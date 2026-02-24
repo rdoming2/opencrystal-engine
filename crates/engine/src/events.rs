@@ -147,6 +147,36 @@ pub fn apply_event_step(runtime: &mut GameRuntime, step: &EventStep) -> EventExe
             }
             EventExecutionResult::Continue
         }
+        "require_items" => {
+            let Some(item) = step.item.as_deref() else {
+                runtime.abort_event();
+                return EventExecutionResult::Abort;
+            };
+            let qty = step.qty.unwrap_or(1);
+            if qty <= 0 || runtime.inventory.item_qty(item) < qty {
+                runtime.abort_event();
+                let text = step
+                    .text
+                    .as_deref()
+                    .unwrap_or("You do not have the required items.");
+                return EventExecutionResult::Narration {
+                    text: text.to_string(),
+                };
+            }
+            EventExecutionResult::Continue
+        }
+        "remove_item" => {
+            let Some(item) = step.item.as_deref() else {
+                runtime.abort_event();
+                return EventExecutionResult::Abort;
+            };
+            let qty = step.qty.unwrap_or(1);
+            if qty <= 0 || !runtime.inventory.remove_item(item, qty) {
+                runtime.abort_event();
+                return EventExecutionResult::Abort;
+            }
+            EventExecutionResult::Continue
+        }
         "warp" => {
             if let Some(target) = &step.target {
                 if target.map == "last_overworld" {
