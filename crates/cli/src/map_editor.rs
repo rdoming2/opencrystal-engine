@@ -2,6 +2,7 @@ use std::fs;
 use std::path::Path;
 
 use engine::content::CookingFile;
+use engine::encounters::EncountersFile;
 use engine::entities::{EquipmentFile, ItemsFile, NpcsFile, VehiclesFile};
 use engine::events::EventFile;
 use engine::inventory::InventoryStack;
@@ -46,6 +47,7 @@ pub fn run_map_editor(content_dir: &Path, id: &str) -> Result<(), String> {
     let currency_ids = load_currency_ids(content_dir);
     let campfire_ids = load_campfire_ids(content_dir);
     let encounter_zone_ids = load_encounter_zone_ids(&map);
+    let encounter_table_ids = load_encounter_table_ids(content_dir);
 
     let config = MapEditorConfig {
         map: map_to_ui(map),
@@ -58,6 +60,7 @@ pub fn run_map_editor(content_dir: &Path, id: &str) -> Result<(), String> {
         currency_ids,
         campfire_ids,
         encounter_zone_ids,
+        encounter_table_ids,
     };
 
     let outcome = match tui::map_editor::run_map_editor(&mut session, config) {
@@ -239,6 +242,14 @@ fn load_encounter_zone_ids(map: &MapFile) -> Vec<String> {
         .iter()
         .map(|entry| entry.zone_id.clone())
         .collect()
+}
+
+fn load_encounter_table_ids(content_dir: &Path) -> Vec<String> {
+    let path = content_dir.join("entities").join("encounters.json");
+    if let Ok(file) = load_json::<EncountersFile>(&path) {
+        return file.tables.into_iter().map(|entry| entry.id).collect();
+    }
+    Vec::new()
 }
 
 fn map_to_ui(map: MapFile) -> UiMapData {

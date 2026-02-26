@@ -47,6 +47,7 @@ pub(super) enum CursorObject {
     Campfire(usize),
     Event(usize),
     Npc(usize),
+    EncounterZone(usize),
     SavePoint,
 }
 
@@ -378,6 +379,13 @@ fn apply_moving_position(state: &mut EditorState, moving: &mut MovingObject, new
         CursorObject::Npc(index) => {
             if let Some(item) = state.map.npcs.get_mut(index) {
                 item.pos = new_pos;
+            }
+        }
+        CursorObject::EncounterZone(index) => {
+            if let Some(item) = state.map.encounters.get_mut(index) {
+                let width = item.rect[2].max(1);
+                let height = item.rect[3].max(1);
+                item.rect = [new_pos[0], new_pos[1], width, height];
             }
         }
         CursorObject::SavePoint => {

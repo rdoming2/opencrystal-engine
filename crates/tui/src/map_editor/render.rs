@@ -9,7 +9,7 @@ use ratatui::Frame;
 use crate::utils::{palette_style, truncate_line};
 
 use super::objects::{moving_label, object_glyph_at, objects_at_cursor};
-use super::state::{selection_rect, tile_at, EditorState};
+use super::state::{selection_rect, tile_at, EditorState, ObjectGlyphMode};
 use super::MapData;
 
 pub(super) fn draw_editor_frame(
@@ -77,6 +77,13 @@ fn draw_map_panel(frame: &mut Frame, area: Rect, state: &EditorState) {
                         .fg(Color::Cyan)
                         .add_modifier(Modifier::BOLD)
                 };
+            } else if matches!(state.object_glyphs, ObjectGlyphMode::Markers)
+                && zone_border_at(&state.map, map_x, map_y)
+            {
+                glyph = 'Z';
+                style = Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD);
             }
             if let Some((min_x, min_y, max_x, max_y)) = selection_rect(state) {
                 if map_x >= min_x && map_x <= max_x && map_y >= min_y && map_y <= max_y {
@@ -201,4 +208,24 @@ fn legend_map(map: &MapData) -> HashMap<char, super::LegendEntry> {
         .cloned()
         .map(|entry| (entry.glyph, entry))
         .collect::<HashMap<_, _>>()
+}
+
+fn zone_border_at(map: &MapData, x: i32, y: i32) -> bool {
+    for zone in &map.encounters {
+        let rect = zone.rect;
+        if rect[2] <= 0 || rect[3] <= 0 {
+            continue;
+        }
+        let min_x = rect[0];
+        let min_y = rect[1];
+        let max_x = rect[0] + rect[2] - 1;
+        let max_y = rect[1] + rect[3] - 1;
+        if x < min_x || x > max_x || y < min_y || y > max_y {
+            continue;
+        }
+        if x == min_x || x == max_x || y == min_y || y == max_y {
+            return true;
+        }
+    }
+    false
 }

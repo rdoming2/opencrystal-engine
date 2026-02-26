@@ -557,7 +557,9 @@ When the meter reaches 1.0, a random battle triggers and the meter is reduced by
   "legend": {
     "~": {"tile": "water", "passable": false, "palette": "blue"},
     ".": {"tile": "grass", "passable": true, "palette": "green"},
-    "^": {"tile": "mountain", "passable": false, "palette": "bright_black"}
+    "^": {"tile": "mountain", "passable": false, "palette": "bright_black"},
+    ":": {"tile": "forest", "passable": true, "palette": "green"},
+    ",": {"tile": "desert", "passable": true, "palette": "yellow"}
   },
   "encounters": [
     {

@@ -109,6 +109,7 @@
 - [x] Equipment swap flow with stat preview.
 - [x] Add startup content chooser when `--content` is omitted.
 - [x] Add `cryst build map` TUI editor (tiles, legend, objects, resize warnings).
+- [x] Add encounter zone editing to map editor.
 - [x] Show campfire recipe ingredient requirements with inventory counts.
 - [x] Gameover screen and optional restart logic (last battle, last save, fallback to main menu)
 - [x] Optional persistent death markers

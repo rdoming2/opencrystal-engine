@@ -8,10 +8,12 @@ use super::prompts::{
     choose_from_list_or_custom, choose_optional_from_list_or_custom, flags_to_string, prompt_flags,
     prompt_optional_glyph_string, prompt_optional_text, prompt_pos, prompt_yes_no,
 };
-use super::state::{push_undo, CursorObject, EditorState, MovingObject, ObjectGlyphMode};
+use super::state::{
+    push_undo, selection_rect, CursorObject, EditorState, MovingObject, ObjectGlyphMode,
+};
 use super::{
-    InventoryStack, MapCampfire, MapChest, MapChestLoot, MapCurrencyStack, MapDoor, MapEvent,
-    MapNpc, MapPuzzle, MapSign, MapTransition, MapVehicle,
+    EncounterZone, InventoryStack, MapCampfire, MapChest, MapChestLoot, MapCurrencyStack, MapDoor,
+    MapEvent, MapNpc, MapPuzzle, MapSign, MapTransition, MapVehicle,
 };
 
 pub(super) fn edit_objects(
@@ -27,6 +29,7 @@ pub(super) fn edit_objects(
     currency_ids: &[String],
     campfire_ids: &[String],
     encounter_zone_ids: &[String],
+    encounter_table_ids: &[String],
 ) -> io::Result<()> {
     let options = vec![
         "Add transition".to_string(),
@@ -37,6 +40,7 @@ pub(super) fn edit_objects(
         "Add vehicle".to_string(),
         "Add campfire".to_string(),
         "Add save point".to_string(),
+        "Add encounter zone".to_string(),
         "Add event".to_string(),
         "Add npc".to_string(),
     ];
@@ -67,8 +71,9 @@ pub(super) fn edit_objects(
         5 => add_vehicle(session, bindings, state, vehicle_ids)?,
         6 => add_campfire(session, bindings, state, campfire_ids)?,
         7 => add_save_point(state),
-        8 => add_event(session, bindings, state, event_ids, encounter_zone_ids)?,
-        9 => add_npc(session, bindings, state, npc_ids)?,
+        8 => add_encounter_zone(session, bindings, state, encounter_table_ids)?,
+        9 => add_event(session, bindings, state, event_ids, encounter_zone_ids)?,
+        10 => add_npc(session, bindings, state, npc_ids)?,
         _ => {}
     }
     Ok(())
@@ -87,6 +92,7 @@ pub(super) fn edit_object_at_cursor(
     currency_ids: &[String],
     campfire_ids: &[String],
     encounter_zone_ids: &[String],
+    encounter_table_ids: &[String],
 ) -> io::Result<()> {
     let pos = [state.cursor.0, state.cursor.1];
     let (choices, refs) = cursor_objects(state, pos);
@@ -149,6 +155,9 @@ pub(super) fn edit_object_at_cursor(
         }
         CursorObject::Npc(index) => {
             edit_npc(session, bindings, state, npc_ids, index)?;
+        }
+        CursorObject::EncounterZone(index) => {
+            edit_encounter_zone(session, bindings, state, encounter_table_ids, index)?;
         }
         CursorObject::SavePoint => {
             push_undo(state);
@@ -360,6 +369,25 @@ fn object_entries_at_pos(state: &EditorState, pos: [i32; 2]) -> Vec<ObjectEntry>
             });
         }
     }
+    for (index, item) in state.map.encounters.iter().enumerate() {
+        if pos_in_rect(pos, item.rect) {
+            entries.push(ObjectEntry {
+                label: format!(
+                    "encounter_zone:{} table:{} rect:{},{},{}x{}",
+                    item.zone_id,
+                    item.table,
+                    item.rect[0],
+                    item.rect[1],
+                    item.rect[2],
+                    item.rect[3]
+                ),
+                cursor: CursorObject::EncounterZone(index),
+                marker_glyph: 'Z',
+                configured_glyph: None,
+                palette: None,
+            });
+        }
+    }
     if state.map.save_points.iter().any(|entry| *entry == pos) {
         entries.push(ObjectEntry {
             label: "save_point".to_string(),
@@ -397,6 +425,7 @@ pub(super) fn moving_label(target: &CursorObject) -> String {
         CursorObject::Campfire(_) => "campfire".to_string(),
         CursorObject::Event(_) => "event".to_string(),
         CursorObject::Npc(_) => "npc".to_string(),
+        CursorObject::EncounterZone(_) => "encounter_zone".to_string(),
         CursorObject::SavePoint => "save_point".to_string(),
     }
 }
@@ -664,6 +693,42 @@ fn add_save_point(state: &mut EditorState) {
     } else {
         state.status = "Save point already present".to_string();
     }
+}
+
+fn add_encounter_zone(
+    session: &mut TuiSession,
+    bindings: &InputBindings,
+    state: &mut EditorState,
+    encounter_table_ids: &[String],
+) -> io::Result<()> {
+    let id = prompt_text(session, "Encounter Zone", "Id:", "zone", 32)?;
+    let Some(id) = id else {
+        return Ok(());
+    };
+    let table = choose_from_list_or_custom(
+        session,
+        bindings,
+        "Encounter Zone",
+        "Table id:",
+        encounter_table_ids,
+        "",
+    )?;
+    let Some(table) = table else {
+        return Ok(());
+    };
+    let rect_default = rect_from_selection(state).unwrap_or([state.cursor.0, state.cursor.1, 1, 1]);
+    let rect = prompt_rect(session, "Encounter Zone", rect_default)?;
+    let Some(rect) = rect else {
+        return Ok(());
+    };
+    push_undo(state);
+    state.map.encounters.push(EncounterZone {
+        zone_id: id,
+        rect: normalize_zone_rect(&state.map, rect),
+        table,
+    });
+    mark_dirty(state, "Encounter zone added");
+    Ok(())
 }
 
 fn add_event(
@@ -1221,6 +1286,48 @@ fn edit_npc(
     Ok(())
 }
 
+fn edit_encounter_zone(
+    session: &mut TuiSession,
+    bindings: &InputBindings,
+    state: &mut EditorState,
+    encounter_table_ids: &[String],
+    index: usize,
+) -> io::Result<()> {
+    let entry = state.map.encounters.get(index).cloned();
+    let Some(entry) = entry else {
+        return Ok(());
+    };
+    let zone_id = prompt_text(session, "Encounter Zone", "Id:", &entry.zone_id, 32)?;
+    let Some(zone_id) = zone_id else {
+        return Ok(());
+    };
+    let table = choose_from_list_or_custom(
+        session,
+        bindings,
+        "Encounter Zone",
+        "Table id:",
+        encounter_table_ids,
+        &entry.table,
+    )?;
+    let Some(table) = table else {
+        return Ok(());
+    };
+    let rect_default = rect_from_selection(state).unwrap_or(entry.rect);
+    let rect = prompt_rect(session, "Encounter Zone", rect_default)?;
+    let Some(rect) = rect else {
+        return Ok(());
+    };
+    let rect = normalize_zone_rect(&state.map, rect);
+    push_undo(state);
+    if let Some(slot) = state.map.encounters.get_mut(index) {
+        slot.zone_id = zone_id;
+        slot.table = table;
+        slot.rect = rect;
+    }
+    mark_dirty(state, "Encounter zone updated");
+    Ok(())
+}
+
 fn prompt_cost(
     session: &mut TuiSession,
     bindings: &InputBindings,
@@ -1617,19 +1724,19 @@ fn has_object_at_cursor(state: &EditorState, pos: [i32; 2]) -> bool {
 pub(super) fn object_glyph_at(state: &EditorState, x: i32, y: i32) -> Option<ObjectGlyph> {
     let pos = [x, y];
     let use_configured = matches!(state.object_glyphs, ObjectGlyphMode::Configured);
-    object_entries_at_pos(state, pos)
+    let entry = object_entries_at_pos(state, pos)
         .into_iter()
-        .next()
-        .map(|entry| {
-            let (glyph, palette) = if use_configured {
-                let glyph = entry.configured_glyph.unwrap_or(entry.marker_glyph);
-                let palette = entry.configured_glyph.and_then(|_| entry.palette.clone());
-                (glyph, palette)
-            } else {
-                (entry.marker_glyph, None)
-            };
-            ObjectGlyph { glyph, palette }
-        })
+        .find(|entry| !matches!(entry.cursor, CursorObject::EncounterZone(_)))?;
+    Some({
+        let (glyph, palette) = if use_configured {
+            let glyph = entry.configured_glyph.unwrap_or(entry.marker_glyph);
+            let palette = entry.configured_glyph.and_then(|_| entry.palette.clone());
+            (glyph, palette)
+        } else {
+            (entry.marker_glyph, None)
+        };
+        ObjectGlyph { glyph, palette }
+    })
 }
 
 pub(super) fn objects_at_cursor(state: &EditorState) -> Vec<String> {
@@ -1654,6 +1761,9 @@ fn remove_objects_at_pos(state: &mut EditorState, pos: [i32; 2]) -> bool {
     removed |= retain_by_pos(&mut state.map.events, pos, |item, pos| {
         item.pos == Some(pos)
     });
+    removed |= retain_by_pos(&mut state.map.encounters, pos, |item, pos| {
+        pos_in_rect(pos, item.rect)
+    });
     removed
 }
 
@@ -1665,6 +1775,60 @@ fn retain_by_pos<T>(
     let before = items.len();
     items.retain(|item| !matches(item, pos));
     before != items.len()
+}
+
+fn rect_from_selection(state: &EditorState) -> Option<[i32; 4]> {
+    let (min_x, min_y, max_x, max_y) = selection_rect(state)?;
+    Some([min_x, min_y, max_x - min_x + 1, max_y - min_y + 1])
+}
+
+fn prompt_rect(
+    session: &mut TuiSession,
+    title: &str,
+    default_rect: [i32; 4],
+) -> io::Result<Option<[i32; 4]>> {
+    let default = format!(
+        "{},{},{},{}",
+        default_rect[0], default_rect[1], default_rect[2], default_rect[3]
+    );
+    let value = prompt_text(session, title, "Rect (x,y,w,h):", &default, 24)?;
+    let Some(value) = value else {
+        return Ok(None);
+    };
+    parse_rect(&value)
+}
+
+fn parse_rect(value: &str) -> io::Result<Option<[i32; 4]>> {
+    let parts = value.split(',').collect::<Vec<_>>();
+    if parts.len() != 4 {
+        return Ok(None);
+    }
+    let x: i32 = parts[0].trim().parse().unwrap_or(0);
+    let y: i32 = parts[1].trim().parse().unwrap_or(0);
+    let w: i32 = parts[2].trim().parse().unwrap_or(1).max(1);
+    let h: i32 = parts[3].trim().parse().unwrap_or(1).max(1);
+    Ok(Some([x, y, w, h]))
+}
+
+fn normalize_zone_rect(map: &super::MapData, rect: [i32; 4]) -> [i32; 4] {
+    let max_w = map.width as i32;
+    let max_h = map.height as i32;
+    if max_w <= 0 || max_h <= 0 {
+        return rect;
+    }
+    let x = rect[0].max(0).min(max_w - 1);
+    let y = rect[1].max(0).min(max_h - 1);
+    let mut w = rect[2].max(1);
+    let mut h = rect[3].max(1);
+    w = w.min(max_w - x).max(1);
+    h = h.min(max_h - y).max(1);
+    [x, y, w, h]
+}
+
+fn pos_in_rect(pos: [i32; 2], rect: [i32; 4]) -> bool {
+    let x = pos[0];
+    let y = pos[1];
+    x >= rect[0] && y >= rect[1] && x < rect[0] + rect[2] && y < rect[1] + rect[3]
 }
 
 fn mark_dirty(state: &mut EditorState, status: &str) {

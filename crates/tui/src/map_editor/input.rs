@@ -70,6 +70,7 @@ pub(super) fn handle_key(
     currency_ids: &[String],
     campfire_ids: &[String],
     encounter_zone_ids: &[String],
+    encounter_table_ids: &[String],
     key: KeyEvent,
 ) -> io::Result<EditorAction> {
     if let Some(action) = handle_immediate_key(state, key.code) {
@@ -88,6 +89,7 @@ pub(super) fn handle_key(
         currency_ids,
         campfire_ids,
         encounter_zone_ids,
+        encounter_table_ids,
         key.code,
     )? {
         return Ok(action);
@@ -176,6 +178,7 @@ fn handle_prompted_key(
     currency_ids: &[String],
     campfire_ids: &[String],
     encounter_zone_ids: &[String],
+    encounter_table_ids: &[String],
     code: KeyCode,
 ) -> io::Result<Option<EditorAction>> {
     match code {
@@ -201,6 +204,7 @@ fn handle_prompted_key(
                 currency_ids,
                 campfire_ids,
                 encounter_zone_ids,
+                encounter_table_ids,
             )?;
             Ok(Some(EditorAction::Continue))
         }
@@ -222,6 +226,7 @@ fn handle_prompted_key(
                 currency_ids,
                 campfire_ids,
                 encounter_zone_ids,
+                encounter_table_ids,
             )?;
             Ok(Some(EditorAction::Continue))
         }
