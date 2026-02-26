@@ -16,6 +16,8 @@ pub struct EncounterTable {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct EncounterEntry {
     pub weight: i32,
+    #[serde(default)]
+    pub tile: Option<String>,
     pub formation: Vec<EncounterMember>,
 }
 

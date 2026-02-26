@@ -754,6 +754,11 @@ Entries contain an inline formation. Single-enemy encounters are just a formatio
 one member. Each formation member must include a `pos` value. Positions are expressed
 in a battle grid from `[0,0]` to `[9,5]` (10x6).
 
+Encounter entries can optionally include `tile` to restrict them to a specific map
+legend `tile` id (for example `grass` or `water`). When tagged entries exist for the
+current tile, only those entries are eligible; otherwise the engine falls back to
+untagged entries.
+
 ```json
 {
   "version": 1,
@@ -763,6 +768,7 @@ in a battle grid from `[0,0]` to `[9,5]` (10x6).
       "entries": [
         {
           "weight": 60,
+          "tile": "grass",
           "formation": [
             {"enemy": "imp", "pos": [0, 1]},
             {"enemy": "imp", "pos": [1, 2]},

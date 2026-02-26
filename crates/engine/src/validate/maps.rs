@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use super::helpers::check_non_empty;
 use super::ValidationContext;
@@ -52,22 +52,49 @@ pub(crate) fn validate_world_maps(context: &ValidationContext, errors: &mut Vec<
     }
 }
 
-pub(crate) fn validate_encounter_tables(context: &ValidationContext, errors: &mut Vec<String>) {
+pub(crate) fn validate_encounter_tables(
+    context: &ValidationContext,
+    errors: &mut Vec<String>,
+    warnings: &mut Vec<String>,
+) {
     let Some(encounters) = context.encounters else {
         return;
     };
-    let tables: HashSet<&str> = encounters
+    let tables: HashMap<&str, &crate::encounters::EncounterTable> = encounters
         .tables
         .iter()
-        .map(|table| table.id.as_str())
+        .map(|table| (table.id.as_str(), table))
         .collect();
     for map in context.maps {
+        let legend_tiles: HashSet<&str> = map
+            .legend
+            .values()
+            .map(|entry| entry.tile.as_str())
+            .collect();
         for zone in &map.encounters {
-            if !tables.contains(zone.table.as_str()) {
+            let Some(table) = tables.get(zone.table.as_str()) else {
                 errors.push(format!(
                     "maps/{}: encounter table '{}' not found",
                     map.id, zone.table
                 ));
+                continue;
+            };
+            if table.entries.is_empty() {
+                errors.push(format!(
+                    "maps/{}: encounter table '{}' has no entries",
+                    map.id, zone.table
+                ));
+            }
+            for entry in &table.entries {
+                let Some(tile) = entry.tile.as_deref() else {
+                    continue;
+                };
+                if !legend_tiles.contains(tile) {
+                    warnings.push(format!(
+                        "maps/{}: encounter table '{}' uses tile '{}' not in legend",
+                        map.id, zone.table, tile
+                    ));
+                }
             }
         }
     }

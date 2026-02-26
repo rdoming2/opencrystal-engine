@@ -2049,11 +2049,20 @@ pub fn try_start_random_battle(
     if *encounter_meter < 1.0 {
         return Ok(None);
     }
-    *encounter_meter = (*encounter_meter - 1.0).clamp(0.0, 1.0);
-    let entry = match select_encounter_entry(&runtime.content.encounters, &zone.table, rng) {
+    let tile_id = tile_id_for_pos(map, player_pos);
+    let entry = match select_encounter_entry(
+        &runtime.content.encounters,
+        &zone.table,
+        tile_id.as_deref(),
+        rng,
+    ) {
         Some(entry) => entry,
-        None => return Ok(None),
+        None => {
+            *encounter_meter = encounter_meter.min(1.0);
+            return Ok(None);
+        }
     };
+    *encounter_meter = (*encounter_meter - 1.0).clamp(0.0, 1.0);
     let formation = entry.formation.clone();
     let snapshot = BattleSnapshot::capture(runtime);
     let outcome = run_battle(runtime, battle_ui, bindings, session, &formation, rng)?;
@@ -2078,7 +2087,8 @@ pub fn run_event_battle_with_result(
         if encounter_id.is_empty() {
             Vec::new()
         } else {
-            match select_encounter_entry(&runtime.content.encounters, encounter_id, &mut rng) {
+            match select_encounter_entry(&runtime.content.encounters, encounter_id, None, &mut rng)
+            {
                 Some(entry) => entry.formation,
                 None => Vec::new(),
             }
@@ -2698,23 +2708,56 @@ fn pos_in_rect(pos: (i32, i32), rect: [i32; 4]) -> bool {
 fn select_encounter_entry(
     encounters: &engine::encounters::EncountersFile,
     table_id: &str,
+    tile_id: Option<&str>,
     rng: &mut impl Rng,
 ) -> Option<engine::encounters::EncounterEntry> {
     let table = encounters
         .tables
         .iter()
         .find(|table| table.id == table_id)?;
-    let total_weight: i32 = table.entries.iter().map(|entry| entry.weight.max(0)).sum();
+    let entries = eligible_encounter_entries(&table.entries, tile_id);
+    let total_weight: i32 = entries.iter().map(|entry| entry.weight.max(0)).sum();
     if total_weight <= 0 {
-        return table.entries.first().cloned();
+        return entries.first().map(|entry| (*entry).clone());
     }
     let roll = rng.random_range(0..total_weight);
     let mut cursor = 0;
-    for entry in &table.entries {
+    for entry in &entries {
         cursor += entry.weight.max(0);
         if roll < cursor {
-            return Some(entry.clone());
+            return Some((*entry).clone());
         }
     }
-    table.entries.first().cloned()
+    entries.first().map(|entry| (*entry).clone())
+}
+
+fn eligible_encounter_entries<'a>(
+    entries: &'a [engine::encounters::EncounterEntry],
+    tile_id: Option<&str>,
+) -> Vec<&'a engine::encounters::EncounterEntry> {
+    let Some(tile_id) = tile_id else {
+        return entries.iter().collect();
+    };
+    let tagged: Vec<&engine::encounters::EncounterEntry> = entries
+        .iter()
+        .filter(|entry| entry.tile.as_deref() == Some(tile_id))
+        .collect();
+    if !tagged.is_empty() {
+        return tagged;
+    }
+    entries
+        .iter()
+        .filter(|entry| entry.tile.is_none())
+        .collect()
+}
+
+fn tile_id_for_pos(map: &engine::maps::MapFile, pos: (i32, i32)) -> Option<String> {
+    if pos.0 < 0 || pos.1 < 0 {
+        return None;
+    }
+    let row = map.tiles.get(pos.1 as usize)?;
+    let glyph = row.chars().nth(pos.0 as usize)?;
+    map.legend
+        .get(&glyph.to_string())
+        .map(|entry| entry.tile.clone())
 }

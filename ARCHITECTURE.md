@@ -183,6 +183,8 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
 - Each step applies a random jitter (0.5 to 1.5) to the rate before adding it to the meter.
 - When the encounter meter reaches 1.0, a random battle triggers.
 - After a battle, the encounter meter is reduced by 1.0 (remaining overflow is kept, clamped to 1.0).
+- Encounter entries can optionally be tagged with a map legend `tile` id; tagged entries
+  are selected only when standing on that tile, otherwise the table falls back to untagged entries.
 
 ### NPC interactions
 

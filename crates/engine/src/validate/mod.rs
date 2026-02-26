@@ -26,9 +26,15 @@ mod maps;
 mod quests;
 mod rules;
 
-pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
+pub struct ValidationReport {
+    pub errors: Vec<String>,
+    pub warnings: Vec<String>,
+}
+
+pub fn validate_content(content_dir: impl AsRef<Path>) -> ValidationReport {
     let content_dir = content_dir.as_ref();
     let mut errors = Vec::new();
+    let mut warnings = Vec::new();
 
     let rules_path = content_dir.join("rules.json");
     let effects_path = content_dir.join("effects.json");
@@ -149,7 +155,7 @@ pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
 
     maps::validate_start_locations(&context, &mut errors);
     maps::validate_world_maps(&context, &mut errors);
-    maps::validate_encounter_tables(&context, &mut errors);
+    maps::validate_encounter_tables(&context, &mut errors, &mut warnings);
     maps::validate_maps(&context, &mut errors);
 
     events::validate_events(&context, &mut errors);
@@ -174,7 +180,7 @@ pub fn validate_content(content_dir: impl AsRef<Path>) -> Vec<String> {
     dialog::validate_dialogs(&context, &mut errors);
     quests::validate_quests(&context, &mut errors);
 
-    errors
+    ValidationReport { errors, warnings }
 }
 
 pub(crate) struct ValidationContext<'a> {

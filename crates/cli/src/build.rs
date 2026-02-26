@@ -1344,6 +1344,7 @@ fn build_new_encounter(content_dir: &Path, id: &str, force: bool) -> Result<Stri
         id: id.to_string(),
         entries: vec![EncounterEntry {
             weight: 1,
+            tile: None,
             formation: Vec::new(),
         }],
     });

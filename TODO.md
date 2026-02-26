@@ -200,6 +200,7 @@
 - [ ] Add party talk interactions.
 - [x] Add cooking system.
 - [ ] Encounter locking/unlocking by flag
+- [x] Add tile-tagged encounter entries with untagged fallback
 
 ## Content + Validation
 - [x] Add missing demo content (town map, shop UI, basic quests).

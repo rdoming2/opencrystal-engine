@@ -514,6 +514,14 @@ pub(crate) fn validate_encounters_enemies(context: &ValidationContext, errors: &
     let trait_ids = &context.ids.trait_ids;
     for table in &encounters.tables {
         for entry in &table.entries {
+            if let Some(tile) = entry.tile.as_ref() {
+                if tile.trim().is_empty() {
+                    errors.push(format!(
+                        "encounters.json: table '{}' entry has empty tile filter",
+                        table.id
+                    ));
+                }
+            }
             for member in &entry.formation {
                 if !enemy_ids.contains(member.enemy.as_str()) {
                     errors.push(format!(

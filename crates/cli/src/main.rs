@@ -396,7 +396,7 @@ fn run_validate() {
             base_dir.join("demo")
         }
     });
-    let mut errors = engine::validate::validate_content(&content_dir);
+    let mut report = engine::validate::validate_content(&content_dir);
 
     let input_path = content_dir.join("input.json");
     let title_ui_path = content_dir.join("ui").join("title.json");
@@ -406,30 +406,42 @@ fn run_validate() {
     let progress_ui_path = content_dir.join("ui").join("gameplay_stats.json");
 
     if let Err(err) = InputFile::load(&input_path) {
-        errors.push(format!("input.json: {}", err));
+        report.errors.push(format!("input.json: {}", err));
     }
     if let Err(err) = TitleUiFile::load(&title_ui_path) {
-        errors.push(format!("ui/title.json: {}", err));
+        report.errors.push(format!("ui/title.json: {}", err));
     }
     if let Err(err) = MenuUiFile::load(&menu_ui_path) {
-        errors.push(format!("ui/menu.json: {}", err));
+        report.errors.push(format!("ui/menu.json: {}", err));
     }
     if let Err(err) = BattleUiFile::load(&battle_ui_path) {
-        errors.push(format!("ui/battle.json: {}", err));
+        report.errors.push(format!("ui/battle.json: {}", err));
     }
     if let Err(err) = DialogUiFile::load(&dialog_ui_path) {
-        errors.push(format!("ui/dialog.json: {}", err));
+        report.errors.push(format!("ui/dialog.json: {}", err));
     }
     if let Err(err) = ProgressUiFile::load(&progress_ui_path) {
-        errors.push(format!("ui/gameplay_stats.json: {}", err));
+        report
+            .errors
+            .push(format!("ui/gameplay_stats.json: {}", err));
     }
 
-    if errors.is_empty() {
+    if !report.warnings.is_empty() {
+        eprintln!("Content validation warnings ({}):", report.warnings.len());
+        for warning in report.warnings {
+            eprintln!("- {}", warning);
+        }
+    }
+
+    if report.errors.is_empty() {
         println!("Content validation passed.");
         std::process::exit(0);
     } else {
-        eprintln!("Content validation failed ({} errors):", errors.len());
-        for error in errors {
+        eprintln!(
+            "Content validation failed ({} errors):",
+            report.errors.len()
+        );
+        for error in report.errors {
             eprintln!("- {}", error);
         }
         std::process::exit(1);
