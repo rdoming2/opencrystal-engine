@@ -112,6 +112,7 @@
 - [x] Add encounter zone editing to map editor.
 - [x] Show campfire recipe ingredient requirements with inventory counts.
 - [x] Gameover screen and optional restart logic (last battle, last save, fallback to main menu)
+- [ ] End game screen with option to continue vs. return to main menu. Option to "star" the save
 - [x] Optional persistent death markers
 - [x] Update UI display to show names/labels instead of ids
 - [x] Update item player selection UI to show default status panel
@@ -127,7 +128,15 @@
 - [x] Status persistence rules and overworld poison ticks.
 - [x] Status effects and damage formulas (derived stats).
   - [x] Implement critical hit calculations and messaging.
-- [x] Implement command-specific behaviors (steal, throw, counter, pray, parry, cover).
+  - [ ] Make critical hit messaging louder
+- [x] Implement command-specific behaviors: 
+  - [x] Steal
+  - [x] Throw
+  - [x] Counter
+  - [x] Pray
+  - [x] Parry
+  - [x] Cover
+  - [ ] Charge (2 turn ability with option for disappearing/invulnerability during 1st turn before reappearing for 2nd turn attack)
 - [x] Add Defend command behavior.
 - [x] Add optional boss scaling rules.
 - [x] Victory/defeat flow (spoils, level-ups, modals).
@@ -147,6 +156,9 @@
 - [ ] Disable RUN command for certain battles.
 - [ ] Optional penalty on party defeat
 - [ ] Support for multiple hits per turn
+- [ ] Advanced enemy AI
+- [ ] Enemy magic and ability use
+- [ ] Caught by surprise / caught enemy by surprise mechanics
 - [x] Add localization support for UI strings and command labels.
 
 ## Magic System
