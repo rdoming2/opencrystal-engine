@@ -318,6 +318,10 @@ pub struct AbilityEffect {
     pub r#type: String,
     pub power: i32,
     #[serde(default)]
+    pub windup_turns: u32,
+    #[serde(default)]
+    pub vanish_during_windup: bool,
+    #[serde(default)]
     pub effects: Vec<String>,
 }
 

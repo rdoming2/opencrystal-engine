@@ -7,7 +7,9 @@ use engine::runtime::GameRuntime;
 use rand::seq::IndexedRandom;
 use rand::Rng;
 
-use super::state::{BattleMenuState, BattleTurnActor, BattleTurnState};
+use super::state::{
+    actor_is_hidden_during_windup, BattleMenuState, BattleTurnActor, BattleTurnState,
+};
 
 pub fn build_turn_order(
     runtime: &GameRuntime,
@@ -108,6 +110,9 @@ pub fn enemy_take_turn(
         .party_order
         .iter()
         .filter(|id| {
+            if actor_is_hidden_during_windup(menu_state, id) {
+                return false;
+            }
             runtime
                 .party
                 .roster

@@ -1073,6 +1073,8 @@ fn build_new_ability(
         effect: AbilityEffect {
             r#type: "damage".to_string(),
             power: 5,
+            windup_turns: 0,
+            vanish_during_windup: false,
             effects: Vec::new(),
         },
         cost: None,

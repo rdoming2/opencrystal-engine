@@ -136,7 +136,7 @@
   - [x] Pray
   - [x] Parry
   - [x] Cover
-  - [ ] Charge (2 turn ability with option for disappearing/invulnerability during 1st turn before reappearing for 2nd turn attack)
+  - [x] Charge ability group (multi-turn attacks with configurable `windup_turns` and optional `vanish_during_windup` for hidden vs visible windups)
 - [x] Add Defend command behavior.
 - [x] Add optional boss scaling rules.
 - [x] Victory/defeat flow (spoils, level-ups, modals).

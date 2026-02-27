@@ -8,7 +8,8 @@ use tui::battle::{
 use tui::ui::BattleUiFile;
 
 use super::state::{
-    party_target_indices, party_target_rule, BattleMenuState, BattlePhase, TargetMode,
+    actor_is_hidden_during_windup, party_target_indices, party_target_rule, BattleMenuState,
+    BattlePhase, TargetMode,
 };
 use super::CommandEntry;
 use crate::menu::abilities::ability_cost_label;
@@ -98,6 +99,7 @@ pub fn build_battle_render_state(
                     .collect(),
                 alive: actor.current_hp > 0,
                 active: index == battle_state.active_index,
+                hidden: actor_is_hidden_during_windup(menu_state, id),
                 glyph,
                 palette,
                 art,

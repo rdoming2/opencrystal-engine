@@ -24,6 +24,7 @@ use tui::ui::BattleUiFile;
 
 use self::actions::{
     execute_ability_action, execute_attack_action, execute_item_action, execute_magic_action,
+    resolve_pending_charge_action,
 };
 use self::logic::{advance_turn, build_turn_order, enemy_take_turn, push_battle_log};
 use self::render::build_battle_render_state;
@@ -498,6 +499,7 @@ pub fn run_battle(
                                     push_battle_log(&mut battle_state.log, message);
                                 }
                                 if actor.current_hp <= 0 {
+                                    menu_state.pending_charge.remove(&current_id);
                                     push_battle_log(
                                         &mut battle_state.log,
                                         format!("{} falls!", actor.name),
@@ -518,6 +520,41 @@ pub fn run_battle(
                                     continue;
                                 }
                             }
+                        }
+                        if menu_state.pending_charge.contains_key(&current_id) {
+                            let target_index = resolve_pending_charge_action(
+                                runtime,
+                                &mut battle_state,
+                                &current_id,
+                                &mut menu_state,
+                                rng,
+                            );
+                            let command_entries =
+                                command_entries_for_active_actor(runtime, &battle_state);
+                            let render_state = build_battle_render_state(
+                                runtime,
+                                &battle_state,
+                                &menu_state,
+                                battle_ui,
+                                &command_entries,
+                                &[],
+                                &[],
+                                &[],
+                                &[],
+                                false,
+                            );
+                            pause_after_action(
+                                session,
+                                battle_ui,
+                                bindings,
+                                &render_state,
+                                Vec::new(),
+                                vec![battle_state.active_index],
+                                target_index.into_iter().collect(),
+                                Vec::new(),
+                            )?;
+                            advance_turn(&mut menu_state, &mut turn_state, &mut battle_state);
+                            continue;
                         }
                         actor_id = current_id;
                     }

@@ -37,6 +37,7 @@ pub struct BattleMenuState {
     pub covering: HashMap<String, String>,
     pub target_side: TargetSide,
     pub target_mode: TargetMode,
+    pub pending_charge: HashMap<String, PendingChargeAction>,
 }
 
 impl BattleMenuState {
@@ -58,6 +59,7 @@ impl BattleMenuState {
             covering: HashMap::new(),
             target_side: TargetSide::Party,
             target_mode: TargetMode::Single,
+            pending_charge: HashMap::new(),
         }
     }
 
@@ -119,6 +121,22 @@ pub enum VictoryState {
     Summary,
     LevelUp { index: usize, page: usize },
     Growth { index: usize, page: usize },
+}
+
+#[derive(Clone, Debug)]
+pub struct PendingChargeAction {
+    pub entry: crate::menu::common::AbilityEntry,
+    pub target_index: Option<usize>,
+    pub target_side: TargetSide,
+    pub turns_remaining: u32,
+}
+
+pub fn actor_is_hidden_during_windup(menu_state: &BattleMenuState, actor_id: &str) -> bool {
+    menu_state
+        .pending_charge
+        .get(actor_id)
+        .map(|pending| pending.entry.vanish_during_windup && pending.turns_remaining > 0)
+        .unwrap_or(false)
 }
 
 pub fn enemy_target_indices(battle_state: &BattleState) -> Vec<usize> {

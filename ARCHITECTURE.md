@@ -297,6 +297,7 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
   using a ranged weapon category; row switching can be enabled as a battle command.
 - Status effects and traits are resolved via `effects.json` definitions (poison ticks, protect/shell, elemental multipliers).
 - Spells and abilities declare target modes (`single`/`multi`) with optional attenuation for group targeting.
+- Charge abilities support per-ability windups with optional vanish behavior; hidden windups make actors untargetable until release.
 - Statuses can be configured to clear at battle end; poison also ticks on overworld movement steps.
 - Battle formulas can be configured for hit, crit, and damage calculations; boss scaling is optional and gated by the `boss` trait.
 - Difficulty scale settings apply a multiplier to all enemy stats and stack with boss scaling.

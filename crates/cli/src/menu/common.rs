@@ -74,6 +74,8 @@ pub struct AbilityEntry {
     pub multi_attenuation: Option<f32>,
     pub effect_type: String,
     pub effect_power: i32,
+    pub windup_turns: u32,
+    pub vanish_during_windup: bool,
     pub cost_type: String,
     pub cost_value: i32,
     pub cost_item_id: Option<String>,

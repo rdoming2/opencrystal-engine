@@ -36,6 +36,7 @@ pub struct BattlePartyView {
     pub status: Vec<String>,
     pub alive: bool,
     pub active: bool,
+    pub hidden: bool,
     pub glyph: char,
     pub palette: Option<String>,
     pub art: Option<Vec<String>>,
@@ -802,6 +803,9 @@ fn draw_battlefield(
     }
 
     for (index, member) in state.party.iter().enumerate() {
+        if member.hidden {
+            continue;
+        }
         let use_art = enemy_art_mode != "glyph" && member.art.is_some();
         let (center_x, center_y) = (
             (member.pos.0 as f32 + 0.5) * cell_width,

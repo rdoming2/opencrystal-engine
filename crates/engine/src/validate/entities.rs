@@ -206,6 +206,31 @@ pub(crate) fn validate_jobs_spells_abilities(
                 ));
             }
         }
+        if ability.effect.r#type == "charge" {
+            if ability.effect.windup_turns == 0 {
+                errors.push(format!(
+                    "abilities.json: ability '{}' charge windup_turns must be >= 1",
+                    ability.id
+                ));
+            }
+            if ability.target_mode != "single" {
+                errors.push(format!(
+                    "abilities.json: ability '{}' charge target_mode must be 'single'",
+                    ability.id
+                ));
+            }
+            let enemy_only = !ability.allowed_targets.is_empty()
+                && ability
+                    .allowed_targets
+                    .iter()
+                    .all(|target| target.as_str() == "enemy");
+            if ability.default_target != "enemy" || !enemy_only {
+                errors.push(format!(
+                    "abilities.json: ability '{}' charge must target enemies only",
+                    ability.id
+                ));
+            }
+        }
         if let Some(cost) = &ability.cost {
             if cost.r#type == "currency" {
                 match cost.currency_id.as_deref() {

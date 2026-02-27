@@ -1034,6 +1034,12 @@ Targeting fields:
 - `target_mode`: `single`, `multi`, or `both`.
 - `multi_attenuation`: optional multiplier applied per target when in multi mode.
 
+Charge ability fields (for `effect.type: "charge"`):
+
+- `effect.windup_turns`: required windup duration in actor turns (>= 1 for charge abilities).
+- `effect.vanish_during_windup`: when true, the actor is hidden/untargetable during windup.
+- Charge abilities are enemy-only single-target attacks and resolve automatically when windup ends.
+
 ```json
 {
   "version": 1,
@@ -1093,6 +1099,18 @@ Targeting fields:
       "multi_attenuation": 0.6,
       "effect": {"type": "damage", "power": 6},
       "cost": {"type": "hp", "value": 4}
+    },
+    {
+      "id": "sky_lance",
+      "name": "Sky Lance",
+      "default_target": "enemy",
+      "allowed_targets": ["enemy"],
+      "effect": {
+        "type": "charge",
+        "power": 12,
+        "windup_turns": 1,
+        "vanish_during_windup": true
+      }
     }
   ]
 }

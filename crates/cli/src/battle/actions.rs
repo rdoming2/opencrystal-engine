@@ -12,7 +12,9 @@ use engine::runtime::GameRuntime;
 use rand::{Rng, RngExt};
 use std::collections::HashMap;
 
-use super::state::{enemy_target_indices, BattleMenuState, TargetMode, TargetSide};
+use super::state::{
+    enemy_target_indices, BattleMenuState, PendingChargeAction, TargetMode, TargetSide,
+};
 use crate::menu::common::{AbilityEntry, SpellEntry};
 
 fn growth_entry<'a>(
@@ -793,6 +795,43 @@ pub fn execute_ability_action(
         return;
     }
 
+    if entry.effect_type == "charge" {
+        let windup_turns = entry.windup_turns.max(1);
+        menu_state.pending_charge.insert(
+            actor_id.to_string(),
+            PendingChargeAction {
+                entry: entry.clone(),
+                target_index,
+                target_side,
+                turns_remaining: windup_turns,
+            },
+        );
+        super::logic::push_battle_log(
+            &mut battle_state.log,
+            crate::battle::format_ui_text(
+                runtime,
+                "battle.log.charge_start",
+                "{actor} begins charging {ability}.",
+                &[
+                    ("actor", actor_name.clone()),
+                    ("ability", entry.name.clone()),
+                ],
+            ),
+        );
+        if entry.vanish_during_windup {
+            super::logic::push_battle_log(
+                &mut battle_state.log,
+                crate::battle::format_ui_text(
+                    runtime,
+                    "battle.log.charge_vanish",
+                    "{actor} disappears from sight!",
+                    &[("actor", actor_name)],
+                ),
+            );
+        }
+        return;
+    }
+
     let attenuation = match target_mode {
         TargetMode::Multi => entry.multi_attenuation.unwrap_or(1.0),
         TargetMode::Single => 1.0,
@@ -1276,6 +1315,175 @@ pub fn execute_ability_action(
             }
         }
     }
+}
+
+pub fn resolve_pending_charge_action(
+    runtime: &mut GameRuntime,
+    battle_state: &mut engine::battle::BattleState,
+    actor_id: &str,
+    menu_state: &mut BattleMenuState,
+    rng: &mut impl Rng,
+) -> Option<usize> {
+    let Some(mut pending) = menu_state.pending_charge.remove(actor_id) else {
+        return None;
+    };
+    let Some(actor) = runtime.party.roster.get(actor_id) else {
+        return None;
+    };
+    let actor_name = actor.name.clone();
+    if pending.turns_remaining > 1 {
+        pending.turns_remaining -= 1;
+        super::logic::push_battle_log(
+            &mut battle_state.log,
+            crate::battle::format_ui_text(
+                runtime,
+                "battle.log.charge_hold",
+                "{actor} keeps charging {ability}.",
+                &[
+                    ("actor", actor_name),
+                    ("ability", pending.entry.name.clone()),
+                ],
+            ),
+        );
+        menu_state
+            .pending_charge
+            .insert(actor_id.to_string(), pending);
+        return None;
+    }
+
+    if pending.entry.vanish_during_windup {
+        super::logic::push_battle_log(
+            &mut battle_state.log,
+            crate::battle::format_ui_text(
+                runtime,
+                "battle.log.charge_return",
+                "{actor} reappears!",
+                &[("actor", actor_name.clone())],
+            ),
+        );
+    }
+
+    if pending.target_side != TargetSide::Enemy {
+        super::logic::push_battle_log(
+            &mut battle_state.log,
+            crate::battle::ui_text(runtime, "battle.nothing_happens", "Nothing happens."),
+        );
+        return None;
+    }
+
+    let target_index = pending
+        .target_index
+        .filter(|index| {
+            battle_state
+                .enemies
+                .get(*index)
+                .map(|enemy| enemy.is_alive())
+                .unwrap_or(false)
+        })
+        .or_else(|| enemy_target_indices(battle_state).first().copied());
+    let Some(target_index) = target_index else {
+        super::logic::push_battle_log(
+            &mut battle_state.log,
+            crate::battle::ui_text(runtime, "battle.no_target", "No target."),
+        );
+        return None;
+    };
+
+    let Some(actor_stats) = runtime.party.roster.get(actor_id).map(actor_combat_stats) else {
+        return None;
+    };
+    let effect_ids = runtime
+        .content
+        .abilities
+        .abilities
+        .iter()
+        .find(|ability| ability.id == pending.entry.id)
+        .map(|ability| ability.effect.effects.clone())
+        .unwrap_or_default();
+
+    let Some(enemy) = battle_state.enemies.get_mut(target_index) else {
+        return None;
+    };
+    if !enemy.is_alive() {
+        super::logic::push_battle_log(
+            &mut battle_state.log,
+            crate::battle::ui_text(runtime, "battle.no_target", "No target."),
+        );
+        return None;
+    }
+
+    let defender_stats = enemy_combat_stats(&runtime.content, enemy);
+    let roll = roll_attack(
+        &runtime.content,
+        &runtime.content.rules.battle,
+        &actor_stats,
+        &defender_stats,
+        DamageKind::Physical,
+        pending.entry.effect_power,
+        0.0,
+        rng,
+    );
+    if !roll.hit {
+        super::logic::push_battle_log(
+            &mut battle_state.log,
+            crate::battle::format_ui_text(
+                runtime,
+                "battle.log.miss",
+                "{actor} misses {target}.",
+                &[("actor", actor_name), ("target", enemy.name.clone())],
+            ),
+        );
+        return Some(target_index);
+    }
+
+    let mut damage = roll.base_damage;
+    let multiplier = damage_multiplier(
+        &runtime.content,
+        &enemy.statuses,
+        &enemy.traits,
+        DamageKind::Physical,
+        None,
+    );
+    damage = ((damage as f32) * multiplier).round().max(1.0) as i32;
+    apply_damage_to_enemy(enemy, damage);
+    runtime.track_max_stat("max_damage", damage);
+
+    if !effect_ids.is_empty() {
+        let applied = apply_status_effects(&runtime.content, &effect_ids, &mut enemy.statuses, rng);
+        for label in &applied {
+            super::logic::push_battle_log(
+                &mut battle_state.log,
+                crate::battle::format_ui_text(
+                    runtime,
+                    "battle.log.status",
+                    "{target} is affected by {status}.",
+                    &[("target", enemy.name.clone()), ("status", label.clone())],
+                ),
+            );
+        }
+    }
+
+    if roll.crit {
+        super::logic::push_battle_log(
+            &mut battle_state.log,
+            crate::battle::ui_text(runtime, "battle.log.critical", "Critical hit!"),
+        );
+    }
+    super::logic::push_battle_log(
+        &mut battle_state.log,
+        crate::battle::format_ui_text(
+            runtime,
+            "battle.log.charge_release",
+            "{actor} unleashes {ability} on {target} for {damage} HP.",
+            &[
+                ("actor", actor_name),
+                ("ability", pending.entry.name),
+                ("target", enemy.name.clone()),
+                ("damage", damage.to_string()),
+            ],
+        ),
+    );
+    Some(target_index)
 }
 
 pub fn execute_item_action(
