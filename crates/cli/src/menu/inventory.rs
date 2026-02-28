@@ -70,11 +70,7 @@ pub fn build_items_panel(runtime: &GameRuntime) -> MenuPanelView {
         "Details",
         PanelSpanStyle::Accent,
     )]));
-    if runtime.menu_state.detail_page == 2 {
-        lines.extend(build_party_summary_panel(runtime));
-    } else {
-        lines.extend(build_item_description(runtime, entries.get(list_selection)));
-    }
+    lines.extend(build_item_description(runtime, entries.get(list_selection)));
 
     MenuPanelView {
         title: "Items".to_string(),
@@ -690,39 +686,99 @@ fn build_item_target_panel(
         .menu_state
         .detail_target
         .min(targets.len().saturating_sub(1));
+    let name_width = targets
+        .iter()
+        .map(|target_id| {
+            runtime
+                .party
+                .roster
+                .get(target_id)
+                .map(|actor| actor.name.chars().count())
+                .unwrap_or_else(|| target_id.chars().count())
+        })
+        .max()
+        .unwrap_or(8);
     let mut lines = Vec::new();
     lines.push(panel_line_spans(vec![panel_span(
         "Target",
         PanelSpanStyle::Accent,
     )]));
     for (index, target_id) in targets.iter().enumerate() {
-        let name = runtime
-            .party
-            .roster
-            .get(target_id)
-            .map(|actor| actor.name.as_str())
-            .unwrap_or(target_id.as_str());
+        let (name, current_hp, max_hp, current_mp, max_mp, status_text) =
+            if let Some(actor) = runtime.party.roster.get(target_id) {
+                let status_labels = build_short_status_labels(runtime, actor);
+                let status_text = format_status_inline(&status_labels);
+                (
+                    actor.name.as_str(),
+                    actor.current_hp,
+                    actor.derived_stats.get("hp").copied().unwrap_or(0),
+                    actor.current_mp,
+                    actor.derived_stats.get("mp").copied().unwrap_or(0),
+                    status_text,
+                )
+            } else {
+                (target_id.as_str(), 0, 0, 0, 0, None)
+            };
         let is_selected = index == selection;
-        lines.push(panel_line_spans(vec![
+        let name_style = if is_selected {
+            PanelSpanStyle::Highlight
+        } else {
+            PanelSpanStyle::Normal
+        };
+        let stat_style = if is_selected {
+            PanelSpanStyle::Highlight
+        } else {
+            PanelSpanStyle::Accent
+        };
+        let status_style = if is_selected {
+            PanelSpanStyle::Highlight
+        } else {
+            PanelSpanStyle::Accent
+        };
+        let mut spans = vec![
+            panel_span(if is_selected { "> " } else { "  " }, name_style),
+            panel_span(format!("{:<width$}", name, width = name_width), name_style),
             panel_span(
-                if is_selected { "> " } else { "  " },
-                if is_selected {
-                    PanelSpanStyle::Highlight
-                } else {
-                    PanelSpanStyle::Normal
-                },
+                format!(
+                    " HP {}/{}  MP {}/{}",
+                    current_hp, max_hp, current_mp, max_mp
+                ),
+                stat_style,
             ),
-            panel_span(
-                name,
-                if is_selected {
-                    PanelSpanStyle::Highlight
-                } else {
-                    PanelSpanStyle::Normal
-                },
-            ),
-        ]));
+        ];
+        if let Some(status_text) = status_text {
+            spans.push(panel_span(format!("  {}", status_text), status_style));
+        }
+        lines.push(panel_line_spans(spans));
     }
     lines
+}
+
+fn build_short_status_labels(runtime: &GameRuntime, actor: &engine::party::Actor) -> Vec<String> {
+    actor
+        .statuses
+        .iter()
+        .filter_map(|status| {
+            engine::battle::status_short_label(&runtime.content, &status.id).or_else(|| {
+                engine::battle::status_definition(&runtime.content, &status.id)
+                    .map(|definition| definition.label.clone())
+            })
+        })
+        .collect()
+}
+
+fn format_status_inline(statuses: &[String]) -> Option<String> {
+    if statuses.is_empty() {
+        return None;
+    }
+    let cap = 3;
+    let mut labels = statuses.iter().take(cap).cloned().collect::<Vec<_>>();
+    if statuses.len() > cap {
+        if let Some(last) = labels.pop() {
+            labels.push(format!("{}+", last));
+        }
+    }
+    Some(labels.join(", "))
 }
 
 fn build_item_action_panel(
@@ -794,83 +850,6 @@ fn build_item_move_panel(runtime: &GameRuntime, entries: &[InventoryEntry]) -> V
                 },
             ),
         ]));
-    }
-    lines
-}
-
-fn build_party_summary_panel(runtime: &GameRuntime) -> Vec<MenuPanelLine> {
-    if runtime.party.active_count() == 0 {
-        return vec![panel_line("No party members.")];
-    }
-    let mut lines = Vec::new();
-    let magic_system = runtime.content.rules.game.magic_system.clone();
-    let rows_enabled = runtime.content.rules.battle.rows.enabled;
-    for member_id in runtime.party.active_ids() {
-        if let Some(actor) = runtime.party.roster.get(&member_id) {
-            let max_hp = actor.derived_stats.get("hp").copied().unwrap_or(0);
-            let job_name = runtime
-                .content
-                .jobs
-                .jobs
-                .iter()
-                .find(|job| job.id == actor.job_id)
-                .map(|job| job.name.as_str())
-                .unwrap_or(actor.job_id.as_str());
-            let summary_line = if magic_system == engine::rules::MagicSystem::TierCharges {
-                let job = runtime
-                    .content
-                    .jobs
-                    .jobs
-                    .iter()
-                    .find(|job| job.id == actor.job_id);
-                let mut tiers = Vec::new();
-                if let Some(job) = job {
-                    if let Some(magic_slots) = &job.magic_slots {
-                        for tier in magic_slots.keys() {
-                            let current = actor.magic_tier_charges.get(tier).copied().unwrap_or(0);
-                            let max = engine::party::get_actor_max_charges(
-                                &runtime.content,
-                                actor,
-                                *tier,
-                            );
-                            if max > 0 {
-                                tiers.push(format!("T{} {}/{}", tier, current, max));
-                            }
-                        }
-                    }
-                }
-                let charge_text = if tiers.is_empty() {
-                    "".to_string()
-                } else {
-                    format!("  {}", tiers.join("  "))
-                };
-                format!(
-                    "{}  Lv{}  HP {}/{}{}",
-                    actor.name, actor.level, actor.current_hp, max_hp, charge_text
-                )
-            } else {
-                let max_mp = actor.derived_stats.get("mp").copied().unwrap_or(0);
-                format!(
-                    "{}  Lv{}  HP {}/{}  MP {}/{}",
-                    actor.name, actor.level, actor.current_hp, max_hp, actor.current_mp, max_mp
-                )
-            };
-            lines.push(panel_line(summary_line));
-            lines.push(panel_line(format!("Job: {}", job_name)));
-            if rows_enabled {
-                lines.push(panel_line(format!(
-                    "Row: {}",
-                    engine::party::actor_row_label(actor)
-                )));
-            }
-            if runtime.content.rules.progression_mode == engine::rules::ProgressionMode::JobPoints {
-                lines.push(panel_line(format!(
-                    "JP {}",
-                    engine::party::job_jp(actor, &actor.job_id)
-                )));
-            }
-            lines.push(panel_line(""));
-        }
     }
     lines
 }

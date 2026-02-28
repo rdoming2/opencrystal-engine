@@ -329,6 +329,7 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
 - Magic Equip is an optional submenu for equipping spell-granting items.
 - Settings submenu exposes user options (autosave, readiness speed, difficulty scale, battle mode) that can
   be hidden or locked via `rules.json` `settings` definitions.
+- Item use target selection shows inline HP/MP and short status labels on the target list.
 
 ### Journal system
 
