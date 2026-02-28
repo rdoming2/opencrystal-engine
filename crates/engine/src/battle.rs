@@ -3,7 +3,7 @@ use std::collections::HashMap;
 
 use crate::content::Content;
 use crate::encounters::EncounterMember;
-use crate::entities::{EnemyArt, EnemyDefinition, EnemyLoot, EnemySprite};
+use crate::entities::{EnemyAiConfig, EnemyArt, EnemyDefinition, EnemyLoot, EnemySprite};
 use crate::expr::eval_expression;
 use crate::maps::MapCurrencyStack;
 use crate::party::{Actor, PartyState, StatusInstance};
@@ -61,6 +61,10 @@ pub struct BattleEnemy {
     pub current_mp: i32,
     pub scanned: bool,
     pub statuses: Vec<StatusInstance>,
+    pub spells: Vec<String>,
+    pub abilities: Vec<String>,
+    pub mp_pool: String,
+    pub ai: EnemyAiConfig,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -429,6 +433,11 @@ fn build_enemy(
     apply_enemy_scaling(content, enemy, &mut stats, difficulty_scale);
     let max_hp = stat_value(&stats, "hp");
     let max_mp = stat_value(&stats, "mp");
+    let current_mp = if enemy.mp_pool == "unlimited" {
+        max_mp.max(0)
+    } else {
+        max_mp.max(0)
+    };
     BattleEnemy {
         id: enemy.id.clone(),
         name: enemy.name.clone(),
@@ -442,9 +451,13 @@ fn build_enemy(
         jp: enemy.jp,
         pos: (pos[0], pos[1]),
         current_hp: max_hp.max(1),
-        current_mp: max_mp.max(0),
+        current_mp,
         scanned: false,
         statuses: Vec::new(),
+        spells: enemy.spells.clone(),
+        abilities: enemy.abilities.clone(),
+        mp_pool: enemy.mp_pool.clone(),
+        ai: enemy.ai.clone(),
     }
 }
 

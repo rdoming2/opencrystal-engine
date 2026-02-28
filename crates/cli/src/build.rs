@@ -1213,6 +1213,10 @@ fn build_new_enemy(
         }],
         jp: 0,
         loot: Vec::new(),
+        spells: Vec::new(),
+        abilities: Vec::new(),
+        mp_pool: "limited".to_string(),
+        ai: engine::entities::EnemyAiConfig::default(),
     });
     write_json_pretty(path, &file)?;
     Ok(format!("Added enemy '{}'", id))

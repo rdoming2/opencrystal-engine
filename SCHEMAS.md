@@ -1253,6 +1253,17 @@ Equipment spells:
 
 ## entities/enemies.json
 
+Enemy fields:
+
+- `spells`: optional list of spell IDs the enemy can cast in battle.
+- `abilities`: optional list of ability IDs the enemy can use in battle.
+- `mp_pool`: `limited` (default) consumes MP from `stats.mp`, or `unlimited` to ignore MP costs.
+- `ai`: optional AI configuration.
+  - `mode`: currently `basic`.
+  - `weights`: relative weights for `attack`, `spells`, and `abilities` when selecting actions.
+  - `heal_below_hp`: threshold (0-1) at which heal actions are preferred.
+  - `prefer_revive`: when true, revive actions are preferred if any allies are KO'd.
+
 ```json
 {
   "version": 1,
@@ -1260,8 +1271,17 @@ Equipment spells:
     {
       "id": "imp",
       "name": "Imp",
-      "stats": {"hp": 12, "mp": 0, "str": 3, "int": 1, "agi": 1},
+      "stats": {"hp": 12, "mp": 6, "str": 3, "int": 1, "agi": 1},
       "traits": ["beast"],
+      "spells": ["fire"],
+      "abilities": ["power_strike"],
+      "mp_pool": "limited",
+      "ai": {
+        "mode": "basic",
+        "weights": {"attack": 10, "spells": 8, "abilities": 8},
+        "heal_below_hp": 0.35,
+        "prefer_revive": true
+      },
       "sprite": {
         "glyph": "i",
         "palette": "enemy"

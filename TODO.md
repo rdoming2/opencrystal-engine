@@ -156,9 +156,11 @@
 - [ ] Disable RUN command for certain battles.
 - [ ] Optional penalty on party defeat
 - [ ] Support for multiple hits per turn
-- [ ] Advanced enemy AI
-- [ ] Enemy magic and ability use
-- [ ] Caught by surprise / caught enemy by surprise mechanics
+- [x] Basic enemy AI with weighted actions and heal/revive heuristics
+- [x] Enemy magic and ability use
+- [ ] Advanced enemy AI (phases, scripting)
+- [ ] Caught by surprise / caught enemy by surprise mechanics.
+- [ ] Regen status support (magic/item).
 - [x] Add localization support for UI strings and command labels.
 
 ## Magic System
@@ -179,6 +181,7 @@
 - [ ] Expand status panel JP display (earned/spent/available).
 - [x] Recompute derived stats with `lvl` variable.
 - [ ] Ability to optionally lock job changes but allow spending of JP for progression
+- [ ] Option to restore health and/or mp on level up
 
 ## Items + Equipment
 - [x] Fix equipment quantity tracking and shared equip counts.

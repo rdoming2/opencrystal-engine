@@ -578,6 +578,53 @@ pub(crate) fn validate_encounters_enemies(context: &ValidationContext, errors: &
                 ));
             }
         }
+        for spell_id in &enemy.spells {
+            if !context.ids.spell_ids.is_empty()
+                && !context.ids.spell_ids.contains(spell_id.as_str())
+            {
+                errors.push(format!(
+                    "enemies.json: enemy '{}' references unknown spell '{}'",
+                    enemy.id, spell_id
+                ));
+            }
+        }
+        for ability_id in &enemy.abilities {
+            if !context.ids.ability_ids.is_empty()
+                && !context.ids.ability_ids.contains(ability_id.as_str())
+            {
+                errors.push(format!(
+                    "enemies.json: enemy '{}' references unknown ability '{}'",
+                    enemy.id, ability_id
+                ));
+            }
+        }
+        if enemy.mp_pool != "limited" && enemy.mp_pool != "unlimited" {
+            errors.push(format!(
+                "enemies.json: enemy '{}' has invalid mp_pool '{}'",
+                enemy.id, enemy.mp_pool
+            ));
+        }
+        if enemy.ai.mode != "basic" {
+            errors.push(format!(
+                "enemies.json: enemy '{}' has invalid ai.mode '{}'",
+                enemy.id, enemy.ai.mode
+            ));
+        }
+        if enemy.ai.weights.attack < 0
+            || enemy.ai.weights.spells < 0
+            || enemy.ai.weights.abilities < 0
+        {
+            errors.push(format!(
+                "enemies.json: enemy '{}' ai.weights must be >= 0",
+                enemy.id
+            ));
+        }
+        if !(0.0..=1.0).contains(&enemy.ai.heal_below_hp) {
+            errors.push(format!(
+                "enemies.json: enemy '{}' ai.heal_below_hp must be between 0 and 1",
+                enemy.id
+            ));
+        }
         for currency in &enemy.currency {
             if currency.id.trim().is_empty() {
                 errors.push(format!(

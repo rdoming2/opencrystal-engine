@@ -302,6 +302,7 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
 - Battle formulas can be configured for hit, crit, and damage calculations; boss scaling is optional and gated by the `boss` trait.
 - Difficulty scale settings apply a multiplier to all enemy stats and stack with boss scaling.
 - Difficulty scale can optionally scale EXP and currency rewards when enabled in battle rules.
+- Enemies can cast spells or use abilities with configurable MP pools (`limited`/`unlimited`) and basic weighted AI with heal/revive heuristics.
 
 ### Progress tracking
 

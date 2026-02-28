@@ -417,6 +417,57 @@ pub struct EnemyDefinition {
     #[serde(default)]
     pub jp: i32,
     pub loot: Vec<EnemyLoot>,
+    #[serde(default)]
+    pub spells: Vec<String>,
+    #[serde(default)]
+    pub abilities: Vec<String>,
+    #[serde(default = "default_enemy_mp_pool")]
+    pub mp_pool: String,
+    #[serde(default)]
+    pub ai: EnemyAiConfig,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct EnemyAiConfig {
+    #[serde(default = "default_enemy_ai_mode")]
+    pub mode: String,
+    #[serde(default)]
+    pub weights: EnemyAiWeights,
+    #[serde(default = "default_enemy_ai_heal_threshold")]
+    pub heal_below_hp: f32,
+    #[serde(default = "default_enemy_ai_prefer_revive")]
+    pub prefer_revive: bool,
+}
+
+impl Default for EnemyAiConfig {
+    fn default() -> Self {
+        Self {
+            mode: default_enemy_ai_mode(),
+            weights: EnemyAiWeights::default(),
+            heal_below_hp: default_enemy_ai_heal_threshold(),
+            prefer_revive: default_enemy_ai_prefer_revive(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct EnemyAiWeights {
+    #[serde(default = "default_enemy_ai_attack_weight")]
+    pub attack: i32,
+    #[serde(default = "default_enemy_ai_spell_weight")]
+    pub spells: i32,
+    #[serde(default = "default_enemy_ai_ability_weight")]
+    pub abilities: i32,
+}
+
+impl Default for EnemyAiWeights {
+    fn default() -> Self {
+        Self {
+            attack: default_enemy_ai_attack_weight(),
+            spells: default_enemy_ai_spell_weight(),
+            abilities: default_enemy_ai_ability_weight(),
+        }
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -577,6 +628,34 @@ fn default_job_palette() -> String {
 
 fn default_target_mode() -> String {
     "single".to_string()
+}
+
+fn default_enemy_mp_pool() -> String {
+    "limited".to_string()
+}
+
+fn default_enemy_ai_mode() -> String {
+    "basic".to_string()
+}
+
+fn default_enemy_ai_attack_weight() -> i32 {
+    10
+}
+
+fn default_enemy_ai_spell_weight() -> i32 {
+    8
+}
+
+fn default_enemy_ai_ability_weight() -> i32 {
+    8
+}
+
+fn default_enemy_ai_heal_threshold() -> f32 {
+    0.35
+}
+
+fn default_enemy_ai_prefer_revive() -> bool {
+    true
 }
 
 impl ItemsFile {
