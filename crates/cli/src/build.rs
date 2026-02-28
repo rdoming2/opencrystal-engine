@@ -431,7 +431,7 @@ fn create_project_structure(target_dir: &Path, title: &str) -> Result<(), String
     fs::create_dir_all(target_dir.join("dialog")).map_err(|err| err.to_string())?;
     fs::create_dir_all(target_dir.join("ui")).map_err(|err| err.to_string())?;
 
-    let rules = RulesFile {
+    let mut rules = RulesFile {
         version: 1,
         game: GameRules {
             title: title.to_string(),
@@ -491,6 +491,8 @@ fn create_project_structure(target_dir: &Path, title: &str) -> Result<(), String
             },
         },
     };
+    rules.battle.enemy_ai_defaults.palliative_cooldown_turns = 1;
+    rules.battle.enemy_ai_defaults.palliative_reroll_chance = 0.5;
 
     let effects = EffectsFile {
         version: 1,

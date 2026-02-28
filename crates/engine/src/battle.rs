@@ -65,6 +65,7 @@ pub struct BattleEnemy {
     pub abilities: Vec<String>,
     pub mp_pool: String,
     pub ai: EnemyAiConfig,
+    pub last_palliative_turn: Option<u32>,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -458,6 +459,7 @@ fn build_enemy(
         abilities: enemy.abilities.clone(),
         mp_pool: enemy.mp_pool.clone(),
         ai: enemy.ai.clone(),
+        last_palliative_turn: None,
     }
 }
 

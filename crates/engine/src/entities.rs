@@ -437,6 +437,10 @@ pub struct EnemyAiConfig {
     pub heal_below_hp: f32,
     #[serde(default = "default_enemy_ai_prefer_revive")]
     pub prefer_revive: bool,
+    #[serde(default)]
+    pub palliative_reroll_chance: Option<f32>,
+    #[serde(default)]
+    pub palliative_cooldown_turns: Option<u32>,
 }
 
 impl Default for EnemyAiConfig {
@@ -446,6 +450,8 @@ impl Default for EnemyAiConfig {
             weights: EnemyAiWeights::default(),
             heal_below_hp: default_enemy_ai_heal_threshold(),
             prefer_revive: default_enemy_ai_prefer_revive(),
+            palliative_reroll_chance: None,
+            palliative_cooldown_turns: None,
         }
     }
 }

@@ -117,6 +117,25 @@ pub struct BattleRules {
     pub boss_scaling: BossScalingRules,
     #[serde(default)]
     pub difficulty_rewards: DifficultyRewardsRules,
+    #[serde(default)]
+    pub enemy_ai_defaults: EnemyAiDefaults,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct EnemyAiDefaults {
+    #[serde(default = "default_enemy_ai_reroll")]
+    pub palliative_reroll_chance: f32,
+    #[serde(default = "default_enemy_ai_cooldown")]
+    pub palliative_cooldown_turns: u32,
+}
+
+impl Default for EnemyAiDefaults {
+    fn default() -> Self {
+        Self {
+            palliative_reroll_chance: default_enemy_ai_reroll(),
+            palliative_cooldown_turns: default_enemy_ai_cooldown(),
+        }
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -520,6 +539,7 @@ impl Default for BattleRules {
             rows: BattleRowRules::default(),
             boss_scaling: BossScalingRules::default(),
             difficulty_rewards: DifficultyRewardsRules::default(),
+            enemy_ai_defaults: EnemyAiDefaults::default(),
         }
     }
 }
@@ -809,6 +829,14 @@ fn default_back_row_battle_shift() -> i32 {
 
 fn default_battle_crit_multiplier() -> f32 {
     1.5
+}
+
+fn default_enemy_ai_reroll() -> f32 {
+    0.5
+}
+
+fn default_enemy_ai_cooldown() -> u32 {
+    0
 }
 
 fn default_boss_hp_multiplier() -> f32 {

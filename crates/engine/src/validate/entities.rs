@@ -625,6 +625,14 @@ pub(crate) fn validate_encounters_enemies(context: &ValidationContext, errors: &
                 enemy.id
             ));
         }
+        if let Some(chance) = enemy.ai.palliative_reroll_chance {
+            if !(0.0..=1.0).contains(&chance) {
+                errors.push(format!(
+                    "enemies.json: enemy '{}' ai.palliative_reroll_chance must be between 0 and 1",
+                    enemy.id
+                ));
+            }
+        }
         for currency in &enemy.currency {
             if currency.id.trim().is_empty() {
                 errors.push(format!(

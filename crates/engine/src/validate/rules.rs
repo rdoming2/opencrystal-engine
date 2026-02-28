@@ -85,6 +85,14 @@ pub(crate) fn validate_rules(context: &ValidationContext, errors: &mut Vec<Strin
                 .to_string(),
         );
     }
+    if rules.battle.enemy_ai_defaults.palliative_reroll_chance < 0.0
+        || rules.battle.enemy_ai_defaults.palliative_reroll_chance > 1.0
+    {
+        errors.push(
+            "rules.json: battle.enemy_ai_defaults.palliative_reroll_chance must be between 0 and 1"
+                .to_string(),
+        );
+    }
     if rules.progression_mode == ProgressionMode::Activity {
         if rules.activity_progression.ranks.is_empty() {
             errors.push("rules.json: activity_progression.ranks must not be empty".to_string());

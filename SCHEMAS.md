@@ -88,6 +88,8 @@ Status menu EXP uses `exp_curve` for `character`/`job_points` progression and
 the default menu for every job; job `commands` entries add to it (primary + secondary jobs are
 merged, duplicates removed). Command labels come from the catalog so UI text can be overridden.
 `battle.exp_for_fallen` toggles whether fallen party members earn EXP/JP after victory.
+`battle.enemy_ai_defaults` sets default dampening for enemy palliative actions when enemies do not
+override the values in their AI configs.
 `battle.formulas` configures hit, crit, and damage calculations (expressions with stat variables).
 `battle.boss_scaling` enables optional stat multipliers for enemies with the `boss` trait.
 `battle.rows` enables optional front/back row rules; when enabled, back row reduces physical attack
@@ -146,6 +148,10 @@ only; autosave uses slot 0 and never reduces the manual slot total.
       "back_row_defense_multiplier": 0.5,
       "ranged_weapon_categories": ["bow", "crossbow", "gun"],
       "battle_shift": 1
+    },
+    "enemy_ai_defaults": {
+      "palliative_reroll_chance": 0.5,
+      "palliative_cooldown_turns": 0
     }
   },
   "party_mode": "create",
@@ -1261,8 +1267,12 @@ Enemy fields:
 - `ai`: optional AI configuration.
   - `mode`: currently `basic`.
   - `weights`: relative weights for `attack`, `spells`, and `abilities` when selecting actions.
-  - `heal_below_hp`: threshold (0-1) at which heal actions are preferred.
+  - `heal_below_hp`: threshold (0-1). Enemy heal/revive actions are only considered when the intended target's HP ratio is at or below this value.
   - `prefer_revive`: when true, revive actions are preferred if any allies are KO'd.
+  - `palliative_reroll_chance`: chance (0-1) to reroll palliative actions even when allowed.
+  - `palliative_cooldown_turns`: minimum turns between palliative actions (0 allows consecutive use).
+  - If `palliative_reroll_chance` or `palliative_cooldown_turns` are omitted, the values fall back
+    to `rules.json` `battle.enemy_ai_defaults`.
 
 ```json
 {

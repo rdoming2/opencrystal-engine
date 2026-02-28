@@ -112,37 +112,65 @@ pub fn enemy_take_turn(
         }
     }
     let action = select_enemy_action(runtime, battle_state, enemy_index, menu_state, rng);
-    match action {
+    let (result, was_palliative) = match action {
         EnemyAction::Spell {
             spell_id,
             target_side,
             target_mode,
             target_index,
-        } => execute_enemy_spell_action(
-            runtime,
-            battle_state,
-            enemy_index,
-            spell_id.as_str(),
-            target_side,
-            target_mode,
-            target_index,
-            rng,
-        ),
+        } => {
+            let was_palliative = runtime
+                .content
+                .spells
+                .spells
+                .iter()
+                .find(|spell| spell.id == spell_id)
+                .map(|spell| is_palliative_effect(&spell.effect.r#type, &spell.effect.effects))
+                .unwrap_or(false);
+            (
+                execute_enemy_spell_action(
+                    runtime,
+                    battle_state,
+                    enemy_index,
+                    spell_id.as_str(),
+                    target_side,
+                    target_mode,
+                    target_index,
+                    rng,
+                ),
+                was_palliative,
+            )
+        }
         EnemyAction::Ability {
             ability_id,
             target_side,
             target_mode,
             target_index,
-        } => execute_enemy_ability_action(
-            runtime,
-            battle_state,
-            enemy_index,
-            ability_id.as_str(),
-            target_side,
-            target_mode,
-            target_index,
-            rng,
-        ),
+        } => {
+            let was_palliative = runtime
+                .content
+                .abilities
+                .abilities
+                .iter()
+                .find(|ability| ability.id == ability_id)
+                .map(|ability| {
+                    is_palliative_effect(&ability.effect.r#type, &ability.effect.effects)
+                })
+                .unwrap_or(false);
+            (
+                execute_enemy_ability_action(
+                    runtime,
+                    battle_state,
+                    enemy_index,
+                    ability_id.as_str(),
+                    target_side,
+                    target_mode,
+                    target_index,
+                    rng,
+                ),
+                was_palliative,
+            )
+        }
         EnemyAction::Attack { target_id } => {
             if target_id.is_empty() {
                 return None;
@@ -313,12 +341,21 @@ pub fn enemy_take_turn(
                 &final_target_id,
                 rng,
             );
-            battle_state
-                .party_order
-                .iter()
-                .position(|id| id == &final_target_id)
+            (
+                battle_state
+                    .party_order
+                    .iter()
+                    .position(|id| id == &final_target_id),
+                false,
+            )
+        }
+    };
+    if was_palliative && result.is_some() {
+        if let Some(enemy) = battle_state.enemies.get_mut(enemy_index) {
+            enemy.last_palliative_turn = Some(battle_state.turns);
         }
     }
+    result
 }
 
 #[derive(Clone, Debug)]
@@ -351,6 +388,7 @@ struct EnemyActionCandidate {
     kind: EnemyActionKind,
     id: String,
     effect_type: String,
+    effect_ids: Vec<String>,
     weight: i32,
     target_side: super::state::TargetSide,
     target_mode: super::state::TargetMode,
@@ -445,24 +483,47 @@ fn select_enemy_action(
             "revive" => TargetRule::KnockedOut,
             _ => TargetRule::Alive,
         };
-        let target_index = select_target_index(
-            battle_state,
-            runtime,
-            menu_state,
-            enemy_index,
-            target_side,
-            target_rule,
-            target_mode,
-            spell.default_target.as_str(),
-            rng,
-        );
+        let target_index = if target_side == super::state::TargetSide::Enemy
+            && target_mode == super::state::TargetMode::Single
+            && is_palliative_effect(&spell.effect.r#type, &spell.effect.effects)
+        {
+            select_preferred_palliative_target(battle_state, target_rule, enemy_index)
+        } else {
+            None
+        }
+        .or_else(|| {
+            select_target_index(
+                battle_state,
+                runtime,
+                menu_state,
+                enemy_index,
+                target_side,
+                target_rule,
+                target_mode,
+                spell.default_target.as_str(),
+                rng,
+            )
+        });
         if target_mode == super::state::TargetMode::Single && target_index.is_none() {
             continue;
+        }
+        if is_palliative_effect(&spell.effect.r#type, &spell.effect.effects)
+            && target_side == super::state::TargetSide::Enemy
+        {
+            let Some(ratio) =
+                enemy_target_hp_ratio(battle_state, target_rule, target_mode, target_index)
+            else {
+                continue;
+            };
+            if ratio > enemy.ai.heal_below_hp {
+                continue;
+            }
         }
         candidates.push(EnemyActionCandidate {
             kind: EnemyActionKind::Spell,
             id: spell.id.clone(),
             effect_type: spell.effect.r#type.clone(),
+            effect_ids: spell.effect.effects.clone(),
             weight: enemy.ai.weights.spells.max(0),
             target_side,
             target_mode,
@@ -509,24 +570,47 @@ fn select_enemy_action(
             "revive" => TargetRule::KnockedOut,
             _ => TargetRule::Alive,
         };
-        let target_index = select_target_index(
-            battle_state,
-            runtime,
-            menu_state,
-            enemy_index,
-            target_side,
-            target_rule,
-            target_mode,
-            ability.default_target.as_str(),
-            rng,
-        );
+        let target_index = if target_side == super::state::TargetSide::Enemy
+            && target_mode == super::state::TargetMode::Single
+            && is_palliative_effect(&ability.effect.r#type, &ability.effect.effects)
+        {
+            select_preferred_palliative_target(battle_state, target_rule, enemy_index)
+        } else {
+            None
+        }
+        .or_else(|| {
+            select_target_index(
+                battle_state,
+                runtime,
+                menu_state,
+                enemy_index,
+                target_side,
+                target_rule,
+                target_mode,
+                ability.default_target.as_str(),
+                rng,
+            )
+        });
         if target_mode == super::state::TargetMode::Single && target_index.is_none() {
             continue;
+        }
+        if is_palliative_effect(&ability.effect.r#type, &ability.effect.effects)
+            && target_side == super::state::TargetSide::Enemy
+        {
+            let Some(ratio) =
+                enemy_target_hp_ratio(battle_state, target_rule, target_mode, target_index)
+            else {
+                continue;
+            };
+            if ratio > enemy.ai.heal_below_hp {
+                continue;
+            }
         }
         candidates.push(EnemyActionCandidate {
             kind: EnemyActionKind::Ability,
             id: ability.id.clone(),
             effect_type: ability.effect.r#type.clone(),
+            effect_ids: ability.effect.effects.clone(),
             weight: enemy.ai.weights.abilities.max(0),
             target_side,
             target_mode,
@@ -534,35 +618,73 @@ fn select_enemy_action(
         });
     }
 
+    let palliative_candidates: Vec<_> = candidates
+        .iter()
+        .filter(|candidate| {
+            candidate.target_side == super::state::TargetSide::Enemy
+                && is_palliative_effect(&candidate.effect_type, &candidate.effect_ids)
+        })
+        .cloned()
+        .collect();
+    let non_palliative_candidates: Vec<_> = candidates
+        .iter()
+        .filter(|candidate| {
+            !is_palliative_effect(&candidate.effect_type, &candidate.effect_ids)
+                || candidate.target_side != super::state::TargetSide::Enemy
+        })
+        .cloned()
+        .collect();
+    let has_non_palliative = !non_palliative_candidates.is_empty();
+    let current_turn = battle_state.turns;
+    let cooldown_turns = enemy.ai.palliative_cooldown_turns.unwrap_or(
+        runtime
+            .content
+            .rules
+            .battle
+            .enemy_ai_defaults
+            .palliative_cooldown_turns,
+    );
+    let reroll_chance = enemy.ai.palliative_reroll_chance.unwrap_or(
+        runtime
+            .content
+            .rules
+            .battle
+            .enemy_ai_defaults
+            .palliative_reroll_chance,
+    );
+    let cooldown_active = cooldown_turns > 0
+        && enemy
+            .last_palliative_turn
+            .map(|last_turn| current_turn.saturating_sub(last_turn) <= cooldown_turns)
+            .unwrap_or(false);
+
     if enemy.ai.prefer_revive && !fallen_enemies.is_empty() {
         if let Some(action) = choose_weighted_action(
-            candidates
+            palliative_candidates
                 .iter()
-                .filter(|candidate| {
-                    candidate.effect_type == "revive"
-                        && candidate.target_side == super::state::TargetSide::Enemy
-                })
+                .filter(|candidate| candidate.effect_type == "revive")
                 .cloned()
                 .collect::<Vec<_>>(),
             rng,
         ) {
-            return to_enemy_action(action);
+            if palliative_allowed(cooldown_active, has_non_palliative, reroll_chance, rng) {
+                return to_enemy_action(action);
+            }
         }
     }
 
     if lowest_hp_ratio <= enemy.ai.heal_below_hp {
         if let Some(action) = choose_weighted_action(
-            candidates
+            palliative_candidates
                 .iter()
-                .filter(|candidate| {
-                    candidate.effect_type == "heal"
-                        && candidate.target_side == super::state::TargetSide::Enemy
-                })
+                .filter(|candidate| candidate.effect_type == "heal")
                 .cloned()
                 .collect::<Vec<_>>(),
             rng,
         ) {
-            return to_enemy_action(action);
+            if palliative_allowed(cooldown_active, has_non_palliative, reroll_chance, rng) {
+                return to_enemy_action(action);
+            }
         }
     }
 
@@ -575,7 +697,15 @@ fn select_enemy_action(
                 return EnemyAction::Attack { target_id };
             }
         }
-        if let Some(action) = choose_weighted_action(candidates, rng) {
+        if let Some(action) = choose_weighted_action(candidates.clone(), rng) {
+            if is_palliative_effect(&action.effect_type, &action.effect_ids)
+                && action.target_side == super::state::TargetSide::Enemy
+                && !palliative_allowed(cooldown_active, has_non_palliative, reroll_chance, rng)
+            {
+                if let Some(fallback) = choose_weighted_action(non_palliative_candidates, rng) {
+                    return to_enemy_action(fallback);
+                }
+            }
             return to_enemy_action(action);
         }
     }
@@ -724,6 +854,104 @@ fn enemy_target_indices_for_rule(
             _ => None,
         })
         .collect()
+}
+
+fn enemy_target_hp_ratio(
+    battle_state: &engine::battle::BattleState,
+    rule: TargetRule,
+    target_mode: super::state::TargetMode,
+    target_index: Option<usize>,
+) -> Option<f32> {
+    match target_mode {
+        super::state::TargetMode::Single => {
+            let index = target_index?;
+            let enemy = battle_state.enemies.get(index)?;
+            Some(enemy_hp_ratio(enemy))
+        }
+        super::state::TargetMode::Multi => {
+            let indices = enemy_target_indices_for_rule(battle_state, rule);
+            let mut ratio: Option<f32> = None;
+            for index in indices {
+                if let Some(enemy) = battle_state.enemies.get(index) {
+                    let entry_ratio = enemy_hp_ratio(enemy);
+                    ratio = Some(match ratio {
+                        Some(current) => current.min(entry_ratio),
+                        None => entry_ratio,
+                    });
+                }
+            }
+            ratio
+        }
+    }
+}
+
+fn enemy_hp_ratio(enemy: &engine::battle::BattleEnemy) -> f32 {
+    if enemy.max_hp() <= 0 {
+        return 1.0;
+    }
+    (enemy.current_hp.max(0) as f32) / (enemy.max_hp() as f32)
+}
+
+fn palliative_allowed(
+    cooldown_active: bool,
+    has_non_palliative: bool,
+    reroll_chance: f32,
+    rng: &mut impl Rng,
+) -> bool {
+    if !has_non_palliative {
+        return true;
+    }
+    if cooldown_active {
+        return false;
+    }
+    if reroll_chance <= 0.0 {
+        return true;
+    }
+    if reroll_chance >= 1.0 {
+        return false;
+    }
+    rng.random::<f32>() >= reroll_chance
+}
+
+fn select_preferred_palliative_target(
+    battle_state: &engine::battle::BattleState,
+    rule: TargetRule,
+    fallback_index: usize,
+) -> Option<usize> {
+    match rule {
+        TargetRule::KnockedOut => {
+            let mut indices = enemy_target_indices_for_rule(battle_state, rule);
+            indices.sort_unstable();
+            indices.into_iter().next().or(Some(fallback_index))
+        }
+        TargetRule::Alive => {
+            let mut best_index = None;
+            let mut best_ratio = 1.0f32;
+            for index in enemy_target_indices_for_rule(battle_state, rule) {
+                if let Some(enemy) = battle_state.enemies.get(index) {
+                    let ratio = enemy_hp_ratio(enemy);
+                    if best_index.is_none() || ratio < best_ratio {
+                        best_index = Some(index);
+                        best_ratio = ratio;
+                    }
+                }
+            }
+            best_index.or(Some(fallback_index))
+        }
+    }
+}
+
+fn is_palliative_effect(effect_type: &str, effect_ids: &[String]) -> bool {
+    match effect_type {
+        "heal" | "revive" | "pray" => true,
+        "status" => effect_ids.iter().any(|id| {
+            matches!(
+                id.as_str(),
+                "apply_protect" | "apply_shell" | "apply_regen" | "apply_haste"
+            )
+        }),
+        _ => false,
+    }
 }
 
 fn enemy_spell_cost_available(
