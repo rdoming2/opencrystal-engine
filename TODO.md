@@ -58,14 +58,16 @@
   - [x] Autosave slot after transitions.
 
 - [ ] Refactor the following into smaller modules:
-  - [ ] crates/cli/src/battle/mod.rs (2676 lines)
-  - [ ] crates/engine/src/validate.rs (2437 lines)
-  - [ ] crates/cli/src/overworld.rs (2038 lines)
-  - [ ] crates/cli/src/build.rs (1787 lines)
-  - [ ] crates/cli/src/battle/actions.rs (1562 lines)
-  - [ ] crates/engine/src/party.rs (1472 lines)
-  - [ ] crates/cli/src/main.rs (1033 lines)
-  - [ ] crates/tui/src/map_editor/objects.rs (1023 lines)
+  - [ ] crates/cli/src/battle/actions.rs (2864 lines)
+  - [ ] crates/cli/src/battle/mod.rs (2800 lines)
+  - [x] crates/engine/src/validate.rs (2437 lines)
+  - [x] crates/cli/src/overworld.rs (2038 lines)
+  - [ ] crates/cli/src/build.rs (1952 lines)
+  - [ ] crates/tui/src/map_editor/objects.rs (1837 lines)
+  - [ ] crates/engine/src/party.rs (1626 lines)
+  - [ ] crates/cli/src/battle/logic.rs (1157)
+  - [ ] crates/cli/src/menu/inventory.rs (1115)
+  - [ ] crates/cli/src/main.rs (1045 lines)
 
 ## UI + Rendering
 - [x] Title screen renderer.
