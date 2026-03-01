@@ -545,6 +545,7 @@ movement across that axis. Defaults to `{ "x": false, "y": false }`.
 `encounter_rate` is the per-step base chance (0.0-1.0) used to build an encounter meter in encounter zones.
 Each step applies a random jitter (0.5 to 1.5) to the rate before adding it to the meter.
 When the meter reaches 1.0, a random battle triggers and the meter is reduced by 1.0.
+If multiple encounter zones overlap at the current position, the first matching zone in the map `encounters` array is used.
 
 `signs` are inline interactive objects that display a centered dialog with no speaker.
 

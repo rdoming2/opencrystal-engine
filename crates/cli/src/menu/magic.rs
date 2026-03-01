@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use engine::battle::{actor_combat_stats, magic_heal_base};
 use engine::party::get_actor_max_charges;
 use engine::rules::MagicSystem;
 use engine::runtime::GameRuntime;
@@ -206,6 +207,21 @@ pub fn apply_spell_to_targets(
     ) {
         return false;
     }
+    let caster_stats = runtime
+        .party
+        .roster
+        .get(actor_id)
+        .map(actor_combat_stats)
+        .unwrap_or_else(|| engine::battle::CombatantStats {
+            atk: 0,
+            def: 0,
+            matk: 0,
+            mdef: 0,
+            agi: 0,
+            lck: 0,
+            eva: 0,
+            lvl: 1,
+        });
     let Some(actor) = runtime.party.roster.get_mut(actor_id) else {
         return false;
     };
@@ -213,7 +229,7 @@ pub fn apply_spell_to_targets(
         return false;
     }
     for target_id in targets {
-        apply_spell_to_actor(runtime, entry, target_id);
+        apply_spell_to_actor(runtime, entry, target_id, &caster_stats);
     }
     true
 }
@@ -281,14 +297,26 @@ pub fn consume_spell_cost(
     }
 }
 
-pub fn apply_spell_to_actor(runtime: &mut GameRuntime, entry: &SpellEntry, actor_id: &str) {
+pub fn apply_spell_to_actor(
+    runtime: &mut GameRuntime,
+    entry: &SpellEntry,
+    actor_id: &str,
+    caster_stats: &engine::battle::CombatantStats,
+) {
     let Some(actor) = runtime.party.roster.get_mut(actor_id) else {
         return;
     };
     let max_hp = actor.derived_stats.get("hp").copied().unwrap_or(0);
     match entry.effect_type.as_str() {
         "heal" => {
-            actor.current_hp = (actor.current_hp + entry.effect_power).clamp(0, max_hp);
+            let target_stats = actor_combat_stats(actor);
+            let base_heal = magic_heal_base(
+                &runtime.content.rules.battle,
+                caster_stats,
+                &target_stats,
+                entry.effect_power,
+            );
+            actor.current_hp = (actor.current_hp + base_heal.max(1)).clamp(0, max_hp);
         }
         "revive" => {
             if actor.current_hp <= 0 {
