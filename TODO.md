@@ -62,7 +62,7 @@
   - [ ] crates/cli/src/battle/mod.rs (2800 lines)
   - [x] crates/engine/src/validate.rs (2437 lines)
   - [x] crates/cli/src/overworld.rs (2038 lines)
-  - [ ] crates/cli/src/build.rs (1952 lines)
+  - [x] crates/cli/src/build.rs (1952 lines)
   - [ ] crates/tui/src/map_editor/objects.rs (1837 lines)
   - [ ] crates/engine/src/party.rs (1626 lines)
   - [ ] crates/cli/src/battle/logic.rs (1157)
@@ -115,6 +115,7 @@
 - [x] Show campfire recipe ingredient requirements with inventory counts.
 - [x] Gameover screen and optional restart logic (last battle, last save, fallback to main menu)
 - [ ] End game screen with option to continue vs. return to main menu. Option to "star" the save
+- [ ] Titlescreen Settings need implementation
 - [x] Optional persistent death markers
 - [x] Update UI display to show names/labels instead of ids
 - [x] Update item player selection UI to show inline target stats/status
