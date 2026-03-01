@@ -107,6 +107,7 @@
 - [x] Inventory + equipment UI.
   - [x] Inventory filters + sorting.
   - [x] Item field use (heal/revive).
+- [x] Show shop equipment compatibility (allowed jobs + current party applicability).
 - [x] Keep item menu panels visible when no items exist (empty categories).
 - [x] Equipment swap flow with stat preview.
 - [x] Add startup content chooser when `--content` is omitted.

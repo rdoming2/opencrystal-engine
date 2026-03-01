@@ -285,7 +285,11 @@ pub fn build_shop_view(runtime: &GameRuntime, shop_id: &str) -> Option<ShopView>
 
         let mut lines = match inv_kind {
             InventoryKind::Item => build_item_description(runtime, Some(&inv_entry)),
-            InventoryKind::Equipment => build_equipment_detail(runtime, "", "", &inv_entry).lines,
+            InventoryKind::Equipment => {
+                let mut detail_lines = build_equipment_detail(runtime, "", "", &inv_entry).lines;
+                append_equipment_compatibility_lines(runtime, item_id, &mut detail_lines);
+                detail_lines
+            }
         };
 
         let price = apply_multiplier(entry.price, shop.buy_price_multiplier);
@@ -410,7 +414,10 @@ pub fn build_shop_view(runtime: &GameRuntime, shop_id: &str) -> Option<ShopView>
             let mut lines = match inv_kind {
                 InventoryKind::Item => build_item_description(runtime, Some(&inv_entry)),
                 InventoryKind::Equipment => {
-                    build_equipment_detail(runtime, "", "", &inv_entry).lines
+                    let mut detail_lines =
+                        build_equipment_detail(runtime, "", "", &inv_entry).lines;
+                    append_equipment_compatibility_lines(runtime, item_id, &mut detail_lines);
+                    detail_lines
                 }
             };
             lines.insert(
@@ -684,6 +691,100 @@ fn item_sellable(
         return false;
     }
     price_for_currency(prices, currency_id).is_some()
+}
+
+fn append_equipment_compatibility_lines(
+    runtime: &GameRuntime,
+    equipment_id: &str,
+    lines: &mut Vec<tui::menu::MenuPanelLine>,
+) {
+    let Some(equipment) = runtime
+        .content
+        .equipment
+        .equipment
+        .iter()
+        .find(|entry| entry.id == equipment_id)
+    else {
+        return;
+    };
+    if equipment.slot != "weapon" && equipment.slot != "armor" {
+        return;
+    }
+
+    let allowed_job_ids = compatible_job_ids_for_equipment(runtime, equipment);
+    let allowed_job_names = allowed_job_ids
+        .iter()
+        .map(|job_id| {
+            runtime
+                .content
+                .jobs
+                .jobs
+                .iter()
+                .find(|job| job.id == *job_id)
+                .map(|job| job.name.clone())
+                .unwrap_or_else(|| job_id.clone())
+        })
+        .collect::<Vec<_>>();
+    let active_party = runtime.party.active_ids();
+    let mut matching_party = Vec::new();
+    for actor_id in active_party {
+        let Some(actor) = runtime.party.roster.get(&actor_id) else {
+            continue;
+        };
+        if allowed_job_ids.contains(&actor.job_id) {
+            matching_party.push(actor.name.clone());
+        }
+    }
+
+    let jobs_label = if allowed_job_names.is_empty() {
+        "None".to_string()
+    } else {
+        allowed_job_names.join(", ")
+    };
+    let party_label = if matching_party.is_empty() {
+        "None".to_string()
+    } else {
+        matching_party.join(", ")
+    };
+
+    lines.push(panel_line_spans(vec![
+        panel_span("Allowed jobs: ", PanelSpanStyle::Normal),
+        panel_span(jobs_label, PanelSpanStyle::Muted),
+    ]));
+    lines.push(panel_line_spans(vec![
+        panel_span("Party can equip: ", PanelSpanStyle::Normal),
+        panel_span(party_label, PanelSpanStyle::Muted),
+    ]));
+}
+
+fn compatible_job_ids_for_equipment(
+    runtime: &GameRuntime,
+    equipment: &engine::entities::EquipmentDefinition,
+) -> Vec<String> {
+    runtime
+        .content
+        .jobs
+        .jobs
+        .iter()
+        .filter(|job| equipment_allowed_for_job(job, equipment))
+        .map(|job| job.id.clone())
+        .collect()
+}
+
+fn equipment_allowed_for_job(
+    job: &engine::entities::JobDefinition,
+    equipment: &engine::entities::EquipmentDefinition,
+) -> bool {
+    if let Some(allowed) = &equipment.allowed_jobs {
+        if !allowed.contains(&job.id) {
+            return false;
+        }
+    }
+    match equipment.slot.as_str() {
+        "weapon" => job.equipment.weapons.contains(&equipment.category),
+        "armor" => job.equipment.armor.contains(&equipment.category),
+        _ => true,
+    }
 }
 
 pub fn lookup_item_name(runtime: &GameRuntime, item_id: &str) -> String {

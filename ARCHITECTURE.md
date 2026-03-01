@@ -254,6 +254,7 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
 - Inventory entries can be infinite or finite stock; sold items can disappear or enter merchant stock.
 - Merchants can use infinite funds or a tracked currency pool that persists in saves (tracked by shop ID).
 - Sell pricing uses item/equipment base prices keyed by currency, with shop-level and per-entry overrides.
+- Shop equipment detail panels show equip compatibility (allowed jobs and current party members who can equip).
 
 ### Cooking system
 
