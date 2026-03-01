@@ -61,6 +61,8 @@ pub enum PanelSpanStyle {
     Highlight,
     Muted,
     Accent,
+    Positive,
+    Negative,
 }
 
 #[derive(Clone, Debug)]
@@ -812,6 +814,8 @@ pub fn panel_span_style(style: PanelSpanStyle) -> Style {
             .add_modifier(Modifier::BOLD),
         PanelSpanStyle::Muted => Style::default().fg(Color::DarkGray),
         PanelSpanStyle::Accent => Style::default().fg(Color::Cyan),
+        PanelSpanStyle::Positive => Style::default().fg(Color::Green),
+        PanelSpanStyle::Negative => Style::default().fg(Color::Red),
     }
 }
 

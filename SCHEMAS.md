@@ -1194,7 +1194,9 @@ transactions for any item or equipment with a `price` entry matching the shop cu
 currency pools and finite stock are persisted in saves keyed by shop ID, so multiple NPCs
 opening the same shop share inventory and currency state.
 Shop equipment details surface equip compatibility in the UI, showing allowed jobs and which
-active party members can equip a weapon or armor entry.
+active party members can equip a weapon or armor entry. Party member names are color-coded:
+green indicates an upgrade (at least one stat improves with no stat loss), red indicates
+a non-upgrade. Members who cannot equip the item are omitted from the list.
 `buy_price_multiplier` and `sell_price_multiplier` apply to base prices when a specific
 override is not provided. `sell_behavior` controls whether sold items disappear or enter
 the merchant stock list. `currency_pool` controls whether the merchant has infinite funds
@@ -1234,6 +1236,8 @@ Shop entry fields:
 Equipment categories should align with job equipment lists (e.g., job weapons list
 contains categories like "sword", "staff", while `slot` describes where it equips).
 Use `allowed_jobs` only for item-specific overrides (e.g., a katana requiring Samurai).
+Equipment stats can reference base stats (e.g., `str`, `vit`) or derived stats (e.g., `def`, `mdef`).
+When equipment adds to derived stats, the bonus is added after the derived stat formula is evaluated.
 Shop compatibility display combines `allowed_jobs` with job category rules (`equipment.weapons` /
 `equipment.armor`) for weapon/armor entries.
 `spells` (optional) lists spell IDs granted while the equipment is equipped. For

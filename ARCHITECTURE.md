@@ -255,6 +255,7 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
 - Merchants can use infinite funds or a tracked currency pool that persists in saves (tracked by shop ID).
 - Sell pricing uses item/equipment base prices keyed by currency, with shop-level and per-entry overrides.
 - Shop equipment detail panels show equip compatibility (allowed jobs and current party members who can equip).
+- Party member names are color-coded: green for upgrades, red for non-upgrades. Members who cannot equip are omitted.
 
 ### Cooking system
 

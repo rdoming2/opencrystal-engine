@@ -1355,7 +1355,9 @@ fn build_derived_stats(
     for stat in &content.stats.stats.derived {
         if let Some(formula) = content.stats.stats.formulas.get(&stat.id) {
             if let Ok(result) = eval_expression(formula, &vars) {
-                derived.insert(stat.id.clone(), result.floor() as i32);
+                let base_derived = result.floor() as i32;
+                let equipment_bonus = gear_stats.get(&stat.id).copied().unwrap_or(0);
+                derived.insert(stat.id.clone(), base_derived + equipment_bonus);
             }
         }
     }

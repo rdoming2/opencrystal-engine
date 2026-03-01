@@ -1,5 +1,6 @@
 use std::collections::BTreeSet;
 
+use engine::party::recompute_derived_stats;
 use engine::runtime::GameRuntime;
 use tui::input::InputBindings;
 use tui::menu::{MenuPanelView, PanelSpanStyle};
@@ -725,36 +726,85 @@ fn append_equipment_compatibility_lines(
                 .unwrap_or_else(|| job_id.clone())
         })
         .collect::<Vec<_>>();
-    let active_party = runtime.party.active_ids();
-    let mut matching_party = Vec::new();
-    for actor_id in active_party {
-        let Some(actor) = runtime.party.roster.get(&actor_id) else {
-            continue;
-        };
-        if allowed_job_ids.contains(&actor.job_id) {
-            matching_party.push(actor.name.clone());
-        }
-    }
 
     let jobs_label = if allowed_job_names.is_empty() {
         "None".to_string()
     } else {
         allowed_job_names.join(", ")
     };
-    let party_label = if matching_party.is_empty() {
-        "None".to_string()
-    } else {
-        matching_party.join(", ")
-    };
 
     lines.push(panel_line_spans(vec![
         panel_span("Allowed jobs: ", PanelSpanStyle::Normal),
         panel_span(jobs_label, PanelSpanStyle::Muted),
     ]));
-    lines.push(panel_line_spans(vec![
-        panel_span("Party can equip: ", PanelSpanStyle::Normal),
-        panel_span(party_label, PanelSpanStyle::Muted),
-    ]));
+
+    let active_party = runtime.party.active_ids();
+    let mut party_spans = Vec::new();
+    party_spans.push(panel_span("Party: ", PanelSpanStyle::Normal));
+
+    if active_party.is_empty() {
+        party_spans.push(panel_span("None".to_string(), PanelSpanStyle::Muted));
+    } else {
+        let mut first = true;
+        for actor_id in active_party.iter() {
+            let Some(actor) = runtime.party.roster.get(actor_id) else {
+                continue;
+            };
+            let can_equip = allowed_job_ids.contains(&actor.job_id);
+            if !can_equip {
+                continue;
+            }
+            if !first {
+                party_spans.push(panel_span(", ".to_string(), PanelSpanStyle::Normal));
+            }
+            first = false;
+            let is_upgrade = is_equipment_upgrade_for_actor(runtime, actor, equipment);
+            let style = if is_upgrade {
+                PanelSpanStyle::Positive
+            } else {
+                PanelSpanStyle::Negative
+            };
+            party_spans.push(panel_span(actor.name.clone(), style));
+        }
+        if first {
+            party_spans.push(panel_span("None".to_string(), PanelSpanStyle::Muted));
+        }
+    }
+
+    lines.push(panel_line_spans(party_spans));
+}
+
+fn is_equipment_upgrade_for_actor(
+    runtime: &GameRuntime,
+    actor: &engine::party::Actor,
+    equipment: &engine::entities::EquipmentDefinition,
+) -> bool {
+    let slot = &equipment.slot;
+    let _current_equipped_id = actor.equipment.get(slot).cloned();
+
+    let mut clone = actor.clone();
+    clone.equipment.insert(slot.clone(), equipment.id.clone());
+    recompute_derived_stats(&runtime.content, &mut clone);
+
+    let mut any_improvement = false;
+    for stat in runtime
+        .content
+        .stats
+        .stats
+        .base
+        .iter()
+        .chain(runtime.content.stats.stats.derived.iter())
+    {
+        let current = actor.derived_stats.get(&stat.id).copied().unwrap_or(0);
+        let next = clone.derived_stats.get(&stat.id).copied().unwrap_or(0);
+        if next > current {
+            any_improvement = true;
+        } else if next < current {
+            return false;
+        }
+    }
+
+    any_improvement
 }
 
 fn compatible_job_ids_for_equipment(
