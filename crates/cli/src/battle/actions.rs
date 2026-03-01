@@ -570,6 +570,7 @@ pub fn execute_magic_action(
         }
         TargetSide::Party => {
             let mut gain_pending = false;
+            let mut single_target_hp_delta: Option<i32> = None;
             let indices = if target_mode == TargetMode::Multi {
                 party_indices_for_effect(runtime, battle_state, entry.effect_type.as_str())
             } else {
@@ -580,6 +581,7 @@ pub fn execute_magic_action(
                     continue;
                 };
                 if let Some(actor) = runtime.party.roster.get_mut(&target_id) {
+                    let before_hp = actor.current_hp;
                     if let Some(message) =
                         apply_spell_to_actor_battle(&runtime.content, entry, actor, attenuation)
                     {
@@ -588,6 +590,9 @@ pub fn execute_magic_action(
                             applied_gain = true;
                             gain_pending = true;
                         }
+                    }
+                    if target_mode == TargetMode::Single {
+                        single_target_hp_delta = Some(actor.current_hp - before_hp);
                     }
                     if !effect_ids.is_empty() {
                         let (actor_name, applied) = {
@@ -657,17 +662,74 @@ pub fn execute_magic_action(
                     .unwrap_or_else(|| target_id.clone());
                 super::logic::push_battle_log(
                     &mut battle_state.log,
-                    crate::battle::format_ui_text(
-                        runtime,
-                        "battle.log.cast",
-                        "{actor} casts {spell} on {target} for {damage} HP.",
-                        &[
-                            ("actor", actor_name.clone()),
-                            ("spell", entry.name.clone()),
-                            ("target", target_name),
-                            ("damage", "0".to_string()),
-                        ],
-                    ),
+                    match entry.effect_type.as_str() {
+                        "heal" => {
+                            if let Some(healed) = single_target_hp_delta.filter(|delta| *delta > 0)
+                            {
+                                crate::battle::format_ui_text(
+                                    runtime,
+                                    "battle.log.cast",
+                                    "{actor} casts {spell} on {target} for {damage} HP.",
+                                    &[
+                                        ("actor", actor_name.clone()),
+                                        ("spell", entry.name.clone()),
+                                        ("target", target_name),
+                                        ("damage", healed.to_string()),
+                                    ],
+                                )
+                            } else {
+                                crate::battle::format_ui_text(
+                                    runtime,
+                                    "battle.log.cast_simple",
+                                    "{actor} casts {spell} on {target}.",
+                                    &[
+                                        ("actor", actor_name.clone()),
+                                        ("spell", entry.name.clone()),
+                                        ("target", target_name),
+                                    ],
+                                )
+                            }
+                        }
+                        "damage" => {
+                            if let Some(damage) = single_target_hp_delta
+                                .filter(|delta| *delta < 0)
+                                .map(i32::abs)
+                            {
+                                crate::battle::format_ui_text(
+                                    runtime,
+                                    "battle.log.cast",
+                                    "{actor} casts {spell} on {target} for {damage} HP.",
+                                    &[
+                                        ("actor", actor_name.clone()),
+                                        ("spell", entry.name.clone()),
+                                        ("target", target_name),
+                                        ("damage", damage.to_string()),
+                                    ],
+                                )
+                            } else {
+                                crate::battle::format_ui_text(
+                                    runtime,
+                                    "battle.log.cast_simple",
+                                    "{actor} casts {spell} on {target}.",
+                                    &[
+                                        ("actor", actor_name.clone()),
+                                        ("spell", entry.name.clone()),
+                                        ("target", target_name),
+                                    ],
+                                )
+                            }
+                        }
+                        _ => crate::battle::format_ui_text(
+                            runtime,
+                            "battle.log.cast_simple",
+                            "{actor} casts {spell} on {target}.",
+                            &[
+                                ("actor", actor_name.clone()),
+                                ("spell", entry.name.clone()),
+                                ("target", target_name),
+                            ],
+                        ),
+                    },
                 );
             }
         }
