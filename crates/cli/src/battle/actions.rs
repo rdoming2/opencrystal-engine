@@ -1,7 +1,7 @@
 use engine::battle::{
     actor_combat_stats, apply_damage_to_actor, apply_damage_to_enemy, apply_status_effects,
-    damage_multiplier, enemy_combat_stats, healing_inverted, roll_attack, CombatantStats,
-    DamageKind,
+    damage_multiplier, enemy_combat_stats, healing_inverted, magic_heal_base, roll_attack,
+    CombatantStats, DamageKind,
 };
 use engine::party::{
     activity_proficiency, actor_traits, actor_weapon_category, apply_activity_gain,
@@ -193,7 +193,9 @@ pub fn execute_magic_action(
 ) {
     fn apply_spell_to_actor_battle(
         content: &engine::content::Content,
+        rules: &engine::rules::BattleRules,
         entry: &SpellEntry,
+        caster_stats: &CombatantStats,
         actor: &mut engine::party::Actor,
         attenuation: f32,
     ) -> Option<String> {
@@ -202,13 +204,15 @@ pub fn execute_magic_action(
             "heal" => {
                 let inverted =
                     healing_inverted(content, &engine::party::actor_traits(content, actor));
+                let target_stats = actor_combat_stats(actor);
+                let base_heal =
+                    magic_heal_base(rules, caster_stats, &target_stats, entry.effect_power);
+                let amount = apply_attenuation(base_heal.max(1), attenuation);
                 if inverted {
-                    let amount = apply_attenuation(entry.effect_power.max(1), attenuation);
                     apply_damage_to_actor(actor, amount);
                     Some(format!("{} takes {} damage.", actor.name, amount))
                 } else {
                     let before = actor.current_hp;
-                    let amount = apply_attenuation(entry.effect_power.max(1), attenuation);
                     actor.current_hp = (actor.current_hp + amount).clamp(0, max_hp);
                     let healed = actor.current_hp.saturating_sub(before);
                     Some(format!("{} recovers {} HP.", actor.name, healed))
@@ -428,7 +432,14 @@ pub fn execute_magic_action(
                         }
                         "heal" => {
                             let max_hp = enemy.max_hp();
-                            let amount = apply_attenuation(entry.effect_power.max(1), attenuation);
+                            let target_stats = enemy_combat_stats(&runtime.content, enemy);
+                            let base_heal = magic_heal_base(
+                                &runtime.content.rules.battle,
+                                &actor_stats,
+                                &target_stats,
+                                entry.effect_power,
+                            );
+                            let amount = apply_attenuation(base_heal.max(1), attenuation);
                             if healing_inverted(&runtime.content, &enemy.traits) {
                                 apply_damage_to_enemy(enemy, amount);
                                 runtime.track_max_stat("max_damage", amount);
@@ -582,9 +593,14 @@ pub fn execute_magic_action(
                 };
                 if let Some(actor) = runtime.party.roster.get_mut(&target_id) {
                     let before_hp = actor.current_hp;
-                    if let Some(message) =
-                        apply_spell_to_actor_battle(&runtime.content, entry, actor, attenuation)
-                    {
+                    if let Some(message) = apply_spell_to_actor_battle(
+                        &runtime.content,
+                        &runtime.content.rules.battle,
+                        entry,
+                        &actor_stats,
+                        actor,
+                        attenuation,
+                    ) {
                         super::logic::push_battle_log(&mut battle_state.log, message);
                         if !applied_gain {
                             applied_gain = true;
@@ -1915,12 +1931,18 @@ pub fn execute_enemy_spell_action(
                         if let Some(target) = runtime.party.roster.get_mut(&target_id) {
                             let target_name = target.name.clone();
                             let max_hp = target.derived_stats.get("hp").copied().unwrap_or(0);
+                            let target_stats = actor_combat_stats(target);
+                            let base_heal = magic_heal_base(
+                                &runtime.content.rules.battle,
+                                &attacker_stats,
+                                &target_stats,
+                                spell.effect.power,
+                            );
+                            let amount = apply_attenuation(base_heal.max(1), attenuation);
                             if healing_inverted(
                                 &runtime.content,
                                 &actor_traits(&runtime.content, target),
                             ) {
-                                let amount =
-                                    apply_attenuation(spell.effect.power.max(1), attenuation);
                                 apply_damage_to_actor(target, amount);
                                 super::logic::push_battle_log(
                                     &mut battle_state.log,
@@ -1936,8 +1958,6 @@ pub fn execute_enemy_spell_action(
                                 );
                             } else {
                                 let before = target.current_hp;
-                                let amount =
-                                    apply_attenuation(spell.effect.power.max(1), attenuation);
                                 target.current_hp = (target.current_hp + amount).clamp(0, max_hp);
                                 let healed = target.current_hp.saturating_sub(before);
                                 super::logic::push_battle_log(
@@ -2137,7 +2157,14 @@ pub fn execute_enemy_spell_action(
                         }
                         "heal" => {
                             let max_hp = enemy_target.max_hp();
-                            let amount = apply_attenuation(spell.effect.power.max(1), attenuation);
+                            let target_stats = enemy_combat_stats(&runtime.content, enemy_target);
+                            let base_heal = magic_heal_base(
+                                &runtime.content.rules.battle,
+                                &attacker_stats,
+                                &target_stats,
+                                spell.effect.power,
+                            );
+                            let amount = apply_attenuation(base_heal.max(1), attenuation);
                             if healing_inverted(&runtime.content, &enemy_target.traits) {
                                 apply_damage_to_enemy(enemy_target, amount);
                                 super::logic::push_battle_log(

@@ -336,6 +336,11 @@ pub(crate) fn validate_rules(context: &ValidationContext, errors: &mut Vec<Strin
             errors.push("rules.json: battle.formulas.magic must not be empty".to_string());
         }
     }
+    if let Some(formulas) = rules.battle.formulas.heal.as_deref() {
+        if formulas.trim().is_empty() {
+            errors.push("rules.json: battle.formulas.heal must not be empty".to_string());
+        }
+    }
     if let Some(formulas) = rules.battle.formulas.hit.as_deref() {
         if formulas.trim().is_empty() {
             errors.push("rules.json: battle.formulas.hit must not be empty".to_string());

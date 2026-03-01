@@ -593,6 +593,32 @@ fn default_magic_base(attacker: &CombatantStats, defender: &CombatantStats, powe
         .max(1)
 }
 
+/// Computes the base healing amount for a magic heal spell.
+/// Uses `battle.formulas.heal` if configured, otherwise falls back to
+/// `power + matk - mdef/2` (minimum 1).
+pub fn magic_heal_base(
+    rules: &BattleRules,
+    caster: &CombatantStats,
+    target: &CombatantStats,
+    power: i32,
+) -> i32 {
+    let Some(formula) = rules.formulas.heal.as_deref() else {
+        return default_heal_base(caster, target, power);
+    };
+    let vars = combat_formula_vars(caster, target, power);
+    match eval_expression(formula, &vars) {
+        Ok(result) => result.round().max(1.0) as i32,
+        Err(_) => default_heal_base(caster, target, power),
+    }
+}
+
+fn default_heal_base(caster: &CombatantStats, target: &CombatantStats, power: i32) -> i32 {
+    power
+        .saturating_add(caster.matk)
+        .saturating_sub(target.mdef / 2)
+        .max(1)
+}
+
 pub fn status_definition<'a>(
     content: &'a Content,
     status_id: &str,

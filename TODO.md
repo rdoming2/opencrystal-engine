@@ -179,6 +179,7 @@
 - [x] Support job-based tier charge tables.
 - [x] Stop using job spell/ability `level` as unlock gating; use `unlock_level` and treat spell `tier` as tier metadata.
 - [x] Track learned spells/abilities per job; derive usable lists from primary + secondary jobs.
+- [x] Scale magic healing with caster stats (matk/mdef) via configurable formula.
 
 ## Progression
 - [x] Implement experience + level-up pipeline.

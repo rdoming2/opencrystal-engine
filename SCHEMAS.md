@@ -355,6 +355,7 @@ Battle formula fields:
 
 - `formulas.physical`: expression for physical base damage.
 - `formulas.magic`: expression for magic base damage.
+- `formulas.heal`: expression for magic healing base amount.
 - `formulas.hit`: expression for hit chance (0-1).
 - `formulas.crit`: expression for crit chance (0-1).
 - `formulas.crit_multiplier`: damage multiplier applied on crit.

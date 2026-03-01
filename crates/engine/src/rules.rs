@@ -145,6 +145,8 @@ pub struct BattleFormulaRules {
     #[serde(default)]
     pub magic: Option<String>,
     #[serde(default)]
+    pub heal: Option<String>,
+    #[serde(default)]
     pub hit: Option<String>,
     #[serde(default)]
     pub crit: Option<String>,
@@ -606,6 +608,7 @@ impl Default for BattleFormulaRules {
         Self {
             physical: None,
             magic: None,
+            heal: None,
             hit: None,
             crit: None,
             crit_multiplier: default_battle_crit_multiplier(),

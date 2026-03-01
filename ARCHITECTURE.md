@@ -305,7 +305,8 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
 - Spells and abilities declare target modes (`single`/`multi`) with optional attenuation for group targeting.
 - Charge abilities support per-ability windups with optional vanish behavior; hidden windups make actors untargetable until release.
 - Statuses can be configured to clear at battle end; poison also ticks on overworld movement steps.
-- Battle formulas can be configured for hit, crit, and damage calculations; boss scaling is optional and gated by the `boss` trait.
+- Battle formulas can be configured for hit, crit, damage, and healing calculations; boss scaling is optional and gated by the `boss` trait.
+- Magic healing scales with caster `matk` and target `mdef` by default, or via a custom `formulas.heal` expression.
 - Difficulty scale settings apply a multiplier to all enemy stats and stack with boss scaling.
 - Difficulty scale can optionally scale EXP and currency rewards when enabled in battle rules.
 - Enemies can cast spells or use abilities with configurable MP pools (`limited`/`unlimited`) and basic weighted AI; palliative actions are gated by intended target HP thresholds with reroll and cooldown dampening.
