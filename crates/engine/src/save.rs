@@ -82,6 +82,10 @@ pub struct SaveJobProgress {
     pub exp: i32,
     pub jp_earned: i32,
     pub jp_spent: i32,
+    #[serde(default)]
+    pub learned_spells: Vec<String>,
+    #[serde(default)]
+    pub learned_abilities: Vec<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -177,6 +181,12 @@ impl SaveFile {
             .collect();
         runtime.vehicle_slow_mode = false;
         runtime.party = self.party.to_party();
+        for actor in runtime.party.roster.values_mut() {
+            crate::party::sanitize_job_learned_sets(&runtime.content, actor);
+            crate::party::refresh_actor_learned_collections(actor);
+            crate::party::update_equipped_spells(&runtime.content, actor);
+            crate::party::update_equipped_abilities(&runtime.content, actor);
+        }
         runtime.inventory = self.inventory.to_inventory();
         runtime.shop_states = self.shops.clone();
         let initial_shops = crate::runtime::initial_shop_states(&runtime.content);
@@ -316,11 +326,26 @@ impl SaveActor {
     }
 
     fn to_actor(&self) -> Actor {
-        let job_progress = self
+        let mut job_progress: HashMap<String, JobProgress> = self
             .job_progress
             .iter()
             .map(|(id, progress)| (id.clone(), progress.to_progress()))
             .collect();
+        let has_job_learned_data = job_progress.values().any(|progress| {
+            !progress.learned_spells.is_empty() || !progress.learned_abilities.is_empty()
+        });
+        if !has_job_learned_data && (!self.spells.is_empty() || !self.unlocked_abilities.is_empty())
+        {
+            let progress = job_progress
+                .entry(self.job_id.clone())
+                .or_insert_with(JobProgress::default);
+            for spell_id in &self.spells {
+                progress.learned_spells.insert(spell_id.clone());
+            }
+            for ability_id in &self.unlocked_abilities {
+                progress.learned_abilities.insert(ability_id.clone());
+            }
+        }
         Actor {
             id: self.id.clone(),
             name: self.name.clone(),
@@ -353,11 +378,21 @@ fn default_battle_row() -> crate::party::BattleRow {
 
 impl SaveJobProgress {
     fn from_progress(progress: &JobProgress) -> Self {
+        let mut learned_spells = progress.learned_spells.iter().cloned().collect::<Vec<_>>();
+        learned_spells.sort();
+        let mut learned_abilities = progress
+            .learned_abilities
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>();
+        learned_abilities.sort();
         Self {
             level: progress.level,
             exp: progress.exp,
             jp_earned: progress.jp_earned,
             jp_spent: progress.jp_spent,
+            learned_spells,
+            learned_abilities,
         }
     }
 
@@ -367,6 +402,8 @@ impl SaveJobProgress {
             exp: self.exp,
             jp_earned: self.jp_earned,
             jp_spent: self.jp_spent,
+            learned_spells: self.learned_spells.iter().cloned().collect(),
+            learned_abilities: self.learned_abilities.iter().cloned().collect(),
         }
     }
 }

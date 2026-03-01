@@ -1,6 +1,8 @@
 use std::collections::{HashMap, HashSet};
 
 use super::ValidationContext;
+use crate::entities::{JobDefinition, MagicAcquisitionOverride};
+use crate::rules::{AbilityAcquisition, JpMode, MagicAcquisition};
 
 const BATTLE_POS_MAX_X: i32 = 9;
 const BATTLE_POS_MAX_Y: i32 = 5;
@@ -131,12 +133,61 @@ pub(crate) fn validate_jobs_spells_abilities(
                     job.id, spell.id
                 ));
             }
+            let Some(acquisition) = resolve_magic_acquisition_for_spell(context, job, &spell.id)
+            else {
+                continue;
+            };
+            let requires_unlock_level = match acquisition {
+                MagicAcquisition::Level => true,
+                MagicAcquisition::Jp => context
+                    .rules
+                    .map(|rules| rules.job_system.jp_mode != JpMode::Spend)
+                    .unwrap_or(true),
+                MagicAcquisition::Item | MagicAcquisition::Equip => false,
+            };
+            if requires_unlock_level && spell.unlock_level.is_none() {
+                errors.push(format!(
+                    "jobs.json: job '{}' spell '{}' must define unlock_level for '{}' acquisition",
+                    job.id,
+                    spell.id,
+                    match acquisition {
+                        MagicAcquisition::Level => "level",
+                        MagicAcquisition::Jp => "jp",
+                        MagicAcquisition::Item => "item",
+                        MagicAcquisition::Equip => "equip",
+                    }
+                ));
+            }
         }
         for ability in &job.abilities {
             if !context.ids.ability_ids.contains(ability.id.as_str()) {
                 errors.push(format!(
                     "jobs.json: job '{}' references unknown ability '{}'",
                     job.id, ability.id
+                ));
+            }
+            let Some(acquisition) = resolve_ability_acquisition(context, job) else {
+                continue;
+            };
+            let requires_unlock_level = match acquisition {
+                AbilityAcquisition::Level => true,
+                AbilityAcquisition::Jp => context
+                    .rules
+                    .map(|rules| rules.job_system.jp_mode != JpMode::Spend)
+                    .unwrap_or(true),
+                AbilityAcquisition::Item | AbilityAcquisition::Equip => false,
+            };
+            if requires_unlock_level && ability.unlock_level.is_none() {
+                errors.push(format!(
+                    "jobs.json: job '{}' ability '{}' must define unlock_level for '{}' acquisition",
+                    job.id,
+                    ability.id,
+                    match acquisition {
+                        AbilityAcquisition::Level => "level",
+                        AbilityAcquisition::Jp => "jp",
+                        AbilityAcquisition::Item => "item",
+                        AbilityAcquisition::Equip => "equip",
+                    }
                 ));
             }
         }
@@ -247,6 +298,50 @@ pub(crate) fn validate_jobs_spells_abilities(
             }
         }
     }
+}
+
+fn resolve_magic_acquisition_for_spell(
+    context: &ValidationContext,
+    job: &JobDefinition,
+    spell_id: &str,
+) -> Option<MagicAcquisition> {
+    let default = context.rules?.game.magic_acquisition.clone();
+    let Some(acquisition) = job
+        .acquisition
+        .as_ref()
+        .and_then(|acquisition| acquisition.magic.as_ref())
+    else {
+        return Some(default);
+    };
+    match acquisition {
+        MagicAcquisitionOverride::Mode(mode) => Some(mode.clone()),
+        MagicAcquisitionOverride::BySchool(map) => {
+            let school = context
+                .spells
+                .and_then(|spells| {
+                    spells
+                        .spells
+                        .iter()
+                        .find(|spell| spell.id == spell_id)
+                        .map(|spell| spell.school.as_str())
+                })
+                .and_then(|school| map.get(school));
+            Some(school.cloned().unwrap_or(default))
+        }
+    }
+}
+
+fn resolve_ability_acquisition(
+    context: &ValidationContext,
+    job: &JobDefinition,
+) -> Option<AbilityAcquisition> {
+    let default = context.rules?.game.ability_acquisition.clone();
+    Some(
+        job.acquisition
+            .as_ref()
+            .and_then(|acquisition| acquisition.abilities.clone())
+            .unwrap_or(default),
+    )
 }
 
 pub(crate) fn validate_party(context: &ValidationContext, errors: &mut Vec<String>) {

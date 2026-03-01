@@ -109,6 +109,8 @@ legacy save folder exists using the content directory name, the engine falls bac
 - Object rendering can toggle between configured glyphs and type markers.
 - Legend edits that change a glyph update the map tiles using that glyph.
 - Encounter zones are shown as cyan borders when object markers are enabled.
+- Choice prompts (jobs, object/entity pickers, and lookup lists) wrap at top/bottom and scroll
+  when the option list exceeds terminal height.
 
 ## Input
 
@@ -261,9 +263,11 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
 ### Magic system
 
 - Magic schools are data-driven (white/black in demo; expandable to blue/time/etc).
-- Spell unlocks are configured per job.
+- Spell unlocks are configured per job via `unlock_level`.
+- Learned spells are stored per job; usable spell lists come from primary + secondary job unlock sets.
 - Magic acquisition can be `level`, `item` (spellbooks teach), `equip` (magic items grant spells while equipped), or `jp`.
 - Ability acquisition can be `level`, `item`, `equip`, or `jp`.
+- Job spell `tier` is tier metadata only (tier charges/categorization) and does not gate unlocks.
 - Magic Equip slots are defined per job progression and use equipment `slot: "magic"` for equippable spell items.
 - Magic system mode can switch between MP and tier charges.
 - Menu casting supports field-friendly spells (heal/revive); damage stays battle-only.
@@ -272,7 +276,8 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
 
 ### Ability system
 
-- Abilities are data-driven and unlocked through job progression.
+- Abilities are data-driven and unlocked through job progression via `unlock_level`.
+- Learned abilities are stored per job; usable ability lists come from primary + secondary job unlock sets.
 - Abilities are battle-only and do not consume MP.
 
 - Enemies can include traits (e.g., undead) that drive effect resolution.
@@ -328,6 +333,7 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
   gated by save-allowed maps; row selection is shown when battle row rules are enabled.
 - Custom status/gameplay stats panels are handled via configurable menu panels in `ui/menu.json`.
 - Magic Equip is an optional submenu for equipping spell-granting items.
+- Job picker opens with the actor's currently equipped job selected (primary/secondary as applicable).
 - Settings submenu exposes user options (autosave, readiness speed, difficulty scale, battle mode) that can
   be hidden or locked via `rules.json` `settings` definitions.
 - Item use target selection shows inline HP/MP and short status labels on the target list.

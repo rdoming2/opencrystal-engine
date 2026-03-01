@@ -1,7 +1,7 @@
 use engine::entities::JobDefinition;
 use engine::party::{
-    job_jp, job_level, set_primary_job, set_secondary_job, spend_job_jp,
-    unequip_incompatible_equipment, unlock_ability, unlock_spell,
+    job_ability_learned, job_jp, job_level, job_spell_learned, set_primary_job, set_secondary_job,
+    spend_job_jp, unequip_incompatible_equipment, unlock_ability, unlock_spell,
 };
 use engine::rules::{AbilityAcquisition, JpMode, MagicAcquisition, ProgressionMode};
 use engine::runtime::GameRuntime;
@@ -216,7 +216,7 @@ fn build_learn_entries(
         if acquisition != MagicAcquisition::Jp {
             continue;
         }
-        let is_learned = actor.spells.iter().any(|s| s == &spell.id);
+        let is_learned = job_spell_learned(actor, &job.id, &spell.id);
         if is_learned {
             continue;
         }
@@ -246,15 +246,16 @@ fn build_learn_entries(
                 });
             }
             JpMode::Earn | JpMode::EarnJobLocked => {
-                let level = spell.level.unwrap_or(0);
-                if level <= 0 {
-                    continue;
-                }
-                let level_locked = current_level < level;
+                let unlock_level = spell.unlock_level.unwrap_or(1);
+                let level_locked = current_level < unlock_level;
                 let label = if level_locked {
-                    format!("{} (Locked Lv {})", spell_label(runtime, &spell.id), level)
+                    format!(
+                        "{} (Locked Lv {})",
+                        spell_label(runtime, &spell.id),
+                        unlock_level
+                    )
                 } else {
-                    format!("{} (Lv {})", spell_label(runtime, &spell.id), level)
+                    format!("{} (Lv {})", spell_label(runtime, &spell.id), unlock_level)
                 };
                 entries.push(LearnEntry {
                     kind: "spell",
@@ -272,7 +273,7 @@ fn build_learn_entries(
         if acquisition != AbilityAcquisition::Jp {
             continue;
         }
-        let is_learned = actor.unlocked_abilities.contains(&ability.id);
+        let is_learned = job_ability_learned(actor, &job.id, &ability.id);
         if is_learned {
             continue;
         }
@@ -302,19 +303,20 @@ fn build_learn_entries(
                 });
             }
             JpMode::Earn | JpMode::EarnJobLocked => {
-                let level = ability.level.unwrap_or(0);
-                if level <= 0 {
-                    continue;
-                }
-                let level_locked = current_level < level;
+                let unlock_level = ability.unlock_level.unwrap_or(1);
+                let level_locked = current_level < unlock_level;
                 let label = if level_locked {
                     format!(
                         "{} (Locked Lv {})",
                         ability_label(runtime, &ability.id),
-                        level
+                        unlock_level
                     )
                 } else {
-                    format!("{} (Lv {})", ability_label(runtime, &ability.id), level)
+                    format!(
+                        "{} (Lv {})",
+                        ability_label(runtime, &ability.id),
+                        unlock_level
+                    )
                 };
                 entries.push(LearnEntry {
                     kind: "ability",
@@ -425,7 +427,7 @@ pub fn apply_secondary_change(runtime: &mut GameRuntime) {
         .map(|job| job.id.clone())
     };
     if let Some(actor) = runtime.party.roster.get_mut(&actor_id) {
-        set_secondary_job(actor, job_id);
+        set_secondary_job(actor, job_id, &runtime.content);
     }
 }
 
@@ -553,6 +555,36 @@ pub fn learnable_count(runtime: &GameRuntime) -> usize {
     build_learn_entries(runtime, actor, job).len()
 }
 
+pub fn available_job_count(runtime: &GameRuntime) -> usize {
+    available_jobs(runtime).len()
+}
+
+pub fn equipped_job_selection(runtime: &GameRuntime, option: JobMenuOption) -> usize {
+    let active_ids = runtime.party.active_ids();
+    let actor_id = active_ids
+        .get(runtime.menu_state.detail_actor)
+        .cloned()
+        .or_else(|| active_ids.first().cloned());
+    let Some(actor_id) = actor_id else {
+        return 0;
+    };
+    let Some(actor) = runtime.party.roster.get(&actor_id) else {
+        return 0;
+    };
+    let selected_job_id = match option {
+        JobMenuOption::Primary => Some(actor.job_id.as_str()),
+        JobMenuOption::Secondary => actor.secondary_job_id.as_deref(),
+        JobMenuOption::Learn => None,
+    };
+    let Some(selected_job_id) = selected_job_id else {
+        return 0;
+    };
+    available_jobs(runtime)
+        .iter()
+        .position(|job| job.id == selected_job_id)
+        .unwrap_or(0)
+}
+
 pub fn apply_learn_purchase(runtime: &mut GameRuntime) {
     if runtime.party.active_count() == 0 {
         return;
@@ -607,8 +639,8 @@ pub fn apply_learn_purchase(runtime: &mut GameRuntime) {
     }
 
     match entry.kind {
-        "spell" => unlock_spell(actor, &entry.id),
-        "ability" => unlock_ability(actor, &entry.id),
+        "spell" => unlock_spell(actor, &job_id, &entry.id),
+        "ability" => unlock_ability(actor, &job_id, &entry.id),
         _ => {}
     }
 }

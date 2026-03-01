@@ -17,7 +17,7 @@ use super::equipment::{equipment_entries_for_menu, equipment_slots_for_menu};
 use super::inventory::{
     apply_inventory_sort_action, build_inventory_entries, item_targets_for_entry,
 };
-use super::jobs::{job_menu_options, learnable_count};
+use super::jobs::{available_job_count, job_menu_options, learnable_count};
 use super::magic::{build_spell_entries, selected_spell_targets};
 use super::magic_equip::{magic_equip_entries_for_menu, magic_equip_slots_for_menu};
 use super::overworld::{
@@ -380,7 +380,7 @@ pub fn run_menu_loop(
                                 runtime.menu_state.detail_target = 0;
                             }
                         } else if runtime.menu_state.detail_page == 1 {
-                            let jobs = runtime.content.jobs.jobs.len();
+                            let jobs = available_job_count(runtime);
                             if jobs > 0 {
                                 runtime.menu_state.detail_selection =
                                     if matches!(action, Action::MoveRight) {
@@ -635,7 +635,7 @@ fn handle_move_up(
         } else if runtime.menu_state.detail_page == 1 {
             runtime.menu_state.detail_selection = wrap_index(
                 runtime.menu_state.detail_selection,
-                runtime.content.jobs.jobs.len(),
+                available_job_count(runtime),
                 -1,
             );
         } else if runtime.menu_state.detail_page == 2 {
@@ -803,7 +803,7 @@ fn handle_move_down(
         } else if runtime.menu_state.detail_page == 1 {
             runtime.menu_state.detail_selection = wrap_index(
                 runtime.menu_state.detail_selection,
-                runtime.content.jobs.jobs.len(),
+                available_job_count(runtime),
                 1,
             );
         } else if runtime.menu_state.detail_page == 2 {

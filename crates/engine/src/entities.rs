@@ -165,9 +165,7 @@ pub struct JobEquipment {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct JobSpell {
     pub id: String,
-    #[serde(default)]
-    pub level: Option<u32>,
-    #[serde(default)]
+    #[serde(default, alias = "level")]
     pub tier: Option<u32>,
     #[serde(default)]
     pub item: Option<String>,
@@ -180,9 +178,7 @@ pub struct JobSpell {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct JobAbility {
     pub id: String,
-    #[serde(default)]
-    pub level: Option<u32>,
-    #[serde(default)]
+    #[serde(default, alias = "level")]
     pub unlock_level: Option<u32>,
     #[serde(default)]
     pub jp_cost: Option<i32>,

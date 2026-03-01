@@ -320,9 +320,29 @@ pub fn prompt_choice(
     if selected >= options.len() {
         selected = 0;
     }
+    let mut scroll_offset = 0usize;
     loop {
+        let terminal_height = session.terminal().size().unwrap_or_default().height;
+        let visible_count = choice_visible_count(terminal_height).min(options.len());
+        if selected < scroll_offset {
+            scroll_offset = selected;
+        } else if selected >= scroll_offset + visible_count {
+            scroll_offset = selected + 1 - visible_count;
+        }
+        if scroll_offset + visible_count > options.len() {
+            scroll_offset = options.len().saturating_sub(visible_count);
+        }
+
         session.terminal_mut().draw(|frame| {
-            draw_choice_prompt_frame(frame, title, prompt, options, selected);
+            draw_choice_prompt_frame(
+                frame,
+                title,
+                prompt,
+                options,
+                selected,
+                scroll_offset,
+                visible_count,
+            );
         })?;
 
         if let Event::Key(key) = event::read()? {
@@ -332,14 +352,18 @@ pub fn prompt_choice(
             if let Some(action) = bindings.action_for(key.code) {
                 match action {
                     Action::MoveUp => {
-                        if selected > 0 {
-                            selected -= 1;
-                        }
+                        selected = if selected == 0 {
+                            options.len() - 1
+                        } else {
+                            selected - 1
+                        };
                     }
                     Action::MoveDown => {
-                        if selected + 1 < options.len() {
-                            selected += 1;
-                        }
+                        selected = if selected + 1 >= options.len() {
+                            0
+                        } else {
+                            selected + 1
+                        };
                     }
                     Action::Confirm => return Ok(Some(selected)),
                     Action::Cancel | Action::Menu => return Ok(None),
@@ -349,6 +373,10 @@ pub fn prompt_choice(
             }
         }
     }
+}
+
+fn choice_visible_count(terminal_height: u16) -> usize {
+    terminal_height.saturating_sub(7).max(1) as usize
 }
 
 pub fn draw_text_prompt_frame(
@@ -386,6 +414,8 @@ pub fn draw_choice_prompt_frame(
     prompt: &str,
     options: &[String],
     selected: usize,
+    scroll_offset: usize,
+    visible_count: usize,
 ) {
     let max_option = options
         .iter()
@@ -396,6 +426,8 @@ pub fn draw_choice_prompt_frame(
     let list = options
         .iter()
         .enumerate()
+        .skip(scroll_offset)
+        .take(visible_count)
         .map(|(index, label)| {
             let mut style = Style::default();
             if index == selected {

@@ -328,9 +328,10 @@ Describes job-specific progression settings, JP behavior, and secondary jobs.
 - `job_exp_curve` defines thresholds when `progression_mode` is `job`.
 - `secondary_jobs` toggles the secondary job slot exposed by the Job menu.
 
-Spells and abilities can declare `unlock_level` or `jp_cost` inside the
-job definitions so that the menu and progression logic know whether they
-unlock automatically or need JP spending.
+Spells and abilities declare `unlock_level` (and optional `jp_cost`) inside
+job definitions so the menu and progression logic know when entries become
+available or require JP spending. Learned spell/ability state is tracked per
+job in actor job progress.
 
 ## battle (rules.json)
 
@@ -527,6 +528,7 @@ are truncated to fit bounds and included in the warning list.
 
 The editor exposes object schema fields (glyphs, palettes, costs, loot, and flags) and can
 toggle object rendering between configured glyphs and type markers.
+Choice prompts in the editor wrap at the ends and scroll long lists to keep the selection visible.
 
 NPCs reference `entities/npcs.json` by ID. `script` is optional; if omitted, the NPC
 uses its dialog tree. Boss encounters can be triggered via NPC dialog actions that
@@ -932,7 +934,7 @@ Growth modes:
       "is_default": true,
       "sort_order": 10,
       "spells": [],
-      "abilities": [{"id": "power_strike", "level": 2}],
+      "abilities": [{"id": "power_strike", "unlock_level": 2}],
       "commands": ["abilities"]
     },
     {
@@ -960,8 +962,8 @@ Growth modes:
         "str": {"add": -1, "mult": 0.9}
       },
       "spells": [
-        {"id": "cure", "level": 1},
-        {"id": "protect", "tier": 1}
+        {"id": "cure", "unlock_level": 1, "tier": 1},
+        {"id": "protect", "unlock_level": 2, "tier": 1}
       ]
     }
   ]
@@ -970,18 +972,20 @@ Growth modes:
 
 Job spell fields:
 
-- `level`: optional unlock level used for `level` or `jp` earn modes.
+- `unlock_level`: optional unlock level used for `level` or `jp` earn modes.
 - `tier`: optional spell tier used for `tier_charges` casting cost.
 - `item`: optional item ID used for `item` acquisition.
-- `unlock_level`: optional prereq level required before a `jp` purchase.
 - `jp_cost`: optional job points cost used for purchasing the spell in
   `jp` spend mode.
+- Legacy support: `level` is accepted as an alias for `tier`, and is not
+  used for unlock gating.
 
 Job ability fields:
 
-- `level`: optional unlock level used for `level` or `jp` earn modes.
-- `unlock_level`: optional prereq level required before a `jp` purchase.
+- `unlock_level`: optional unlock level used for `level`/`jp` earn modes and
+  as the prereq level before a `jp` purchase.
 - `jp_cost`: optional job points cost for manual unlocks in `jp` spend mode.
+- Legacy support: `level` is accepted as an alias for `unlock_level`.
 
 Job command fields:
 
@@ -1696,6 +1700,7 @@ Runtime notes:
 - The Overworld Map menu panel is view-only until fast travel is unlocked via the
   world `fast_travel` config and the `systems.fast_travel` rule toggle.
 - The Status entry opens a focused actor card view in the right pane with equipment and Left/Right cycling.
+- The Jobs picker defaults to the actor's currently equipped primary/secondary job when opening that slot.
 
 ## ui/title.json
 
@@ -2034,6 +2039,8 @@ Vehicle fields:
 - `party.members.*.row`: `front` or `back` when battle rows are enabled.
 - `party.members.*.weapon_proficiencies`: map of weapon category -> 0.0-1.0 proficiency.
 - `party.members.*.magic_proficiencies`: map of magic school -> 0.0-1.0 proficiency.
+- `party.members.*.job_progress.*.learned_spells`: spell ids learned for that job.
+- `party.members.*.job_progress.*.learned_abilities`: ability ids learned for that job.
 
 ```json
 {

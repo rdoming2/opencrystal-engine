@@ -119,6 +119,8 @@
 - [x] When selecting items in menu UI to "use", "drop", "move"
 - [x] Add persistent inventory ordering with autosort actions
 - [x] Add status submenu card view with actor cycling, sprite, and equipment
+- [x] Add wrap-around + scrolling selection behavior for Jobs and map editor choice lists
+- [x] Start job picker selection at the actor's equipped primary/secondary job
 
 ## Battle System
 - [x] Turn-based flow (command selection, targeting, resolve action).
@@ -164,13 +166,15 @@
 - [x] Add localization support for UI strings and command labels.
 
 ## Magic System
-- [x] Implement job-based spell learnsets (level/item/equip/jp).
+- [x] Implement job-based spell learnsets (unlock_level/item/equip/jp).
 - [x] Track learned spells per actor.
 - [x] Enable menu casting for field magic.
 - [x] Add item-based spell learning (learn_spell items).
 - [x] Add Magic Equip slots and menu (spell-granting equipment).
 - [ ] Add global shared MP magic style.
 - [x] Support job-based tier charge tables.
+- [x] Stop using job spell/ability `level` as unlock gating; use `unlock_level` and treat spell `tier` as tier metadata.
+- [x] Track learned spells/abilities per job; derive usable lists from primary + secondary jobs.
 
 ## Progression
 - [x] Implement experience + level-up pipeline.

@@ -6,7 +6,9 @@ use crate::battle::{
     actor_power, enemy_power, ActivityGrowthDiff, BattleGrowthAccumulator, BattleState,
 };
 use crate::content::Content;
-use crate::entities::{EquipmentDefinition, JobDefinition, MagicAcquisitionOverride};
+use crate::entities::{
+    EquipmentDefinition, JobAbility, JobDefinition, JobSpell, MagicAcquisitionOverride,
+};
 use crate::expr::eval_expression;
 use crate::inventory::InventoryState;
 use crate::rules::{
@@ -64,6 +66,8 @@ pub struct JobProgress {
     pub exp: i32,
     pub jp_earned: i32,
     pub jp_spent: i32,
+    pub learned_spells: HashSet<String>,
+    pub learned_abilities: HashSet<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -228,10 +232,13 @@ pub fn reset_magic_tier_charges(party: &mut PartyState, content: &Content, rules
 
 pub fn learn_spell_event(party: &mut PartyState, member: &str, spell: &str) {
     if let Some(actor) = party.roster.get_mut(member) {
-        if !actor.spells.iter().any(|s| s == spell) {
-            actor.spells.push(spell.to_string());
-            actor.spells.sort_unstable();
-        }
+        let job_id = actor.job_id.clone();
+        let progress = actor
+            .job_progress
+            .entry(job_id)
+            .or_insert_with(JobProgress::default);
+        progress.learned_spells.insert(spell.to_string());
+        refresh_actor_learned_collections(actor);
     }
 }
 
@@ -503,6 +510,23 @@ fn build_actor(
                     exp: 0,
                     jp_earned: 0,
                     jp_spent: 0,
+                    learned_spells: {
+                        let mut learned = HashSet::new();
+                        if let Some(job) = job {
+                            let job_spells = job
+                                .spells
+                                .iter()
+                                .map(|spell| spell.id.as_str())
+                                .collect::<HashSet<_>>();
+                            for spell_id in &actor.spells {
+                                if job_spells.contains(spell_id.as_str()) {
+                                    learned.insert(spell_id.clone());
+                                }
+                            }
+                        }
+                        learned
+                    },
+                    learned_abilities: HashSet::new(),
                 },
             );
             progress
@@ -557,35 +581,49 @@ pub fn actor_traits(content: &Content, actor: &Actor) -> Vec<String> {
 }
 
 fn learn_job_spells(content: &Content, actor: &mut Actor) {
-    let Some(job) = content.jobs.jobs.iter().find(|job| job.id == actor.job_id) else {
+    let job_id = actor.job_id.clone();
+    learn_job_spells_for_job(content, actor, &job_id);
+}
+
+fn learn_job_spells_for_job(content: &Content, actor: &mut Actor, job_id: &str) {
+    let Some(job) = content.jobs.jobs.iter().find(|job| job.id == job_id) else {
         return;
     };
-    let mut learned: HashSet<String> = actor.spells.iter().cloned().collect();
-    let current_level = job_level(actor, &actor.job_id);
+    ensure_job_progress_entry(content, actor, job_id);
+    let current_level = job_level(actor, job_id);
     let jp_mode = &content.rules.job_system.jp_mode;
+    let mut unlocked = Vec::new();
     for spell in &job.spells {
         let acquisition = resolve_magic_acquisition_for_spell(content, job, &spell.id);
+        let unlock_level = spell_unlock_level(spell);
         let unlocks = match acquisition {
-            MagicAcquisition::Level => spell.level.unwrap_or(0) <= current_level,
-            MagicAcquisition::Jp => {
-                *jp_mode != JpMode::Spend && spell.level.unwrap_or(0) <= current_level
-            }
+            MagicAcquisition::Level => unlock_level <= current_level,
+            MagicAcquisition::Jp => *jp_mode != JpMode::Spend && unlock_level <= current_level,
             _ => false,
         };
         if unlocks {
-            learned.insert(spell.id.clone());
+            unlocked.push(spell.id.clone());
         }
     }
-    let mut spells = learned.into_iter().collect::<Vec<_>>();
-    spells.sort_unstable();
-    actor.spells = spells;
+    if let Some(progress) = actor.job_progress.get_mut(job_id) {
+        for spell_id in unlocked {
+            progress.learned_spells.insert(spell_id);
+        }
+    }
+    refresh_actor_learned_collections(actor);
 }
 
 fn learn_job_abilities(content: &Content, actor: &mut Actor) {
-    let Some(job) = content.jobs.jobs.iter().find(|job| job.id == actor.job_id) else {
+    let job_id = actor.job_id.clone();
+    learn_job_abilities_for_job(content, actor, &job_id);
+}
+
+fn learn_job_abilities_for_job(content: &Content, actor: &mut Actor, job_id: &str) {
+    let Some(job) = content.jobs.jobs.iter().find(|job| job.id == job_id) else {
         return;
     };
-    let current_level = job_level(actor, &actor.job_id);
+    ensure_job_progress_entry(content, actor, job_id);
+    let current_level = job_level(actor, job_id);
     let acquisition = resolve_ability_acquisition(content, job);
     let auto_unlock = match acquisition {
         AbilityAcquisition::Level => true,
@@ -595,12 +633,111 @@ fn learn_job_abilities(content: &Content, actor: &mut Actor) {
     if !auto_unlock {
         return;
     }
+    let mut unlocked = Vec::new();
     for ability in &job.abilities {
-        let level = ability.level.unwrap_or(0);
-        if level > 0 && level <= current_level {
-            actor.unlocked_abilities.insert(ability.id.clone());
+        let unlock_level = ability_unlock_level(ability);
+        if unlock_level <= current_level {
+            unlocked.push(ability.id.clone());
         }
     }
+    if let Some(progress) = actor.job_progress.get_mut(job_id) {
+        for ability_id in unlocked {
+            progress.learned_abilities.insert(ability_id);
+        }
+    }
+    refresh_actor_learned_collections(actor);
+}
+
+fn ensure_job_progress_entry(content: &Content, actor: &mut Actor, job_id: &str) {
+    let progress = actor
+        .job_progress
+        .entry(job_id.to_string())
+        .or_insert_with(JobProgress::default);
+    match content.rules.progression_mode {
+        ProgressionMode::Job | ProgressionMode::JobPoints => {
+            if progress.level == 0 {
+                progress.level = 1;
+            }
+        }
+        ProgressionMode::Character | ProgressionMode::Activity => {
+            progress.level = actor.level;
+        }
+    }
+}
+
+pub fn refresh_actor_learned_collections(actor: &mut Actor) {
+    let mut learned_spells = HashSet::new();
+    let mut learned_abilities = HashSet::new();
+    for job_id in actor_learned_job_ids(actor) {
+        if let Some(progress) = actor.job_progress.get(job_id.as_str()) {
+            learned_spells.extend(progress.learned_spells.iter().cloned());
+            learned_abilities.extend(progress.learned_abilities.iter().cloned());
+        }
+    }
+    let mut spells = learned_spells.into_iter().collect::<Vec<_>>();
+    spells.sort_unstable();
+    actor.spells = spells;
+    actor.unlocked_abilities = learned_abilities;
+}
+
+pub fn sanitize_job_learned_sets(content: &Content, actor: &mut Actor) {
+    for (job_id, progress) in actor.job_progress.iter_mut() {
+        let Some(job) = content.jobs.jobs.iter().find(|job| &job.id == job_id) else {
+            progress.learned_spells.clear();
+            progress.learned_abilities.clear();
+            continue;
+        };
+        let spell_ids = job
+            .spells
+            .iter()
+            .map(|spell| spell.id.as_str())
+            .collect::<HashSet<_>>();
+        let ability_ids = job
+            .abilities
+            .iter()
+            .map(|ability| ability.id.as_str())
+            .collect::<HashSet<_>>();
+        progress
+            .learned_spells
+            .retain(|spell_id| spell_ids.contains(spell_id.as_str()));
+        progress
+            .learned_abilities
+            .retain(|ability_id| ability_ids.contains(ability_id.as_str()));
+    }
+}
+
+fn actor_learned_job_ids(actor: &Actor) -> Vec<String> {
+    let mut ids = vec![actor.job_id.clone()];
+    if let Some(secondary) = actor.secondary_job_id.as_ref() {
+        if secondary != &actor.job_id {
+            ids.push(secondary.clone());
+        }
+    }
+    ids
+}
+
+pub fn job_spell_learned(actor: &Actor, job_id: &str, spell_id: &str) -> bool {
+    actor
+        .job_progress
+        .get(job_id)
+        .map(|progress| progress.learned_spells.contains(spell_id))
+        .unwrap_or(false)
+}
+
+pub fn job_ability_learned(actor: &Actor, job_id: &str, ability_id: &str) -> bool {
+    actor
+        .job_progress
+        .get(job_id)
+        .map(|progress| progress.learned_abilities.contains(ability_id))
+        .unwrap_or(false)
+}
+
+fn spell_unlock_level(spell: &JobSpell) -> u32 {
+    spell.unlock_level.unwrap_or(1)
+}
+
+fn ability_unlock_level(ability: &JobAbility) -> u32 {
+    ability.unlock_level.unwrap_or(1)
 }
 
 fn resolve_magic_acquisition_for_spell(
@@ -1354,25 +1491,42 @@ pub fn set_primary_job(actor: &mut Actor, job_id: &str, content: &Content) {
     }
     learn_job_spells(content, actor);
     learn_job_abilities(content, actor);
+    if let Some(secondary_job_id) = actor.secondary_job_id.clone() {
+        learn_job_spells_for_job(content, actor, &secondary_job_id);
+        learn_job_abilities_for_job(content, actor, &secondary_job_id);
+    }
+    refresh_actor_learned_collections(actor);
 }
 
-pub fn set_secondary_job(actor: &mut Actor, job_id: Option<String>) {
+pub fn set_secondary_job(actor: &mut Actor, job_id: Option<String>, content: &Content) {
     if job_id.as_deref() == Some(&actor.job_id) {
         actor.secondary_job_id = None;
     } else {
         actor.secondary_job_id = job_id;
+        if let Some(secondary_job_id) = actor.secondary_job_id.clone() {
+            learn_job_spells_for_job(content, actor, &secondary_job_id);
+            learn_job_abilities_for_job(content, actor, &secondary_job_id);
+        }
     }
+    refresh_actor_learned_collections(actor);
 }
 
-pub fn unlock_ability(actor: &mut Actor, ability_id: &str) {
-    actor.unlocked_abilities.insert(ability_id.to_string());
+pub fn unlock_ability(actor: &mut Actor, job_id: &str, ability_id: &str) {
+    let progress = actor
+        .job_progress
+        .entry(job_id.to_string())
+        .or_insert_with(JobProgress::default);
+    progress.learned_abilities.insert(ability_id.to_string());
+    refresh_actor_learned_collections(actor);
 }
 
-pub fn unlock_spell(actor: &mut Actor, spell_id: &str) {
-    if !actor.spells.iter().any(|s| s == spell_id) {
-        actor.spells.push(spell_id.to_string());
-        actor.spells.sort_unstable();
-    }
+pub fn unlock_spell(actor: &mut Actor, job_id: &str, spell_id: &str) {
+    let progress = actor
+        .job_progress
+        .entry(job_id.to_string())
+        .or_insert_with(JobProgress::default);
+    progress.learned_spells.insert(spell_id.to_string());
+    refresh_actor_learned_collections(actor);
 }
 
 pub fn rest_party(party: &mut PartyState, content: &Content, rules: &RulesFile) {

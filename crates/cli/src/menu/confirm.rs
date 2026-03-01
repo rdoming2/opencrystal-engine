@@ -17,8 +17,8 @@ use super::inventory::{
     move_inventory_entry, ItemActionId,
 };
 use super::jobs::{
-    apply_learn_purchase, apply_primary_change, apply_secondary_change, job_menu_options,
-    JobMenuOption,
+    apply_learn_purchase, apply_primary_change, apply_secondary_change, equipped_job_selection,
+    job_menu_options, JobMenuOption,
 };
 use super::magic::{apply_spell_to_targets, build_spell_entries, spell_targets_for_entry};
 use super::magic_equip::{magic_equip_entries_for_menu, magic_equip_slot_for_menu};
@@ -641,7 +641,7 @@ fn confirm_jobs(runtime: &mut GameRuntime) {
             match option {
                 JobMenuOption::Primary | JobMenuOption::Secondary => {
                     runtime.menu_state.detail_page = 1;
-                    runtime.menu_state.detail_selection = 0;
+                    runtime.menu_state.detail_selection = equipped_job_selection(runtime, *option);
                 }
                 JobMenuOption::Learn => {
                     runtime.menu_state.detail_page = 2;

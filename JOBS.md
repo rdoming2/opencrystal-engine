@@ -29,7 +29,7 @@ modes are available right now:
 - `job_points`: characters still earn global EXP via `rules.exp_curve`,
   but each job also accumulates JP (job points), which can be spent via
   the Job menu to unlock additional spells or abilities. Jobs may still
-  auto-unlock stat/spell gains by level while JP purchases provide finer
+  auto-unlock stat/spell gains by `unlock_level` while JP purchases provide finer
   control.
 - `activity`: actors grow by use-based weapon/magic proficiencies (0.0-1.0)
   with soft caps. EXP/level-ups are disabled, but jobs remain as baseline
@@ -46,9 +46,9 @@ a single field in `rules.json` and adjusting the job definitions to include
 ## Secondary Jobs
 
 When `job_system.secondary_jobs` is enabled, the Job menu exposes a slot
-for assigning a secondary job. Secondary jobs share spells, abilities, and
-JP unlock state with the actor, but they do not change the actor's base
-stats or equipment slots.
+for assigning a secondary job. Learned spells/abilities are tracked per job,
+and the active primary + secondary jobs define the actor's usable unlock set.
+Secondary jobs do not change the actor's base stats or equipment slots.
 
 ## Job Menu Flow
 
@@ -67,10 +67,12 @@ stats or equipment slots.
 - Job definitions may include `jp_cost` and `unlock_level` helpers for both
   spells and abilities. These fields drive whether a feature unlocks
   automatically or must be purchased.
+- Job spells may also include `tier` metadata for tier-charge systems; this
+  field does not participate in unlock gating.
 - The `Job` data also exposes `magic_schools` and `description` fields that
   the job menu uses to show job flavor and school coverage.
 - The engine keeps a `job_progress` map per actor so save files can persist
-  job-specific levels, JP balances, and the learned ability set.
+  job-specific levels, JP balances, and per-job learned spells/abilities.
 - When using `progression_mode: activity`, tune weapon/magic gains and rank
   labels under `rules.json -> activity_progression`.
 - Equipment can grant abilities while equipped, making item-based ability
