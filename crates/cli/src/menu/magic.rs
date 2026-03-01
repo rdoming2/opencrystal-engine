@@ -606,39 +606,99 @@ fn build_spell_target_panel(
         .menu_state
         .detail_target
         .min(targets.len().saturating_sub(1));
+    let name_width = targets
+        .iter()
+        .map(|target_id| {
+            runtime
+                .party
+                .roster
+                .get(target_id)
+                .map(|actor| actor.name.chars().count())
+                .unwrap_or_else(|| target_id.chars().count())
+        })
+        .max()
+        .unwrap_or(8);
     let mut lines = Vec::new();
     lines.push(panel_line_spans(vec![panel_span(
         "Target",
         PanelSpanStyle::Accent,
     )]));
     for (index, target_id) in targets.iter().enumerate() {
-        let name = runtime
-            .party
-            .roster
-            .get(target_id)
-            .map(|actor| actor.name.as_str())
-            .unwrap_or(target_id.as_str());
+        let (name, current_hp, max_hp, current_mp, max_mp, status_text) =
+            if let Some(actor) = runtime.party.roster.get(target_id) {
+                let status_labels = build_short_status_labels(runtime, actor);
+                let status_text = format_status_inline(&status_labels);
+                (
+                    actor.name.as_str(),
+                    actor.current_hp,
+                    actor.derived_stats.get("hp").copied().unwrap_or(0),
+                    actor.current_mp,
+                    actor.derived_stats.get("mp").copied().unwrap_or(0),
+                    status_text,
+                )
+            } else {
+                (target_id.as_str(), 0, 0, 0, 0, None)
+            };
         let is_selected = index == selection;
-        lines.push(panel_line_spans(vec![
+        let name_style = if is_selected {
+            PanelSpanStyle::Highlight
+        } else {
+            PanelSpanStyle::Normal
+        };
+        let stat_style = if is_selected {
+            PanelSpanStyle::Highlight
+        } else {
+            PanelSpanStyle::Accent
+        };
+        let status_style = if is_selected {
+            PanelSpanStyle::Highlight
+        } else {
+            PanelSpanStyle::Accent
+        };
+        let mut spans = vec![
+            panel_span(if is_selected { "> " } else { "  " }, name_style),
+            panel_span(format!("{:<width$}", name, width = name_width), name_style),
             panel_span(
-                if is_selected { "> " } else { "  " },
-                if is_selected {
-                    PanelSpanStyle::Highlight
-                } else {
-                    PanelSpanStyle::Normal
-                },
+                format!(
+                    " HP {}/{}  MP {}/{}",
+                    current_hp, max_hp, current_mp, max_mp
+                ),
+                stat_style,
             ),
-            panel_span(
-                name,
-                if is_selected {
-                    PanelSpanStyle::Highlight
-                } else {
-                    PanelSpanStyle::Normal
-                },
-            ),
-        ]));
+        ];
+        if let Some(status_text) = status_text {
+            spans.push(panel_span(format!("  {}", status_text), status_style));
+        }
+        lines.push(panel_line_spans(spans));
     }
     lines
+}
+
+fn build_short_status_labels(runtime: &GameRuntime, actor: &engine::party::Actor) -> Vec<String> {
+    actor
+        .statuses
+        .iter()
+        .filter_map(|status| {
+            engine::battle::status_short_label(&runtime.content, &status.id).or_else(|| {
+                engine::battle::status_definition(&runtime.content, &status.id)
+                    .map(|definition| definition.label.clone())
+            })
+        })
+        .collect()
+}
+
+fn format_status_inline(statuses: &[String]) -> Option<String> {
+    if statuses.is_empty() {
+        return None;
+    }
+    let cap = 3;
+    let mut labels = statuses.iter().take(cap).cloned().collect::<Vec<_>>();
+    if statuses.len() > cap {
+        if let Some(last) = labels.pop() {
+            labels.push(format!("{}+", last));
+        }
+    }
+    Some(labels.join(", "))
 }
 
 fn build_spell_description(

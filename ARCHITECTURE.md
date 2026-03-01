@@ -336,7 +336,7 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
 - Job picker opens with the actor's currently equipped job selected (primary/secondary as applicable).
 - Settings submenu exposes user options (autosave, readiness speed, difficulty scale, battle mode) that can
   be hidden or locked via `rules.json` `settings` definitions.
-- Item use target selection shows inline HP/MP and short status labels on the target list.
+- Item and magic target selection show inline HP/MP and short status labels on the target list.
 
 ### Journal system
 

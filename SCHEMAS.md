@@ -1613,6 +1613,7 @@ Configurable menu panels for gameplay stats.
 Defines the main menu layout and entry list. The menu is a two-pane layout with a
 left list and right detail pane. The right pane defaults to party/status summary
 until a submenu is confirmed.
+Item and magic target subviews show inline HP/MP and short status labels per party member.
 
 Menu entries can be gated by a rules `systems` toggle and an optional
 `unlock_flag`. If gating fails, the entry is hidden by default; set

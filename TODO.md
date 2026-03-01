@@ -118,7 +118,7 @@
 - [ ] Titlescreen Settings need implementation
 - [x] Optional persistent death markers
 - [x] Update UI display to show names/labels instead of ids
-- [x] Update item player selection UI to show inline target stats/status
+- [x] Update item and magic player selection UI to show inline target stats/status
 - [x] When selecting items in menu UI to "use", "drop", "move"
 - [x] Add persistent inventory ordering with autosort actions
 - [x] Add status submenu card view with actor cycling, sprite, and equipment
