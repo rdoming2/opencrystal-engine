@@ -219,7 +219,13 @@ pub fn run_dialog_console(runtime: &mut GameRuntime, dialog_ui: &DialogUiFile, d
 
 fn dialog_choice_visible(runtime: &GameRuntime, choice: &engine::dialog::DialogChoice) -> bool {
     choice.requires_flags.as_ref().map_or(true, |flags| {
-        flags.iter().all(|flag| runtime.has_flag(flag))
+        flags.iter().all(|flag| {
+            if let Some(negated) = flag.strip_prefix('!') {
+                !runtime.has_flag(negated)
+            } else {
+                runtime.has_flag(flag)
+            }
+        })
     })
 }
 

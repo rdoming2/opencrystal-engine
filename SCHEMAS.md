@@ -885,7 +885,7 @@ Dialog choice fields:
 
 - `label`: button text.
 - `next`: node id, or `"end"` to close the dialog.
-- `requires_flags`: optional list of flags required to show the choice.
+- `requires_flags`: optional list of flags required to show the choice. Prefix a flag with `!` to negate (e.g., `"!flag"` shows the choice only if the flag is NOT set).
 
 ## entities/jobs.json
 
