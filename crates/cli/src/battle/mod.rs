@@ -394,6 +394,13 @@ pub fn run_battle(
             ) && !paused
             {
                 let mut enemy_indices = Vec::new();
+                let active_party_index = turn_state.order.iter().find_map(|actor| {
+                    if let BattleTurnActor::Party(index) = actor {
+                        Some(*index)
+                    } else {
+                        None
+                    }
+                });
                 turn_state.order.retain(|actor| {
                     if let BattleTurnActor::Enemy(index) = actor {
                         enemy_indices.push(*index);
@@ -407,6 +414,10 @@ pub fn run_battle(
                     // Reset readiness
                     if enemy_index < battle_state.readiness_enemy.len() {
                         battle_state.readiness_enemy[enemy_index] = 0.0;
+                    }
+
+                    if let Some(party_index) = active_party_index {
+                        battle_state.active_index = party_index;
                     }
 
                     if let Some(target_index) = enemy_take_turn(
@@ -428,7 +439,7 @@ pub fn run_battle(
                             &[],
                             &[],
                             &[],
-                            false,
+                            active_party_index.is_some(),
                         );
                         pause_after_action(
                             session,
@@ -467,11 +478,13 @@ pub fn run_battle(
                         let Some(current_id) = battle_state.party_order.get(party_index).cloned()
                         else {
                             advance_turn(&mut menu_state, &mut turn_state, &mut battle_state);
+                            last_actor_id = None;
                             continue;
                         };
                         if let Some(actor) = runtime.party.roster.get(&current_id) {
                             if actor.current_hp <= 0 {
                                 advance_turn(&mut menu_state, &mut turn_state, &mut battle_state);
+                                last_actor_id = None;
                                 continue;
                             }
                         }
@@ -509,6 +522,7 @@ pub fn run_battle(
                                         &mut turn_state,
                                         &mut battle_state,
                                     );
+                                    last_actor_id = None;
                                     continue;
                                 }
                                 if !turn_result.can_act {
@@ -517,6 +531,7 @@ pub fn run_battle(
                                         &mut turn_state,
                                         &mut battle_state,
                                     );
+                                    last_actor_id = None;
                                     continue;
                                 }
                             }
@@ -554,6 +569,7 @@ pub fn run_battle(
                                 Vec::new(),
                             )?;
                             advance_turn(&mut menu_state, &mut turn_state, &mut battle_state);
+                            last_actor_id = None;
                             continue;
                         }
                         actor_id = current_id;
@@ -593,6 +609,7 @@ pub fn run_battle(
                                 )?;
                             }
                             advance_turn(&mut menu_state, &mut turn_state, &mut battle_state);
+                            last_actor_id = None;
                             continue;
                         }
                     }
@@ -1134,6 +1151,7 @@ pub fn run_battle(
                                 Vec::new(),
                             )?;
                             advance_turn(&mut menu_state, &mut turn_state, &mut battle_state);
+                            last_actor_id = None;
                         }
                         CommandKind::Defend => {
                             menu_state.defending.insert(actor_id.clone());
@@ -1175,6 +1193,7 @@ pub fn run_battle(
                                 Vec::new(),
                             )?;
                             advance_turn(&mut menu_state, &mut turn_state, &mut battle_state);
+                            last_actor_id = None;
                         }
                         CommandKind::Row => {
                             let mut row_message: Option<(String, String)> = None;
@@ -1217,6 +1236,7 @@ pub fn run_battle(
                                 Vec::new(),
                             )?;
                             advance_turn(&mut menu_state, &mut turn_state, &mut battle_state);
+                            last_actor_id = None;
                         }
                     }
                 }
@@ -1420,6 +1440,7 @@ pub fn run_battle(
                                 party_indices,
                             )?;
                             advance_turn(&mut menu_state, &mut turn_state, &mut battle_state);
+                            last_actor_id = None;
                         }
                         "enemy" => {
                             menu_state.phase = BattlePhase::TargetEnemy;
@@ -1698,6 +1719,7 @@ pub fn run_battle(
                             menu_state.enemy_index,
                         )?;
                         advance_turn(&mut menu_state, &mut turn_state, &mut battle_state);
+                        last_actor_id = None;
                     }
                 }
                 _ => {}
@@ -1906,6 +1928,7 @@ pub fn run_battle(
                         PendingBattleAction::Attack => {}
                     }
                     advance_turn(&mut menu_state, &mut turn_state, &mut battle_state);
+                    last_actor_id = None;
                 }
                 _ => {}
             },

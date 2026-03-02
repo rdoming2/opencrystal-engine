@@ -356,10 +356,17 @@ pub fn apply_item_to_targets(
             };
         }
         if item.effect.target.as_deref() == Some("last_overworld") {
-            return ItemUseResult {
-                consumed: runtime.warp_to_last_overworld(),
-                warp_message,
-            };
+            if runtime.warp_to_last_overworld() {
+                return ItemUseResult {
+                    consumed: true,
+                    warp_message,
+                };
+            } else {
+                return ItemUseResult {
+                    consumed: false,
+                    warp_message: Some("The scroll has no effect.".to_string()),
+                };
+            }
         }
         return ItemUseResult {
             consumed: false,

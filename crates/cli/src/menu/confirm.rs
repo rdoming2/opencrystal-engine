@@ -292,12 +292,8 @@ fn confirm_items(
                         if result.consumed {
                             runtime.inventory.remove_item(&entry.id, 1);
                         }
-                        if result.consumed {
-                            if let Some(message) = result.warp_message {
-                                tui::dialog::show_dialog(
-                                    session, dialog_ui, bindings, "", &message,
-                                )?;
-                            }
+                        if let Some(message) = result.warp_message {
+                            tui::dialog::show_dialog(session, dialog_ui, bindings, "", &message)?;
                         }
                         runtime.menu_state.detail_page = 0;
                         runtime.menu_state.detail_selection = list_selection;
@@ -342,10 +338,8 @@ fn confirm_items(
                 if result.consumed {
                     runtime.inventory.remove_item(&entry.id, 1);
                 }
-                if result.consumed {
-                    if let Some(message) = result.warp_message {
-                        tui::dialog::show_dialog(session, dialog_ui, bindings, "", &message)?;
-                    }
+                if let Some(message) = result.warp_message {
+                    tui::dialog::show_dialog(session, dialog_ui, bindings, "", &message)?;
                 }
             }
             runtime.menu_state.detail_page = 0;
