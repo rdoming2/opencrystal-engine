@@ -329,6 +329,7 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
 
 - Two-pane layout: left list of entries, right detail pane.
 - Default right pane shows party/status summary until a submenu is confirmed.
+- Summary includes HP/MP (or tier charges) and short status labels (e.g., PSN, STN) for each member.
 - Confirm moves focus to the right pane (submenu content); Cancel returns to list.
 - Menu is modal and pauses overworld updates.
 - The stats strip shows playtime, non-zero currency balances, and the current map coordinates.

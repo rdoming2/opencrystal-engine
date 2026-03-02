@@ -1622,7 +1622,8 @@ Configurable menu panels for gameplay stats.
 
 Defines the main menu layout and entry list. The menu is a two-pane layout with a
 left list and right detail pane. The right pane defaults to party/status summary
-until a submenu is confirmed.
+until a submenu is confirmed. The summary includes HP/MP (or tier charges) and
+short status labels (e.g., PSN, STN) for each member.
 Item and magic target subviews show inline HP/MP and short status labels per party member.
 
 Menu entries can be gated by a rules `systems` toggle and an optional

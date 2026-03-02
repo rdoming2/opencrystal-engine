@@ -91,7 +91,7 @@
   - [x] Party management UI.
 - [x] Main menu UI.
   - [x] Two-pane layout (left list, right detail pane).
-  - [x] Default party summary panel.
+  - [x] Default party summary panel with short status labels (PSN, STN).
 - [x] Fix overflow on status
 - [x] Add paging to menu UI elements
 - [x] Loop menu input when reaching the top/bottom

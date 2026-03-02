@@ -749,6 +749,12 @@ fn build_party_summary(runtime: &GameRuntime) -> Vec<MenuPanelLine> {
                 .find(|job| job.id == actor.job_id)
                 .map(|job| job.name.as_str())
                 .unwrap_or(actor.job_id.as_str());
+
+            let status_labels = build_short_status_labels(runtime, actor);
+            let status_text = format_status_inline(&status_labels)
+                .map(|text| format!("  {}", text))
+                .unwrap_or_default();
+
             let summary_line = if magic_system == engine::rules::MagicSystem::TierCharges {
                 let job = runtime
                     .content
@@ -774,14 +780,20 @@ fn build_party_summary(runtime: &GameRuntime) -> Vec<MenuPanelLine> {
                     format!("  {}", tiers.join("  "))
                 };
                 format!(
-                    "{}  Lv{}  HP {}/{}{}",
-                    actor.name, actor.level, actor.current_hp, max_hp, charge_text
+                    "{}  Lv{}  HP {}/{}{}{}",
+                    actor.name, actor.level, actor.current_hp, max_hp, charge_text, status_text
                 )
             } else {
                 let max_mp = actor.derived_stats.get("mp").copied().unwrap_or(0);
                 format!(
-                    "{}  Lv{}  HP {}/{}  MP {}/{}",
-                    actor.name, actor.level, actor.current_hp, max_hp, actor.current_mp, max_mp
+                    "{}  Lv{}  HP {}/{}  MP {}/{}{}",
+                    actor.name,
+                    actor.level,
+                    actor.current_hp,
+                    max_hp,
+                    actor.current_mp,
+                    max_mp,
+                    status_text
                 )
             };
             lines.push(panel_line(summary_line));
@@ -796,4 +808,31 @@ fn build_party_summary(runtime: &GameRuntime) -> Vec<MenuPanelLine> {
         }
     }
     lines
+}
+
+fn build_short_status_labels(runtime: &GameRuntime, actor: &engine::party::Actor) -> Vec<String> {
+    actor
+        .statuses
+        .iter()
+        .filter_map(|status| {
+            engine::battle::status_short_label(&runtime.content, &status.id).or_else(|| {
+                engine::battle::status_definition(&runtime.content, &status.id)
+                    .map(|definition| definition.label.clone())
+            })
+        })
+        .collect()
+}
+
+fn format_status_inline(statuses: &[String]) -> Option<String> {
+    if statuses.is_empty() {
+        return None;
+    }
+    let cap = 3;
+    let mut labels = statuses.iter().take(cap).cloned().collect::<Vec<_>>();
+    if statuses.len() > cap {
+        if let Some(last) = labels.pop() {
+            labels.push(format!("{}+", last));
+        }
+    }
+    Some(labels.join(", "))
 }
