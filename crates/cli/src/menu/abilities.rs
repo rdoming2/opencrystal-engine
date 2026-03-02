@@ -381,6 +381,7 @@ pub fn consume_ability_cost(
         }
         "death" => {
             actor.current_hp = 0;
+            actor.statuses.clear();
             true
         }
         "random" => {

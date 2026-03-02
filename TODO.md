@@ -132,6 +132,7 @@
 - [x] Battle pause toggle (freeze progression).
 - [x] Optional front/back row rules (battle + menu toggles).
 - [x] Status persistence rules and overworld poison ticks.
+- [ ] Remove status on KO.
 - [x] Status effects and damage formulas (derived stats).
   - [x] Implement critical hit calculations and messaging.
   - [ ] Make critical hit messaging louder
@@ -179,6 +180,7 @@
 - [x] Support job-based tier charge tables.
 - [x] Stop using job spell/ability `level` as unlock gating; use `unlock_level` and treat spell `tier` as tier metadata.
 - [x] Track learned spells/abilities per job; derive usable lists from primary + secondary jobs.
+- [x] Reconcile level-based unlocks from job level during progression and on save load.
 - [x] Scale magic healing with caster stats (matk/mdef) via configurable formula.
 
 ## Progression

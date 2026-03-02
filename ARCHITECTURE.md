@@ -268,6 +268,7 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
 - Magic schools are data-driven (white/black in demo; expandable to blue/time/etc).
 - Spell unlocks are configured per job via `unlock_level`.
 - Learned spells are stored per job; usable spell lists come from primary + secondary job unlock sets.
+- In JP-earn modes, level-based unlocks are derived from job level during progression and on save load.
 - Magic acquisition can be `level`, `item` (spellbooks teach), `equip` (magic items grant spells while equipped), or `jp`.
 - Ability acquisition can be `level`, `item`, `equip`, or `jp`.
 - Job spell `tier` is tier metadata only (tier charges/categorization) and does not gate unlocks.
@@ -281,6 +282,7 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
 
 - Abilities are data-driven and unlocked through job progression via `unlock_level`.
 - Learned abilities are stored per job; usable ability lists come from primary + secondary job unlock sets.
+- In JP-earn modes, level-based unlocks are derived from job level during progression and on save load.
 - Abilities are battle-only and do not consume MP.
 
 - Enemies can include traits (e.g., undead) that drive effect resolution.

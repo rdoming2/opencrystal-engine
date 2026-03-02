@@ -251,6 +251,9 @@ pub fn next_living_party_index(
 
 pub fn apply_damage_to_actor(actor: &mut Actor, amount: i32) {
     actor.current_hp = (actor.current_hp - amount).max(0);
+    if actor.current_hp == 0 {
+        actor.statuses.clear();
+    }
 }
 
 pub fn apply_damage_to_enemy(enemy: &mut BattleEnemy, amount: i32) {
@@ -759,6 +762,9 @@ pub fn apply_turn_start_statuses(
                             result
                                 .messages
                                 .push(format!("{} takes {} damage from poison.", name, damage));
+                            if *current_hp == 0 {
+                                return result;
+                            }
                         }
                         "skip_turn" => {
                             let chance = effect.chance.unwrap_or(1.0).max(0.0);
@@ -881,6 +887,8 @@ pub fn apply_overworld_poison_tick(content: &Content, actor: &mut Actor) -> Opti
             let flat = effect.power.unwrap_or(0).max(0);
             let mut tick = ((max_hp.max(1) as f32) * percent).round() as i32;
             tick = tick.max(flat).max(1);
+            // Scale overworld poison damage to be more reasonable (20% of battle value)
+            tick = ((tick as f32) * 0.2).round().max(1.0) as i32;
             damage = damage.max(tick);
         }
     }
@@ -888,5 +896,8 @@ pub fn apply_overworld_poison_tick(content: &Content, actor: &mut Actor) -> Opti
         return None;
     }
     actor.current_hp = (actor.current_hp - damage).max(0);
+    if actor.current_hp == 0 {
+        actor.statuses.clear();
+    }
     Some(damage)
 }

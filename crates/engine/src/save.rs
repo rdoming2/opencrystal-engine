@@ -183,7 +183,7 @@ impl SaveFile {
         runtime.party = self.party.to_party();
         for actor in runtime.party.roster.values_mut() {
             crate::party::sanitize_job_learned_sets(&runtime.content, actor);
-            crate::party::refresh_actor_learned_collections(actor);
+            crate::party::reconcile_job_learned_state(&runtime.content, actor);
             crate::party::update_equipped_spells(&runtime.content, actor);
             crate::party::update_equipped_abilities(&runtime.content, actor);
         }

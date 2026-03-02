@@ -706,6 +706,15 @@ pub fn sanitize_job_learned_sets(content: &Content, actor: &mut Actor) {
     }
 }
 
+pub fn reconcile_job_learned_state(content: &Content, actor: &mut Actor) {
+    let job_ids: Vec<String> = actor.job_progress.keys().cloned().collect();
+    for job_id in job_ids {
+        learn_job_spells_for_job(content, actor, &job_id);
+        learn_job_abilities_for_job(content, actor, &job_id);
+    }
+    refresh_actor_learned_collections(actor);
+}
+
 fn actor_learned_job_ids(actor: &Actor) -> Vec<String> {
     let mut ids = vec![actor.job_id.clone()];
     if let Some(secondary) = actor.secondary_job_id.as_ref() {
@@ -1017,6 +1026,8 @@ pub fn gain_exp(content: &Content, rules: &Ruleset, actor: &mut Actor, amount: i
                 actor.base_stats = build_job_base_stats(content, job, progress.level);
                 recompute_derived_stats(content, actor);
             }
+            // Reconcile level-based unlocks for all jobs
+            reconcile_job_learned_state(content, actor);
             levels_gained
         }
         ProgressionMode::JobPoints => {
@@ -1537,6 +1548,7 @@ pub fn rest_party(party: &mut PartyState, content: &Content, rules: &RulesFile) 
         let max_mp = actor.derived_stats.get("mp").copied().unwrap_or(0);
         actor.current_hp = max_hp;
         actor.current_mp = max_mp;
+        actor.statuses.clear();
     }
     let ruleset = Ruleset::from_file(rules.clone());
     reset_magic_tier_charges(party, content, &ruleset);
