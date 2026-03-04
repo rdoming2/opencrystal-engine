@@ -14,6 +14,7 @@ use std::env;
 use std::fs;
 use std::path::PathBuf;
 
+use clap::{CommandFactory, Parser, Subcommand, ValueEnum, ValueHint};
 use engine::{
     content::Content,
     party::PartyState,
@@ -40,6 +41,82 @@ use crate::overworld::{
     build_map_view, find_spawn, record_death_marker, run_overworld_loop, OverworldOutcome,
 };
 use crate::party::{default_party_names, run_party_create_flow};
+
+#[derive(Debug, Parser)]
+#[command(name = "cryst", disable_help_subcommand = true)]
+struct Cli {
+    #[command(subcommand)]
+    command: Option<Commands>,
+}
+
+#[derive(Debug, Subcommand)]
+enum Commands {
+    Play(PlayArgs),
+    Validate(ValidateArgs),
+    NewProject(NewProjectArgs),
+    Build(BuildArgs),
+    Completion(CompletionArgs),
+}
+
+#[derive(Debug, clap::Args)]
+struct PlayArgs {
+    #[arg(long, value_enum)]
+    render: Option<RenderModeArg>,
+    #[arg(long, value_hint = ValueHint::AnyPath)]
+    content: Option<PathBuf>,
+    #[arg(long = "content-dir", value_hint = ValueHint::AnyPath)]
+    content_dir: Option<PathBuf>,
+}
+
+#[derive(Debug, clap::Args)]
+struct ValidateArgs {
+    #[arg(long, value_hint = ValueHint::AnyPath)]
+    content: Option<PathBuf>,
+    #[arg(long = "content-dir", value_hint = ValueHint::AnyPath)]
+    content_dir: Option<PathBuf>,
+}
+
+#[derive(Debug, clap::Args)]
+struct NewProjectArgs {
+    name: String,
+    #[arg(long, value_hint = ValueHint::AnyPath)]
+    path: Option<PathBuf>,
+}
+
+#[derive(Debug, clap::Args)]
+struct BuildArgs {
+    #[command(subcommand)]
+    command: build::BuildCommand,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
+pub(crate) enum CompletionShell {
+    Bash,
+    Zsh,
+}
+
+#[derive(Debug, clap::Args)]
+struct CompletionArgs {
+    #[arg(value_enum)]
+    shell: CompletionShell,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
+enum RenderModeArg {
+    Auto,
+    Wide,
+    Modern,
+}
+
+impl RenderModeArg {
+    fn into_render_mode(self) -> RenderMode {
+        match self {
+            Self::Auto => RenderMode::Auto,
+            Self::Wide => RenderMode::Wide,
+            Self::Modern => RenderMode::Modern,
+        }
+    }
+}
 
 struct SessionGuard(Option<TuiSession>);
 
@@ -81,23 +158,30 @@ impl Drop for SessionGuard {
 }
 
 fn main() {
-    let mut args = env::args().skip(1);
-    let command = args.next();
-    match command.as_deref() {
-        Some("play") => run_play(args.collect()),
-        Some("validate") => run_validate(),
-        Some("new-project") => run_new_project(args.collect()),
-        Some("build") => run_build(args.collect()),
-        Some("completion") => completion::run_completion(args.collect()),
-        _ => print_usage(),
+    let cli = Cli::parse();
+    match cli.command {
+        Some(Commands::Play(args)) => run_play(args),
+        Some(Commands::Validate(args)) => run_validate(args),
+        Some(Commands::NewProject(args)) => run_new_project(args),
+        Some(Commands::Build(args)) => run_build(args),
+        Some(Commands::Completion(args)) => completion::run_completion(args.shell),
+        None => {
+            let mut command = Cli::command();
+            if command.print_help().is_ok() {
+                println!();
+            }
+        }
     }
 }
 
-fn run_play(args: Vec<String>) {
-    let render_mode = parse_render_mode(&args).unwrap_or(RenderMode::Auto);
+fn run_play(args: PlayArgs) {
+    let render_mode = args
+        .render
+        .map(RenderModeArg::into_render_mode)
+        .unwrap_or(RenderMode::Auto);
     let mut session_guard = SessionGuard::start();
-    let content_dir_arg = parse_content_dir(&args);
-    let content_base_arg = parse_content_base_dir(&args);
+    let content_dir_arg = args.content;
+    let content_base_arg = args.content_dir;
     let content_dir = match content_dir_arg {
         Some(dir) => dir,
         None => {
@@ -374,10 +458,9 @@ fn run_play(args: Vec<String>) {
     }
 }
 
-fn run_validate() {
-    let args: Vec<String> = env::args().skip(2).collect();
-    let content_dir_arg = parse_content_dir(&args);
-    let content_base_arg = parse_content_base_dir(&args);
+fn run_validate(args: ValidateArgs) {
+    let content_dir_arg = args.content;
+    let content_base_arg = args.content_dir;
     let base_dir = content_base_arg.clone().unwrap_or_else(|| {
         let base_dir = default_content_base_dir();
         if content_dir_arg.is_none() && content_base_arg.is_none() {
@@ -450,14 +533,17 @@ fn run_validate() {
     }
 }
 
-fn run_new_project(args: Vec<String>) {
-    let mut forwarded = vec!["new-project".to_string()];
-    forwarded.extend(args);
-    build::run_build(forwarded);
+fn run_new_project(args: NewProjectArgs) {
+    build::run_build(build::BuildCommand::NewProject(
+        build::BuildNewProjectArgs {
+            name: args.name,
+            path: args.path.map(|path| path.to_string_lossy().to_string()),
+        },
+    ));
 }
 
-fn run_build(args: Vec<String>) {
-    build::run_build(args);
+fn run_build(args: BuildArgs) {
+    build::run_build(args.command);
 }
 
 fn choose_content_dir(
@@ -561,45 +647,6 @@ fn discover_content_entries(base_dir: &PathBuf) -> Vec<ContentMenuEntry> {
             .cmp(&b.label.to_ascii_lowercase())
     });
     entries
-}
-
-fn parse_render_mode(args: &[String]) -> Option<RenderMode> {
-    let mut iter = args.iter();
-    while let Some(arg) = iter.next() {
-        if let Some(value) = arg.strip_prefix("--render=") {
-            return RenderMode::from_arg(value);
-        }
-        if arg == "--render" {
-            return iter.next().and_then(|value| RenderMode::from_arg(value));
-        }
-    }
-    None
-}
-
-fn parse_content_dir(args: &[String]) -> Option<PathBuf> {
-    let mut iter = args.iter();
-    while let Some(arg) = iter.next() {
-        if let Some(value) = arg.strip_prefix("--content=") {
-            return Some(PathBuf::from(value));
-        }
-        if arg == "--content" {
-            return iter.next().map(PathBuf::from);
-        }
-    }
-    None
-}
-
-fn parse_content_base_dir(args: &[String]) -> Option<PathBuf> {
-    let mut iter = args.iter();
-    while let Some(arg) = iter.next() {
-        if let Some(value) = arg.strip_prefix("--content-dir=") {
-            return Some(PathBuf::from(value));
-        }
-        if arg == "--content-dir" {
-            return iter.next().map(PathBuf::from);
-        }
-    }
-    None
 }
 
 fn default_content_base_dir() -> PathBuf {
@@ -1038,10 +1085,4 @@ fn slugify(value: &str) -> String {
     } else {
         out
     }
-}
-
-fn print_usage() {
-    println!(
-        "OpenCrystal\n\nUsage:\n  cryst play [--render=auto|wide|modern] [--content path] [--content-dir path]\n  cryst validate [--content path] [--content-dir path]\n  cryst new-project <name> [--path path]\n  cryst build new <kind> <id> [--content path] [--content-dir path] [--name label] [--force]\n  cryst build map <id> [--content path]\n  cryst build upgrade [--content path] [--content-dir path] [--dry-run]\n  cryst build new-project <name> [--path path]\n  cryst build docs [-s|--schemas] [-a|--architecture] [-c|--content-authoring] [-j|--jobs]\n  cryst completion <bash|zsh>"
-    );
 }

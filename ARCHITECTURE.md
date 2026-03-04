@@ -37,8 +37,8 @@ It is a design reference meant to guide initial implementation.
 `--content-dir` (defaults to `~/.local/share/opencrystal/content`, `XDG_DATA_HOME/opencrystal/content`, or `%LOCALAPPDATA%\opencrystal\content` on Windows)
 and showing `rules.json` metadata (title, optional description/author).
 
-`cryst completion` prints shell completion scripts (bash/zsh), including path-aware completion for
-`--content`, `--content-dir`, and `--path`.
+`cryst completion` prints shell completion scripts (bash/zsh) generated from the clap command tree,
+including path-aware completion for `--content`, `--content-dir`, and `--path`.
 
 Save data is stored under `opencrystal/saves/<slugified game title>`. If the title is empty or a
 legacy save folder exists using the content directory name, the engine falls back to that folder.

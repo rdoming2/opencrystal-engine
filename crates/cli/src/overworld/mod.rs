@@ -4,10 +4,10 @@ use engine::runtime::GameRuntime;
 
 mod death_markers;
 mod interactions;
+mod r#loop;
 mod map_view;
 mod movement;
 mod npc;
-mod r#loop;
 mod vehicles;
 
 pub use death_markers::record_death_marker;

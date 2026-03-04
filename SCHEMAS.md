@@ -38,8 +38,8 @@ cryst build new job ranger --content content/demo
 
 `cryst build docs` prints schema and design references to stdout for automation and LLM workflows.
 
-`cryst completion <bash|zsh>` prints shell completion scripts with command/subcommand suggestions
-and path completion for `--content`, `--content-dir`, and `--path`.
+`cryst completion <bash|zsh>` prints shell completion scripts generated from the clap command tree,
+with command/subcommand suggestions and path completion for `--content`, `--content-dir`, and `--path`.
 
 ## input.json
 

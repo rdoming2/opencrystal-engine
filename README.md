@@ -114,8 +114,8 @@ source <(cryst completion bash)
 source <(cryst completion zsh)
 ```
 
-The completion scripts include command/subcommand suggestions and path completion for
-`--content`, `--content-dir`, and `--path`.
+The completion scripts are generated from the CLI's clap command model and include
+command/subcommand suggestions plus path completion for `--content`, `--content-dir`, and `--path`.
 
 `cryst build new` kinds:
 

@@ -405,16 +405,6 @@ pub fn execute_magic_action(
                                     }
                                 }
                             }
-                            if crit {
-                                super::logic::push_battle_log(
-                                    &mut battle_state.log,
-                                    crate::battle::ui_text(
-                                        runtime,
-                                        "battle.log.critical",
-                                        "Critical hit!",
-                                    ),
-                                );
-                            }
                             super::logic::push_battle_log(
                                 &mut battle_state.log,
                                 crate::battle::format_ui_text(
@@ -429,6 +419,16 @@ pub fn execute_magic_action(
                                     ],
                                 ),
                             );
+                            if crit {
+                                super::logic::push_battle_log(
+                                    &mut battle_state.log,
+                                    crate::battle::ui_text(
+                                        runtime,
+                                        "battle.log.critical",
+                                        "Critical hit!",
+                                    ),
+                                );
+                            }
                         }
                         "heal" => {
                             let max_hp = enemy.max_hp();
@@ -1007,16 +1007,6 @@ pub fn execute_ability_action(
                                     }
                                 }
                             }
-                            if crit {
-                                super::logic::push_battle_log(
-                                    &mut battle_state.log,
-                                    crate::battle::ui_text(
-                                        runtime,
-                                        "battle.log.critical",
-                                        "Critical hit!",
-                                    ),
-                                );
-                            }
                             super::logic::push_battle_log(
                                 &mut battle_state.log,
                                 crate::battle::format_ui_text(
@@ -1031,6 +1021,16 @@ pub fn execute_ability_action(
                                     ],
                                 ),
                             );
+                            if crit {
+                                super::logic::push_battle_log(
+                                    &mut battle_state.log,
+                                    crate::battle::ui_text(
+                                        runtime,
+                                        "battle.log.critical",
+                                        "Critical hit!",
+                                    ),
+                                );
+                            }
                         }
                         "scan" => {
                             enemy.scanned = true;
@@ -1163,16 +1163,6 @@ pub fn execute_ability_action(
                                     }
                                 }
                             }
-                            if crit {
-                                super::logic::push_battle_log(
-                                    &mut battle_state.log,
-                                    crate::battle::ui_text(
-                                        runtime,
-                                        "battle.log.critical",
-                                        "Critical hit!",
-                                    ),
-                                );
-                            }
                             super::logic::push_battle_log(
                                 &mut battle_state.log,
                                 crate::battle::format_ui_text(
@@ -1187,6 +1177,16 @@ pub fn execute_ability_action(
                                     ],
                                 ),
                             );
+                            if crit {
+                                super::logic::push_battle_log(
+                                    &mut battle_state.log,
+                                    crate::battle::ui_text(
+                                        runtime,
+                                        "battle.log.critical",
+                                        "Critical hit!",
+                                    ),
+                                );
+                            }
                         }
                         "status" => {}
                         _ => {
@@ -1543,12 +1543,6 @@ pub fn resolve_pending_charge_action(
         }
     }
 
-    if roll.crit {
-        super::logic::push_battle_log(
-            &mut battle_state.log,
-            crate::battle::ui_text(runtime, "battle.log.critical", "Critical hit!"),
-        );
-    }
     super::logic::push_battle_log(
         &mut battle_state.log,
         crate::battle::format_ui_text(
@@ -1563,6 +1557,12 @@ pub fn resolve_pending_charge_action(
             ],
         ),
     );
+    if roll.crit {
+        super::logic::push_battle_log(
+            &mut battle_state.log,
+            crate::battle::ui_text(runtime, "battle.log.critical", "Critical hit!"),
+        );
+    }
     Some(target_index)
 }
 
@@ -1902,16 +1902,6 @@ pub fn execute_enemy_spell_action(
                         if let Some(target) = runtime.party.roster.get_mut(&target_id) {
                             apply_damage_to_actor(target, damage);
                         }
-                        if roll.crit {
-                            super::logic::push_battle_log(
-                                &mut battle_state.log,
-                                crate::battle::ui_text(
-                                    runtime,
-                                    "battle.log.critical",
-                                    "Critical hit!",
-                                ),
-                            );
-                        }
                         super::logic::push_battle_log(
                             &mut battle_state.log,
                             crate::battle::format_ui_text(
@@ -1926,6 +1916,16 @@ pub fn execute_enemy_spell_action(
                                 ],
                             ),
                         );
+                        if roll.crit {
+                            super::logic::push_battle_log(
+                                &mut battle_state.log,
+                                crate::battle::ui_text(
+                                    runtime,
+                                    "battle.log.critical",
+                                    "Critical hit!",
+                                ),
+                            );
+                        }
                     }
                     "heal" => {
                         if let Some(target) = runtime.party.roster.get_mut(&target_id) {
@@ -2130,16 +2130,6 @@ pub fn execute_enemy_spell_action(
                                 .round()
                                 .max(1.0) as i32;
                             apply_damage_to_enemy(enemy_target, damage);
-                            if roll.crit {
-                                super::logic::push_battle_log(
-                                    &mut battle_state.log,
-                                    crate::battle::ui_text(
-                                        runtime,
-                                        "battle.log.critical",
-                                        "Critical hit!",
-                                    ),
-                                );
-                            }
                             super::logic::push_battle_log(
                                 &mut battle_state.log,
                                 crate::battle::format_ui_text(
@@ -2154,6 +2144,16 @@ pub fn execute_enemy_spell_action(
                                     ],
                                 ),
                             );
+                            if roll.crit {
+                                super::logic::push_battle_log(
+                                    &mut battle_state.log,
+                                    crate::battle::ui_text(
+                                        runtime,
+                                        "battle.log.critical",
+                                        "Critical hit!",
+                                    ),
+                                );
+                            }
                         }
                         "heal" => {
                             let max_hp = enemy_target.max_hp();
@@ -2400,16 +2400,6 @@ pub fn execute_enemy_ability_action(
                         if let Some(target) = runtime.party.roster.get_mut(&target_id) {
                             apply_damage_to_actor(target, damage);
                         }
-                        if roll.crit {
-                            super::logic::push_battle_log(
-                                &mut battle_state.log,
-                                crate::battle::ui_text(
-                                    runtime,
-                                    "battle.log.critical",
-                                    "Critical hit!",
-                                ),
-                            );
-                        }
                         super::logic::push_battle_log(
                             &mut battle_state.log,
                             crate::battle::format_ui_text(
@@ -2424,6 +2414,16 @@ pub fn execute_enemy_ability_action(
                                 ],
                             ),
                         );
+                        if roll.crit {
+                            super::logic::push_battle_log(
+                                &mut battle_state.log,
+                                crate::battle::ui_text(
+                                    runtime,
+                                    "battle.log.critical",
+                                    "Critical hit!",
+                                ),
+                            );
+                        }
                     }
                     "heal" => {
                         if let Some(target) = runtime.party.roster.get_mut(&target_id) {
@@ -2616,16 +2616,6 @@ pub fn execute_enemy_ability_action(
                                 .round()
                                 .max(1.0) as i32;
                             apply_damage_to_enemy(enemy_target, damage);
-                            if roll.crit {
-                                super::logic::push_battle_log(
-                                    &mut battle_state.log,
-                                    crate::battle::ui_text(
-                                        runtime,
-                                        "battle.log.critical",
-                                        "Critical hit!",
-                                    ),
-                                );
-                            }
                             super::logic::push_battle_log(
                                 &mut battle_state.log,
                                 crate::battle::format_ui_text(
@@ -2640,6 +2630,16 @@ pub fn execute_enemy_ability_action(
                                     ],
                                 ),
                             );
+                            if roll.crit {
+                                super::logic::push_battle_log(
+                                    &mut battle_state.log,
+                                    crate::battle::ui_text(
+                                        runtime,
+                                        "battle.log.critical",
+                                        "Critical hit!",
+                                    ),
+                                );
+                            }
                         }
                         "heal" => {
                             let max_hp = enemy_target.max_hp();
