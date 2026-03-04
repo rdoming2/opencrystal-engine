@@ -160,12 +160,6 @@ pub fn execute_attack_action(
         }
     }
     runtime.track_max_stat("max_damage", damage);
-    if crit {
-        super::logic::push_battle_log(
-            &mut battle_state.log,
-            crate::battle::ui_text(runtime, "battle.log.critical", "Critical hit!"),
-        );
-    }
     super::logic::push_battle_log(
         &mut battle_state.log,
         crate::battle::format_ui_text(
@@ -179,6 +173,9 @@ pub fn execute_attack_action(
             ],
         ),
     );
+    if crit {
+        super::logic::push_critical_battle_log(runtime, &mut battle_state.log);
+    }
 }
 
 pub fn execute_magic_action(
@@ -420,13 +417,9 @@ pub fn execute_magic_action(
                                 ),
                             );
                             if crit {
-                                super::logic::push_battle_log(
+                                super::logic::push_critical_battle_log(
+                                    runtime,
                                     &mut battle_state.log,
-                                    crate::battle::ui_text(
-                                        runtime,
-                                        "battle.log.critical",
-                                        "Critical hit!",
-                                    ),
                                 );
                             }
                         }
@@ -1022,13 +1015,9 @@ pub fn execute_ability_action(
                                 ),
                             );
                             if crit {
-                                super::logic::push_battle_log(
+                                super::logic::push_critical_battle_log(
+                                    runtime,
                                     &mut battle_state.log,
-                                    crate::battle::ui_text(
-                                        runtime,
-                                        "battle.log.critical",
-                                        "Critical hit!",
-                                    ),
                                 );
                             }
                         }
@@ -1178,13 +1167,9 @@ pub fn execute_ability_action(
                                 ),
                             );
                             if crit {
-                                super::logic::push_battle_log(
+                                super::logic::push_critical_battle_log(
+                                    runtime,
                                     &mut battle_state.log,
-                                    crate::battle::ui_text(
-                                        runtime,
-                                        "battle.log.critical",
-                                        "Critical hit!",
-                                    ),
                                 );
                             }
                         }
@@ -1558,10 +1543,7 @@ pub fn resolve_pending_charge_action(
         ),
     );
     if roll.crit {
-        super::logic::push_battle_log(
-            &mut battle_state.log,
-            crate::battle::ui_text(runtime, "battle.log.critical", "Critical hit!"),
-        );
+        super::logic::push_critical_battle_log(runtime, &mut battle_state.log);
     }
     Some(target_index)
 }
@@ -1917,14 +1899,7 @@ pub fn execute_enemy_spell_action(
                             ),
                         );
                         if roll.crit {
-                            super::logic::push_battle_log(
-                                &mut battle_state.log,
-                                crate::battle::ui_text(
-                                    runtime,
-                                    "battle.log.critical",
-                                    "Critical hit!",
-                                ),
-                            );
+                            super::logic::push_critical_battle_log(runtime, &mut battle_state.log);
                         }
                     }
                     "heal" => {
@@ -2145,13 +2120,9 @@ pub fn execute_enemy_spell_action(
                                 ),
                             );
                             if roll.crit {
-                                super::logic::push_battle_log(
+                                super::logic::push_critical_battle_log(
+                                    runtime,
                                     &mut battle_state.log,
-                                    crate::battle::ui_text(
-                                        runtime,
-                                        "battle.log.critical",
-                                        "Critical hit!",
-                                    ),
                                 );
                             }
                         }
@@ -2415,14 +2386,7 @@ pub fn execute_enemy_ability_action(
                             ),
                         );
                         if roll.crit {
-                            super::logic::push_battle_log(
-                                &mut battle_state.log,
-                                crate::battle::ui_text(
-                                    runtime,
-                                    "battle.log.critical",
-                                    "Critical hit!",
-                                ),
-                            );
+                            super::logic::push_critical_battle_log(runtime, &mut battle_state.log);
                         }
                     }
                     "heal" => {
@@ -2631,13 +2595,9 @@ pub fn execute_enemy_ability_action(
                                 ),
                             );
                             if roll.crit {
-                                super::logic::push_battle_log(
+                                super::logic::push_critical_battle_log(
+                                    runtime,
                                     &mut battle_state.log,
-                                    crate::battle::ui_text(
-                                        runtime,
-                                        "battle.log.critical",
-                                        "Critical hit!",
-                                    ),
                                 );
                             }
                         }

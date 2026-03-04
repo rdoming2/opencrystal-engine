@@ -297,12 +297,6 @@ pub fn enemy_take_turn(
                     }
                 }
             }
-            if roll.crit {
-                push_battle_log(
-                    &mut battle_state.log,
-                    crate::battle::ui_text(runtime, "battle.log.critical", "Critical hit!"),
-                );
-            }
             push_battle_log(
                 &mut battle_state.log,
                 crate::battle::format_ui_text(
@@ -316,6 +310,9 @@ pub fn enemy_take_turn(
                     ],
                 ),
             );
+            if roll.crit {
+                push_critical_battle_log(runtime, &mut battle_state.log);
+            }
             if runtime
                 .party
                 .roster
@@ -1063,12 +1060,6 @@ fn handle_counter_attack(
     );
     damage = ((damage as f32) * multiplier).round().max(0.0) as i32;
     engine::battle::apply_damage_to_enemy(enemy, damage);
-    if roll.crit {
-        push_battle_log(
-            &mut battle_state.log,
-            crate::battle::ui_text(runtime, "battle.log.critical", "Critical hit!"),
-        );
-    }
     push_battle_log(
         &mut battle_state.log,
         crate::battle::format_ui_text(
@@ -1082,6 +1073,9 @@ fn handle_counter_attack(
             ],
         ),
     );
+    if roll.crit {
+        push_critical_battle_log(runtime, &mut battle_state.log);
+    }
 }
 
 pub fn push_battle_log(log: &mut Vec<String>, message: impl Into<String>) {
@@ -1091,6 +1085,17 @@ pub fn push_battle_log(log: &mut Vec<String>, message: impl Into<String>) {
         let drain = log.len() - max_entries;
         log.drain(0..drain);
     }
+}
+
+pub fn push_critical_battle_log(runtime: &GameRuntime, log: &mut Vec<String>) {
+    let critical = crate::battle::ui_text(runtime, "battle.log.critical", "Critical hit!");
+    if let Some(last) = log.last_mut() {
+        if !last.contains(&critical) {
+            *last = format!("{} {}", critical, last);
+        }
+        return;
+    }
+    push_battle_log(log, critical);
 }
 
 pub fn update_readiness(
