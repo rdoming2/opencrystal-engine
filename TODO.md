@@ -58,7 +58,7 @@
   - [x] Autosave slot after transitions.
 
 - [ ] Refactor the following into smaller modules:
-  - [ ] crates/cli/src/battle/actions.rs (2864 lines)
+  - [x] crates/cli/src/battle/actions.rs (2864 lines)
   - [ ] crates/cli/src/battle/mod.rs (2800 lines)
   - [x] crates/engine/src/validate.rs (2437 lines)
   - [x] crates/cli/src/overworld.rs (2038 lines)
