@@ -1,5 +1,6 @@
 mod battle;
 mod build;
+mod completion;
 mod dialog;
 mod events;
 mod map_editor;
@@ -87,6 +88,7 @@ fn main() {
         Some("validate") => run_validate(),
         Some("new-project") => run_new_project(args.collect()),
         Some("build") => run_build(args.collect()),
+        Some("completion") => completion::run_completion(args.collect()),
         _ => print_usage(),
     }
 }
@@ -1040,6 +1042,6 @@ fn slugify(value: &str) -> String {
 
 fn print_usage() {
     println!(
-        "OpenCrystal\n\nUsage:\n  cryst play [--render=auto|wide|modern] [--content path] [--content-dir path]\n  cryst validate [--content path] [--content-dir path]\n  cryst new-project <name> [--path path]\n  cryst build new <kind> <id> [--content path] [--content-dir path] [--name label] [--force]\n  cryst build map <id> [--content path]\n  cryst build upgrade [--content path] [--content-dir path] [--dry-run]\n  cryst build new-project <name> [--path path]\n  cryst build docs [-s|--schemas] [-a|--architecture] [-c|--content-authoring] [-j|--jobs]"
+        "OpenCrystal\n\nUsage:\n  cryst play [--render=auto|wide|modern] [--content path] [--content-dir path]\n  cryst validate [--content path] [--content-dir path]\n  cryst new-project <name> [--path path]\n  cryst build new <kind> <id> [--content path] [--content-dir path] [--name label] [--force]\n  cryst build map <id> [--content path]\n  cryst build upgrade [--content path] [--content-dir path] [--dry-run]\n  cryst build new-project <name> [--path path]\n  cryst build docs [-s|--schemas] [-a|--architecture] [-c|--content-authoring] [-j|--jobs]\n  cryst completion <bash|zsh>"
     );
 }

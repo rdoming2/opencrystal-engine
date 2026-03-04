@@ -242,6 +242,7 @@
 - [x] Add game builder tool for schema stubs, upgrades, and project scaffolding.
 - [x] Map builder glyph display
 - [x] Add build docs command to print reference docs to stdout.
+- [x] Add shell completion output command (`cryst completion`) for bash/zsh with path-aware flags.
 - [x] Add `ui/menu.json` schema + validation.
 - [x] Add `party.json` schema + validation.
 - [x] Extend map schema for saving.

@@ -28,6 +28,7 @@ It is a design reference meant to guide initial implementation.
 - `cryst build strings [--content path] [--content-dir path] [--force]`
 - `cryst build new-project <name> [--path path]`
 - `cryst build docs [-s|--schemas] [-a|--architecture] [-c|--content-authoring] [-j|--jobs]`
+- `cryst completion <bash|zsh>`
 
 `cryst build new` kinds: `spell`, `ability`, `item`, `equipment`, `enemy`, `vehicle`, `shop`,
 `npc`, `encounter`, `job`.
@@ -35,6 +36,9 @@ It is a design reference meant to guide initial implementation.
 `cryst play` opens a content chooser when `--content` is omitted, listing subfolders under
 `--content-dir` (defaults to `~/.local/share/opencrystal/content`, `XDG_DATA_HOME/opencrystal/content`, or `%LOCALAPPDATA%\opencrystal\content` on Windows)
 and showing `rules.json` metadata (title, optional description/author).
+
+`cryst completion` prints shell completion scripts (bash/zsh), including path-aware completion for
+`--content`, `--content-dir`, and `--path`.
 
 Save data is stored under `opencrystal/saves/<slugified game title>`. If the title is empty or a
 legacy save folder exists using the content directory name, the engine falls back to that folder.

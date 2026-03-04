@@ -102,6 +102,20 @@ See `SCHEMAS.md`, `ARCHITECTURE.md`, `JOBS.md` and `CONTENT_AUTHORING_GUIDE.md` 
 - `cryst build strings [--content path] [--content-dir path] [--force]`
 - `cryst build new-project <name> [--path path]`
 - `cryst build docs [-s|--schemas] [-a|--architecture] [-c|--content-authoring] [-j|--jobs]`
+- `cryst completion <bash|zsh>`
+
+Enable shell completion:
+
+```bash
+# Bash (current shell)
+source <(cryst completion bash)
+
+# Zsh (current shell)
+source <(cryst completion zsh)
+```
+
+The completion scripts include command/subcommand suggestions and path completion for
+`--content`, `--content-dir`, and `--path`.
 
 `cryst build new` kinds:
 
