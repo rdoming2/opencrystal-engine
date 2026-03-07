@@ -72,6 +72,8 @@ fn render_save_slot_line(
         let map_name =
             map_name_for_save(runtime, save).unwrap_or_else(|| save.world.map_id.clone());
         let playtime = format_playtime(save.metadata.play_time_seconds);
+        let completed_marker = if save.metadata.completed { " *" } else { "" };
+        text.push_str(completed_marker);
         text.push_str(" - ");
         text.push_str(map_name.as_str());
         text.push_str("  ");

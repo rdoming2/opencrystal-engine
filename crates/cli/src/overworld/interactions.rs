@@ -29,6 +29,9 @@ pub(crate) fn run_pending_events(
     if let EventLoopOutcome::Defeat(context) = outcome {
         return Ok(OverworldOutcome::Defeat(context));
     }
+    if let EventLoopOutcome::EndGame(mode) = outcome {
+        return Ok(OverworldOutcome::EndGame(mode));
+    }
     Ok(OverworldOutcome::Continue)
 }
 

@@ -329,6 +329,10 @@ fn create_project_structure(target_dir: &Path, title: &str) -> Result<(), String
                 label: "New Game".to_string(),
             },
             MenuItem {
+                id: "new_game_plus".to_string(),
+                label: "New Game+".to_string(),
+            },
+            MenuItem {
                 id: "load_game".to_string(),
                 label: "Load".to_string(),
             },
@@ -346,6 +350,7 @@ fn create_project_structure(target_dir: &Path, title: &str) -> Result<(), String
             right: "".to_string(),
         },
         gameover: None,
+        endgame: None,
     };
 
     let menu_ui = MenuUiFile {

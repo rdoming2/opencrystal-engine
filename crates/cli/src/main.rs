@@ -29,8 +29,8 @@ use tui::menu::{run_content_menu, ContentMenuEntry};
 use tui::renderer::RenderMode;
 use tui::session::TuiSession;
 use tui::title::{
-    run_gameover, run_load_menu, run_title, GameOverAction, GameOverOptions, LoadSlotEntry,
-    TitleAction,
+    run_endgame, run_gameover, run_load_menu, run_title, EndGameAction, GameOverAction,
+    GameOverOptions, LoadSlotEntry, TitleAction,
 };
 use tui::ui::{BattleUiFile, DialogUiFile, MenuUiFile, ProgressUiFile, TitleUiFile};
 
@@ -312,6 +312,7 @@ fn run_play(args: PlayArgs) {
                 eprintln!("Failed to clear TUI: {}", err);
             }
             let load_enabled = has_loadable_saves(&runtime, &save_dir);
+            let ng_plus_enabled = has_completed_saves(&runtime, &save_dir);
             let default_selected = if load_enabled {
                 menu_index(&title_ui, "load_game").or_else(|| menu_index(&title_ui, "new_game"))
             } else {
@@ -323,6 +324,7 @@ fn run_play(args: PlayArgs) {
                 &title_ui,
                 &input_bindings,
                 load_enabled,
+                ng_plus_enabled,
                 default_selected,
             ) {
                 Ok(action) => action,
@@ -450,6 +452,45 @@ fn run_play(args: PlayArgs) {
                     }
                 } else {
                     println!("Load not implemented.");
+                }
+            }
+            TitleAction::NewGamePlus => {
+                if let Some(session) = session_guard.as_mut() {
+                    match run_new_game_plus_flow(
+                        session,
+                        &mut runtime,
+                        &title_ui,
+                        &input_bindings,
+                        &save_dir,
+                    ) {
+                        Ok(true) => {
+                            pending_carryover = None;
+                            match run_session_with_gameover(
+                                session,
+                                &mut runtime,
+                                &dialog_ui,
+                                &battle_ui,
+                                &menu_ui,
+                                &progress_ui,
+                                &input_bindings,
+                                &title_ui,
+                                &save_dir,
+                                &mut pending_carryover,
+                            ) {
+                                Ok(SessionExit::ReturnTitle) => {}
+                                Ok(SessionExit::Exit) => return,
+                                Err(err) => {
+                                    if err.kind() == std::io::ErrorKind::Interrupted {
+                                        return;
+                                    }
+                                }
+                            }
+                        }
+                        Ok(false) => {}
+                        Err(err) => {
+                            eprintln!("Failed to start New Game+: {}", err);
+                        }
+                    }
                 }
             }
             TitleAction::Settings => println!("Settings not implemented."),
@@ -723,6 +764,27 @@ fn run_load_flow(
     Ok(true)
 }
 
+fn run_new_game_plus_flow(
+    session: &mut TuiSession,
+    runtime: &mut GameRuntime,
+    title_ui: &TitleUiFile,
+    bindings: &InputBindings,
+    save_dir: &PathBuf,
+) -> Result<bool, String> {
+    let slots = build_completed_load_slots(runtime, save_dir);
+    let selection =
+        run_load_menu(session, title_ui, bindings, &slots).map_err(|err| err.to_string())?;
+    let Some(index) = selection else {
+        return Ok(false);
+    };
+    let entry = slots
+        .get(index)
+        .filter(|entry| entry.enabled)
+        .ok_or_else(|| "Selected slot is unavailable".to_string())?;
+    load_save_slot(runtime, save_dir, entry.slot)?;
+    Ok(true)
+}
+
 fn defeat_carryover_from_context(context: &LastBattleContext) -> DefeatCarryover {
     DefeatCarryover {
         map_id: context.defeat_map_id.clone(),
@@ -804,8 +866,25 @@ fn run_session_with_gameover(
                                 session,
                                 initial_map_view,
                             )?;
-                            if let EventLoopOutcome::Defeat(context) = outcome {
-                                pending_defeat = Some(context);
+                            match outcome {
+                                EventLoopOutcome::Defeat(context) => {
+                                    pending_defeat = Some(context);
+                                }
+                                EventLoopOutcome::EndGame(mode) => {
+                                    mark_runtime_completed(runtime);
+                                    mark_completed_saves(runtime, save_dir);
+                                    let localized_title_ui = localize_endgame_ui(runtime, title_ui);
+                                    let action = run_endgame(
+                                        session,
+                                        &localized_title_ui,
+                                        bindings,
+                                        matches!(mode, engine::events::EndGameMode::AllowContinue),
+                                    )?;
+                                    if matches!(action, EndGameAction::ReturnTitle) {
+                                        return Ok(SessionExit::ReturnTitle);
+                                    }
+                                }
+                                EventLoopOutcome::Continue => {}
                             }
                         }
                     }
@@ -859,9 +938,27 @@ fn run_session_with_gameover(
                 session,
                 initial_map_view,
             )?;
-            if let EventLoopOutcome::Defeat(context) = outcome {
-                pending_defeat = Some(context);
-                continue;
+            match outcome {
+                EventLoopOutcome::Defeat(context) => {
+                    pending_defeat = Some(context);
+                    continue;
+                }
+                EventLoopOutcome::EndGame(mode) => {
+                    mark_runtime_completed(runtime);
+                    mark_completed_saves(runtime, save_dir);
+                    let localized_title_ui = localize_endgame_ui(runtime, title_ui);
+                    let action = run_endgame(
+                        session,
+                        &localized_title_ui,
+                        bindings,
+                        matches!(mode, engine::events::EndGameMode::AllowContinue),
+                    )?;
+                    if matches!(action, EndGameAction::ReturnTitle) {
+                        return Ok(SessionExit::ReturnTitle);
+                    }
+                    continue;
+                }
+                EventLoopOutcome::Continue => {}
             }
         }
 
@@ -881,6 +978,20 @@ fn run_session_with_gameover(
         )? {
             OverworldOutcome::Defeat(context) => {
                 pending_defeat = Some(context);
+            }
+            OverworldOutcome::EndGame(mode) => {
+                mark_runtime_completed(runtime);
+                mark_completed_saves(runtime, save_dir);
+                let localized_title_ui = localize_endgame_ui(runtime, title_ui);
+                let action = run_endgame(
+                    session,
+                    &localized_title_ui,
+                    bindings,
+                    matches!(mode, engine::events::EndGameMode::AllowContinue),
+                )?;
+                if matches!(action, EndGameAction::ReturnTitle) {
+                    return Ok(SessionExit::ReturnTitle);
+                }
             }
             OverworldOutcome::Quit => return Ok(SessionExit::Exit),
             OverworldOutcome::ReturnTitle => return Ok(SessionExit::ReturnTitle),
@@ -942,6 +1053,38 @@ fn localize_gameover_ui(runtime: &GameRuntime, title_ui: &TitleUiFile) -> TitleU
     localized
 }
 
+fn localize_endgame_ui(runtime: &GameRuntime, title_ui: &TitleUiFile) -> TitleUiFile {
+    let mut localized = title_ui.clone();
+    let Some(endgame) = localized.endgame.as_mut() else {
+        return localized;
+    };
+
+    let fallback_title = endgame
+        .title
+        .clone()
+        .unwrap_or_else(|| "The End".to_string());
+    let title = runtime
+        .content
+        .ui_text("endgame.title")
+        .unwrap_or(fallback_title.as_str())
+        .to_string();
+    endgame.title = Some(title);
+
+    if let Some(subtitle) = runtime.content.ui_text("endgame.subtitle") {
+        endgame.subtitle = Some(subtitle.to_string());
+    }
+
+    for item in &mut endgame.menu {
+        if let Some(key) = endgame_menu_key(item.id.as_str()) {
+            if let Some(label) = runtime.content.ui_text(key) {
+                item.label = label.to_string();
+            }
+        }
+    }
+
+    localized
+}
+
 fn gameover_menu_key(id: &str) -> Option<&'static str> {
     match id {
         "retry_battle" => Some("gameover.retry_battle"),
@@ -950,6 +1093,46 @@ fn gameover_menu_key(id: &str) -> Option<&'static str> {
         "return_title" => Some("gameover.return_title"),
         "exit" => Some("gameover.exit"),
         _ => None,
+    }
+}
+
+fn endgame_menu_key(id: &str) -> Option<&'static str> {
+    match id {
+        "continue" => Some("endgame.continue"),
+        "return_title" => Some("endgame.return_title"),
+        _ => None,
+    }
+}
+
+fn mark_runtime_completed(runtime: &mut GameRuntime) {
+    runtime.set_flag("system.game_completed");
+}
+
+fn mark_completed_saves(runtime: &GameRuntime, save_dir: &PathBuf) {
+    if let Err(err) = fs::create_dir_all(save_dir) {
+        eprintln!("Failed to ensure save directory exists: {}", err);
+    } else {
+        let mut autosave = SaveFile::from_runtime(runtime, 0);
+        autosave.metadata.completed = true;
+        let autosave_path = save_slot_path(save_dir, 0);
+        if let Err(err) = autosave.write(&autosave_path) {
+            eprintln!("Failed to write completed autosave: {}", err);
+        }
+    }
+
+    let max_slots = runtime.content.rules.save.slots_max.max(1) as u8;
+    for slot in 0..=max_slots {
+        let path = save_slot_path(save_dir, slot);
+        let Ok(mut save) = SaveFile::load(&path) else {
+            continue;
+        };
+        if save.version == 0 || save.metadata.completed {
+            continue;
+        }
+        save.metadata.completed = true;
+        if let Err(err) = save.write(&path) {
+            eprintln!("Failed to mark completed save in slot {}: {}", slot, err);
+        }
     }
 }
 
@@ -985,6 +1168,25 @@ fn has_loadable_saves(runtime: &GameRuntime, save_dir: &PathBuf) -> bool {
     let max_slots = runtime.content.rules.save.slots_max.max(1) as u8;
     for slot in 1..=max_slots {
         if loadable_save_exists(save_dir, slot) {
+            return true;
+        }
+    }
+    false
+}
+
+fn has_completed_saves(runtime: &GameRuntime, save_dir: &PathBuf) -> bool {
+    if SaveFile::load(save_slot_path(save_dir, 0))
+        .map(|save| save.version != 0 && save.metadata.completed)
+        .unwrap_or(false)
+    {
+        return true;
+    }
+    let max_slots = runtime.content.rules.save.slots_max.max(1) as u8;
+    for slot in 1..=max_slots {
+        if SaveFile::load(save_slot_path(save_dir, slot))
+            .map(|save| save.version != 0 && save.metadata.completed)
+            .unwrap_or(false)
+        {
             return true;
         }
     }
@@ -1027,6 +1229,31 @@ fn build_load_slots(runtime: &GameRuntime, save_dir: &PathBuf) -> Vec<LoadSlotEn
     slots
 }
 
+fn build_completed_load_slots(runtime: &GameRuntime, save_dir: &PathBuf) -> Vec<LoadSlotEntry> {
+    let mut slots = Vec::new();
+    if save_slot_is_completed(save_dir, 0)
+        && let Some(entry) = build_load_slot_entry(runtime, save_dir, 0, "Autosave")
+    {
+        slots.push(entry);
+    }
+    let max_slots = runtime.content.rules.save.slots_max.max(1) as u8;
+    for slot in 1..=max_slots {
+        if !save_slot_is_completed(save_dir, slot) {
+            continue;
+        }
+        if let Some(entry) = build_load_slot_entry(runtime, save_dir, slot, &format!("Slot {}", slot)) {
+            slots.push(entry);
+        }
+    }
+    slots
+}
+
+fn save_slot_is_completed(save_dir: &PathBuf, slot: u8) -> bool {
+    SaveFile::load(save_slot_path(save_dir, slot))
+        .map(|save| save.version != 0 && save.metadata.completed)
+        .unwrap_or(false)
+}
+
 fn build_load_slot_entry(
     runtime: &GameRuntime,
     save_dir: &PathBuf,
@@ -1043,9 +1270,10 @@ fn build_load_slot_entry(
         .filter(|name| !name.trim().is_empty())
         .unwrap_or_else(|| save.world.map_id.clone());
     let playtime = format_playtime(save.metadata.play_time_seconds);
+    let completed_marker = if save.metadata.completed { " *" } else { "" };
     Some(LoadSlotEntry {
         slot,
-        label: format!("{} - {}  {}", label, map_name, playtime),
+        label: format!("{}{} - {}  {}", label, completed_marker, map_name, playtime),
         enabled: true,
     })
 }

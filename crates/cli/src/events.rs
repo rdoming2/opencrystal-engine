@@ -17,6 +17,7 @@ use std::time::Duration;
 pub enum EventLoopOutcome {
     Continue,
     Defeat(LastBattleContext),
+    EndGame(engine::events::EndGameMode),
 }
 
 pub fn run_event_loop(
@@ -177,6 +178,9 @@ fn handle_event_result(
                 tui::overworld::draw_overworld(session, map, runtime.world.position)?;
             }
             std::thread::sleep(Duration::from_millis(ms));
+        }
+        engine::events::EventExecutionResult::EndGame { mode } => {
+            return Ok(EventLoopOutcome::EndGame(mode));
         }
         engine::events::EventExecutionResult::Completed => {}
         engine::events::EventExecutionResult::Abort => {

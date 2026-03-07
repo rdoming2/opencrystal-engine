@@ -15,9 +15,15 @@ use crate::utils::{centered_rect, palette_style};
 
 pub enum TitleAction {
     NewGame,
+    NewGamePlus,
     Load,
     Settings,
     Exit,
+}
+
+pub enum EndGameAction {
+    Continue,
+    ReturnTitle,
 }
 
 pub enum GameOverAction {
@@ -45,14 +51,15 @@ pub fn run_title(
     title_ui: &TitleUiFile,
     bindings: &InputBindings,
     load_enabled: bool,
+    ng_plus_enabled: bool,
     default_selected: usize,
 ) -> io::Result<TitleAction> {
     let mut selected = default_selected.min(title_ui.menu.len().saturating_sub(1));
-    if let Some(index) = first_enabled_menu_item(title_ui, load_enabled) {
+    if let Some(index) = first_enabled_menu_item(title_ui, load_enabled, ng_plus_enabled) {
         if title_ui
             .menu
             .get(selected)
-            .map(|item| !menu_item_enabled(item, load_enabled))
+            .map(|item| !menu_item_enabled(item, load_enabled, ng_plus_enabled))
             .unwrap_or(true)
         {
             selected = index;
@@ -63,7 +70,7 @@ pub fn run_title(
 
     loop {
         session.terminal_mut().draw(|frame| {
-            draw_title_frame(frame, title_ui, selected, load_enabled);
+            draw_title_frame(frame, title_ui, selected, load_enabled, ng_plus_enabled);
         })?;
 
         if let Event::Key(key) = event::read()? {
@@ -73,14 +80,26 @@ pub fn run_title(
             if let Some(action) = bindings.action_for(key.code) {
                 match action {
                     Action::MoveUp => {
-                        selected = move_menu_selection(selected, title_ui, load_enabled, -1);
+                        selected = move_menu_selection(
+                            selected,
+                            title_ui,
+                            load_enabled,
+                            ng_plus_enabled,
+                            -1,
+                        );
                     }
                     Action::MoveDown => {
-                        selected = move_menu_selection(selected, title_ui, load_enabled, 1);
+                        selected = move_menu_selection(
+                            selected,
+                            title_ui,
+                            load_enabled,
+                            ng_plus_enabled,
+                            1,
+                        );
                     }
                     Action::Confirm => {
                         if let Some(item) = title_ui.menu.get(selected) {
-                            if menu_item_enabled(item, load_enabled) {
+                            if menu_item_enabled(item, load_enabled, ng_plus_enabled) {
                                 return Ok(map_action(&item.id));
                             }
                         }
@@ -88,9 +107,111 @@ pub fn run_title(
                     Action::Cancel | Action::Menu => return Ok(TitleAction::Exit),
                     Action::Quit => {
                         if confirm_quit(session, |frame| {
-                            draw_title_frame(frame, title_ui, selected, load_enabled)
+                            draw_title_frame(
+                                frame,
+                                title_ui,
+                                selected,
+                                load_enabled,
+                                ng_plus_enabled,
+                            )
                         })? {
                             return Ok(TitleAction::Exit);
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+}
+
+pub fn run_endgame(
+    session: &mut TuiSession,
+    title_ui: &TitleUiFile,
+    bindings: &InputBindings,
+    allow_continue: bool,
+) -> io::Result<EndGameAction> {
+    loop {
+        session.terminal_mut().draw(|frame| {
+            draw_endgame_credits_frame(frame, title_ui);
+        })?;
+
+        if let Event::Key(key) = event::read()? {
+            if !is_actionable_key(&key) {
+                continue;
+            }
+            if let Some(action) = bindings.action_for(key.code) {
+                match action {
+                    Action::Confirm => break,
+                    Action::Quit => {
+                        if confirm_quit(session, |frame| {
+                            draw_endgame_credits_frame(frame, title_ui)
+                        })? {
+                            return Ok(EndGameAction::ReturnTitle);
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+
+    if !allow_continue {
+        return Ok(EndGameAction::ReturnTitle);
+    }
+
+    let mut menu_items = endgame_menu_items(title_ui);
+    if menu_items.is_empty() {
+        menu_items = vec![
+            MenuItem {
+                id: "continue".to_string(),
+                label: "Continue".to_string(),
+            },
+            MenuItem {
+                id: "return_title".to_string(),
+                label: "Return to Title".to_string(),
+            },
+        ];
+    }
+    let mut selected = first_enabled_endgame_item(&menu_items, allow_continue).unwrap_or(0);
+
+    loop {
+        session.terminal_mut().draw(|frame| {
+            draw_endgame_choice_frame(frame, title_ui, &menu_items, selected, allow_continue);
+        })?;
+
+        if let Event::Key(key) = event::read()? {
+            if !is_actionable_key(&key) {
+                continue;
+            }
+            if let Some(action) = bindings.action_for(key.code) {
+                match action {
+                    Action::MoveUp => {
+                        selected =
+                            move_endgame_selection(selected, &menu_items, allow_continue, -1);
+                    }
+                    Action::MoveDown => {
+                        selected = move_endgame_selection(selected, &menu_items, allow_continue, 1);
+                    }
+                    Action::Confirm => {
+                        if let Some(item) = menu_items.get(selected) {
+                            if endgame_item_enabled(item, allow_continue) {
+                                return Ok(map_endgame_action(&item.id));
+                            }
+                        }
+                    }
+                    Action::Cancel | Action::Menu => return Ok(EndGameAction::ReturnTitle),
+                    Action::Quit => {
+                        if confirm_quit(session, |frame| {
+                            draw_endgame_choice_frame(
+                                frame,
+                                title_ui,
+                                &menu_items,
+                                selected,
+                                allow_continue,
+                            )
+                        })? {
+                            return Ok(EndGameAction::ReturnTitle);
                         }
                     }
                     _ => {}
@@ -210,6 +331,7 @@ pub fn draw_title_frame(
     title_ui: &TitleUiFile,
     selected: usize,
     load_enabled: bool,
+    ng_plus_enabled: bool,
 ) {
     let size = frame.area();
     let layout = Layout::default()
@@ -253,7 +375,7 @@ pub fn draw_title_frame(
         .enumerate()
         .map(|(index, item)| {
             let mut style = Style::default().fg(Color::White);
-            if !menu_item_enabled(item, load_enabled) {
+            if !menu_item_enabled(item, load_enabled, ng_plus_enabled) {
                 style = style.fg(Color::Gray);
             } else if index == selected {
                 style = style.fg(Color::Yellow).add_modifier(Modifier::BOLD);
@@ -274,6 +396,151 @@ pub fn draw_title_frame(
             title_ui.footer.right.as_str(),
             Style::default().fg(Color::Gray),
         ),
+    ]))
+    .alignment(Alignment::Center)
+    .block(Block::default().borders(Borders::NONE));
+    frame.render_widget(footer, layout[3]);
+}
+
+fn draw_endgame_credits_frame(frame: &mut Frame, title_ui: &TitleUiFile) {
+    let size = frame.area();
+    let endgame = title_ui.endgame.as_ref();
+    let title_text = endgame
+        .and_then(|entry| entry.title.clone())
+        .unwrap_or_else(|| "The End".to_string());
+    let subtitle_text = endgame
+        .and_then(|entry| entry.subtitle.clone())
+        .unwrap_or_else(|| "Thank you for playing.".to_string());
+    let credits = endgame
+        .map(|entry| entry.credits.clone())
+        .unwrap_or_default();
+    let footer = endgame
+        .and_then(|entry| entry.footer.clone())
+        .unwrap_or_else(|| title_ui.footer.clone());
+
+    let layout = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(1),
+            Constraint::Length(1),
+            Constraint::Min(6),
+            Constraint::Length(1),
+            Constraint::Length(2),
+        ])
+        .split(size);
+
+    let title_width = line_width(title_text.as_str());
+    let title_area = centered_rect(layout[0], title_width, 1);
+    let title = Paragraph::new(title_text)
+        .alignment(Alignment::Left)
+        .block(Block::default().borders(Borders::NONE));
+    frame.render_widget(title, title_area);
+
+    let subtitle_width = line_width(subtitle_text.as_str());
+    let subtitle_area = centered_rect(layout[1], subtitle_width, 1);
+    let subtitle = Paragraph::new(subtitle_text)
+        .alignment(Alignment::Left)
+        .block(Block::default().borders(Borders::NONE))
+        .style(Style::default().fg(Color::Gray));
+    frame.render_widget(subtitle, subtitle_area);
+
+    let credit_lines: Vec<Line> = if credits.is_empty() {
+        vec![Line::from(Span::styled(
+            "Press Confirm to continue.",
+            Style::default().fg(Color::Gray),
+        ))]
+    } else {
+        credits
+            .into_iter()
+            .map(|line| Line::from(Span::styled(line, Style::default().fg(Color::White))))
+            .collect()
+    };
+    let credits_widget = Paragraph::new(credit_lines)
+        .alignment(Alignment::Center)
+        .block(Block::default().borders(Borders::NONE));
+    frame.render_widget(credits_widget, layout[2]);
+
+    let prompt = Paragraph::new("Press Confirm to continue.")
+        .alignment(Alignment::Center)
+        .block(Block::default().borders(Borders::NONE))
+        .style(Style::default().fg(Color::Gray));
+    frame.render_widget(prompt, layout[3]);
+
+    let footer = Paragraph::new(Line::from(vec![
+        Span::raw(footer.left.as_str()),
+        Span::raw("  "),
+        Span::styled(footer.right.as_str(), Style::default().fg(Color::Gray)),
+    ]))
+    .alignment(Alignment::Center)
+    .block(Block::default().borders(Borders::NONE));
+    frame.render_widget(footer, layout[4]);
+}
+
+fn draw_endgame_choice_frame(
+    frame: &mut Frame,
+    title_ui: &TitleUiFile,
+    menu_items: &[MenuItem],
+    selected: usize,
+    allow_continue: bool,
+) {
+    let size = frame.area();
+    let endgame = title_ui.endgame.as_ref();
+    let title_text = endgame
+        .and_then(|entry| entry.title.clone())
+        .unwrap_or_else(|| "The End".to_string());
+    let subtitle_text = endgame
+        .and_then(|entry| entry.subtitle.clone())
+        .unwrap_or_else(|| "Your adventure can continue.".to_string());
+    let footer = endgame
+        .and_then(|entry| entry.footer.clone())
+        .unwrap_or_else(|| title_ui.footer.clone());
+    let layout = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(1),
+            Constraint::Length(1),
+            Constraint::Min(6),
+            Constraint::Length(2),
+        ])
+        .split(size);
+
+    let title_width = line_width(title_text.as_str());
+    let title_area = centered_rect(layout[0], title_width, 1);
+    let title = Paragraph::new(title_text)
+        .alignment(Alignment::Left)
+        .block(Block::default().borders(Borders::NONE));
+    frame.render_widget(title, title_area);
+
+    let subtitle_width = line_width(subtitle_text.as_str());
+    let subtitle_area = centered_rect(layout[1], subtitle_width, 1);
+    let subtitle = Paragraph::new(subtitle_text)
+        .alignment(Alignment::Left)
+        .block(Block::default().borders(Borders::NONE))
+        .style(Style::default().fg(Color::Gray));
+    frame.render_widget(subtitle, subtitle_area);
+
+    let lines: Vec<Line> = menu_items
+        .iter()
+        .enumerate()
+        .map(|(index, item)| {
+            let mut style = Style::default().fg(Color::White);
+            if !endgame_item_enabled(item, allow_continue) {
+                style = style.fg(Color::Gray);
+            } else if index == selected {
+                style = style.fg(Color::Yellow).add_modifier(Modifier::BOLD);
+            }
+            Line::from(Span::styled(item.label.as_str(), style))
+        })
+        .collect();
+    let menu = Paragraph::new(lines)
+        .alignment(Alignment::Center)
+        .block(Block::default().borders(Borders::NONE));
+    frame.render_widget(menu, layout[2]);
+
+    let footer = Paragraph::new(Line::from(vec![
+        Span::raw(footer.left.as_str()),
+        Span::raw("  "),
+        Span::styled(footer.right.as_str(), Style::default().fg(Color::Gray)),
     ]))
     .alignment(Alignment::Center)
     .block(Block::default().borders(Borders::NONE));
@@ -466,10 +733,18 @@ fn draw_gameover_frame(
 
 fn map_action(id: &str) -> TitleAction {
     match id {
+        "new_game_plus" => TitleAction::NewGamePlus,
         "load_game" => TitleAction::Load,
         "settings" => TitleAction::Settings,
         "exit" => TitleAction::Exit,
         _ => TitleAction::NewGame,
+    }
+}
+
+fn map_endgame_action(id: &str) -> EndGameAction {
+    match id {
+        "continue" => EndGameAction::Continue,
+        _ => EndGameAction::ReturnTitle,
     }
 }
 
@@ -483,9 +758,23 @@ fn map_gameover_action(id: &str) -> GameOverAction {
     }
 }
 
-fn menu_item_enabled(item: &crate::ui::MenuItem, load_enabled: bool) -> bool {
+fn menu_item_enabled(
+    item: &crate::ui::MenuItem,
+    load_enabled: bool,
+    ng_plus_enabled: bool,
+) -> bool {
     if item.id == "load_game" {
         load_enabled
+    } else if item.id == "new_game_plus" {
+        ng_plus_enabled
+    } else {
+        true
+    }
+}
+
+fn endgame_item_enabled(item: &MenuItem, allow_continue: bool) -> bool {
+    if item.id == "continue" {
+        allow_continue
     } else {
         true
     }
@@ -504,11 +793,21 @@ fn first_enabled_slot(slots: &[LoadSlotEntry]) -> Option<usize> {
     slots.iter().position(|slot| slot.enabled)
 }
 
-fn first_enabled_menu_item(title_ui: &TitleUiFile, load_enabled: bool) -> Option<usize> {
+fn first_enabled_menu_item(
+    title_ui: &TitleUiFile,
+    load_enabled: bool,
+    ng_plus_enabled: bool,
+) -> Option<usize> {
     title_ui
         .menu
         .iter()
-        .position(|item| menu_item_enabled(item, load_enabled))
+        .position(|item| menu_item_enabled(item, load_enabled, ng_plus_enabled))
+}
+
+fn first_enabled_endgame_item(menu_items: &[MenuItem], allow_continue: bool) -> Option<usize> {
+    menu_items
+        .iter()
+        .position(|item| endgame_item_enabled(item, allow_continue))
 }
 
 fn first_enabled_gameover_item(
@@ -524,6 +823,7 @@ fn move_menu_selection(
     current: usize,
     title_ui: &TitleUiFile,
     load_enabled: bool,
+    ng_plus_enabled: bool,
     direction: i32,
 ) -> usize {
     if title_ui.menu.is_empty() {
@@ -545,7 +845,39 @@ fn move_menu_selection(
         if title_ui
             .menu
             .get(index)
-            .map(|item| menu_item_enabled(item, load_enabled))
+            .map(|item| menu_item_enabled(item, load_enabled, ng_plus_enabled))
+            .unwrap_or(false)
+        {
+            return index;
+        }
+    }
+}
+
+fn move_endgame_selection(
+    current: usize,
+    menu_items: &[MenuItem],
+    allow_continue: bool,
+    direction: i32,
+) -> usize {
+    if menu_items.is_empty() {
+        return 0;
+    }
+    let mut index = current.min(menu_items.len().saturating_sub(1));
+    loop {
+        if direction < 0 {
+            if index == 0 {
+                return current;
+            }
+            index = index.saturating_sub(1);
+        } else {
+            if index + 1 >= menu_items.len() {
+                return current;
+            }
+            index = (index + 1).min(menu_items.len().saturating_sub(1));
+        }
+        if menu_items
+            .get(index)
+            .map(|item| endgame_item_enabled(item, allow_continue))
             .unwrap_or(false)
         {
             return index;
@@ -610,6 +942,14 @@ fn gameover_menu_items(title_ui: &TitleUiFile) -> Vec<MenuItem> {
         .gameover
         .as_ref()
         .map(|gameover| gameover.menu.clone())
+        .unwrap_or_default()
+}
+
+fn endgame_menu_items(title_ui: &TitleUiFile) -> Vec<MenuItem> {
+    title_ui
+        .endgame
+        .as_ref()
+        .map(|endgame| endgame.menu.clone())
         .unwrap_or_default()
 }
 

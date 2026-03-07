@@ -19,6 +19,7 @@ pub use r#loop::run_overworld_loop;
 pub enum OverworldOutcome {
     Continue,
     Defeat(crate::battle::LastBattleContext),
+    EndGame(engine::events::EndGameMode),
     Quit,
     ReturnTitle,
 }

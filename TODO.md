@@ -48,6 +48,7 @@
   - [x] Shop sell flow (convert items/equipment to currency).
 - [x] Add idle chance for roaming NPCs.
 - [x] Add map treasure chests (loot + opened flags).
+- [ ] New Game+ Option
 - [x] Implement save/load system.
   - [x] Define save file schema + versioning.
   - [x] Serialize world/party/inventory/flags.
@@ -56,7 +57,6 @@
   - [x] Default save selection to last used slot.
   - [x] Enforce save rules (map allow_save + save_points).
   - [x] Autosave slot after transitions.
-
 - [ ] Refactor the following into smaller modules:
   - [x] crates/cli/src/battle/actions.rs (2864 lines)
   - [ ] crates/cli/src/battle/mod.rs (2800 lines)
@@ -115,7 +115,7 @@
 - [x] Add encounter zone editing to map editor.
 - [x] Show campfire recipe ingredient requirements with inventory counts.
 - [x] Gameover screen and optional restart logic (last battle, last save, fallback to main menu)
-- [ ] End game screen with option to continue vs. return to main menu. Option to "star" the save
+- [x] End game screen with option to continue vs. return to main menu. Option to "star" the save
 - [ ] Titlescreen Settings need implementation
 - [x] Optional persistent death markers
 - [x] Update UI display to show names/labels instead of ids

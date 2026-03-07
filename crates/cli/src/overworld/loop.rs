@@ -265,7 +265,7 @@ pub fn run_overworld_loop(
                         if door_locked(runtime, &door) {
                             if let Some(event_id) = door.locked_event.as_ref() {
                                 runtime.queue_event(event_id);
-                                if let OverworldOutcome::Defeat(context) = run_pending_events(
+                                match run_pending_events(
                                     runtime,
                                     dialog_ui,
                                     battle_ui,
@@ -273,7 +273,15 @@ pub fn run_overworld_loop(
                                     session,
                                     Some(map.clone()),
                                 )? {
-                                    return Ok(OverworldOutcome::Defeat(context));
+                                    OverworldOutcome::Defeat(context) => {
+                                        return Ok(OverworldOutcome::Defeat(context));
+                                    }
+                                    OverworldOutcome::EndGame(mode) => {
+                                        return Ok(OverworldOutcome::EndGame(mode));
+                                    }
+                                    OverworldOutcome::Continue
+                                    | OverworldOutcome::Quit
+                                    | OverworldOutcome::ReturnTitle => {}
                                 }
                             } else {
                                 let text =
@@ -328,7 +336,7 @@ pub fn run_overworld_loop(
                         }
                         if let Some(event_id) = puzzle.event.as_ref() {
                             runtime.queue_event(event_id);
-                            if let OverworldOutcome::Defeat(context) = run_pending_events(
+                            match run_pending_events(
                                 runtime,
                                 dialog_ui,
                                 battle_ui,
@@ -336,7 +344,15 @@ pub fn run_overworld_loop(
                                 session,
                                 Some(map.clone()),
                             )? {
-                                return Ok(OverworldOutcome::Defeat(context));
+                                OverworldOutcome::Defeat(context) => {
+                                    return Ok(OverworldOutcome::Defeat(context));
+                                }
+                                OverworldOutcome::EndGame(mode) => {
+                                    return Ok(OverworldOutcome::EndGame(mode));
+                                }
+                                OverworldOutcome::Continue
+                                | OverworldOutcome::Quit
+                                | OverworldOutcome::ReturnTitle => {}
                             }
                         } else if let Some(text) = puzzle.text.as_ref() {
                             show_centered_dialog_on_map(
@@ -355,7 +371,7 @@ pub fn run_overworld_loop(
                         run_dialog_on_map(
                             runtime, dialog_ui, bindings, session, &dialog_id, &map, player_pos,
                         )?;
-                        if let OverworldOutcome::Defeat(context) = run_pending_events(
+                        match run_pending_events(
                             runtime,
                             dialog_ui,
                             battle_ui,
@@ -363,7 +379,15 @@ pub fn run_overworld_loop(
                             session,
                             Some(map.clone()),
                         )? {
-                            return Ok(OverworldOutcome::Defeat(context));
+                            OverworldOutcome::Defeat(context) => {
+                                return Ok(OverworldOutcome::Defeat(context));
+                            }
+                            OverworldOutcome::EndGame(mode) => {
+                                return Ok(OverworldOutcome::EndGame(mode));
+                            }
+                            OverworldOutcome::Continue
+                            | OverworldOutcome::Quit
+                            | OverworldOutcome::ReturnTitle => {}
                         }
                     } else if let Some((vehicle_id, vehicle_pos)) =
                         find_adjacent_vehicle(runtime, &current_map_id, player_pos)
@@ -448,8 +472,14 @@ pub fn run_overworld_loop(
                     session,
                     Some(map.clone()),
                 )?;
-                if let EventLoopOutcome::Defeat(context) = outcome {
-                    return Ok(OverworldOutcome::Defeat(context));
+                match outcome {
+                    EventLoopOutcome::Defeat(context) => {
+                        return Ok(OverworldOutcome::Defeat(context));
+                    }
+                    EventLoopOutcome::EndGame(mode) => {
+                        return Ok(OverworldOutcome::EndGame(mode));
+                    }
+                    EventLoopOutcome::Continue => {}
                 }
             }
         }
@@ -475,8 +505,14 @@ pub fn run_overworld_loop(
                     session,
                     Some(map.clone()),
                 )?;
-                if let EventLoopOutcome::Defeat(context) = outcome {
-                    return Ok(OverworldOutcome::Defeat(context));
+                match outcome {
+                    EventLoopOutcome::Defeat(context) => {
+                        return Ok(OverworldOutcome::Defeat(context));
+                    }
+                    EventLoopOutcome::EndGame(mode) => {
+                        return Ok(OverworldOutcome::EndGame(mode));
+                    }
+                    EventLoopOutcome::Continue => {}
                 }
             }
             apply_overworld_poison(runtime);

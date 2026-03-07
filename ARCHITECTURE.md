@@ -178,8 +178,17 @@ All runtime data is loaded from JSON. Files are organized into top-level categor
 - Spell learn events (direct grants).
 - Party add/remove events (roster-driven joins/leaves; adds fill active slots, then reserve).
 - Recipe unlock events (direct grants).
+- End-game events (`end_game`) with `return_title` (forced return after credits) or
+  `allow_continue` (post-credits continue vs return).
 - Battle results (victory/defeat hooks) including a gameover flow that can retry the last battle
   or load recent saves before returning to the title screen.
+
+Completed save handling:
+
+- End-game completion sets `system.game_completed` at runtime.
+- Existing save slots are marked completed when end-game is reached.
+- Completed saves can be rendered with a star marker (visual alias of completion, not a separate state).
+- New Game+ title entry is enabled only when completed saves exist and only lists completed saves.
 
 Event execution is handled by `GameRuntime.apply_event_step`, which:
 - Manages state changes (flag setting, item grants, item requirements/removals, warps to new maps).

@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use super::helpers::find_recipe;
 use super::ValidationContext;
 
-const EVENT_TYPES: [&str; 23] = [
+const EVENT_TYPES: [&str; 24] = [
     "dialog",
     "narration",
     "set_flag",
@@ -24,6 +24,7 @@ const EVENT_TYPES: [&str; 23] = [
     "party_remove",
     "learn_recipe",
     "wait",
+    "end_game",
     "stat_set",
     "stat_add",
     "stat_max",
@@ -173,6 +174,15 @@ pub(crate) fn validate_events(context: &ValidationContext, errors: &mut Vec<Stri
                     errors.push(format!(
                         "events/{}: learn_recipe '{}' requires recipe unlock_flag",
                         event.id, recipe_id
+                    ));
+                }
+            }
+            if step.r#type == "end_game" {
+                let mode = step.mode.as_deref().unwrap_or("return_title");
+                if mode != "return_title" && mode != "allow_continue" {
+                    errors.push(format!(
+                        "events/{}: end_game step has invalid mode '{}'",
+                        event.id, mode
                     ));
                 }
             }

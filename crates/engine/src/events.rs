@@ -39,6 +39,13 @@ pub struct EventStep {
     pub member: Option<String>,
     pub recipe: Option<String>,
     pub ms: Option<i32>,
+    pub mode: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum EndGameMode {
+    ReturnTitle,
+    AllowContinue,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -75,6 +82,9 @@ pub enum EventExecutionResult {
     },
     Wait {
         ms: u64,
+    },
+    EndGame {
+        mode: EndGameMode,
     },
     Completed,
     Abort,
@@ -253,6 +263,13 @@ pub fn apply_event_step(runtime: &mut GameRuntime, step: &EventStep) -> EventExe
         "wait" => {
             let ms = step.ms.unwrap_or(0).max(0) as u64;
             EventExecutionResult::Wait { ms }
+        }
+        "end_game" => {
+            let mode = match step.mode.as_deref() {
+                Some("allow_continue") => EndGameMode::AllowContinue,
+                _ => EndGameMode::ReturnTitle,
+            };
+            EventExecutionResult::EndGame { mode }
         }
         "learn_spell" => {
             if let (Some(member), Some(spell)) = (&step.member, &step.spell) {

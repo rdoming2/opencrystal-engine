@@ -32,6 +32,8 @@ pub struct SaveMetadata {
     pub title: String,
     pub play_time_seconds: u64,
     pub timestamp_seconds: u64,
+    #[serde(default)]
+    pub completed: bool,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -120,6 +122,7 @@ impl SaveFile {
                 title: runtime.content.rules.game.title.clone(),
                 play_time_seconds,
                 timestamp_seconds,
+                completed: runtime.has_flag("system.game_completed"),
             },
             world: SaveWorld {
                 world_id: runtime.world.world_id.clone(),

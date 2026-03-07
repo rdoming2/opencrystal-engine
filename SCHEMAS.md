@@ -1406,6 +1406,7 @@ Supported event step types:
 - `npc_show`, `npc_hide`, `npc_move`, `npc_set_sprite` (fields: `npc`, `pos`, `sprite`)
 - `start_dialog` (fields: `dialog`)
 - `wait` (fields: `ms`)
+- `end_game` (fields: optional `mode`; `return_title` or `allow_continue`, defaults to `return_title`)
 - `stat_set` (fields: `stat`, `value`)
 - `stat_add` (fields: `stat`, `value`, default 1)
 - `stat_max` (fields: `stat`, `value`)
@@ -1733,6 +1734,7 @@ Runtime notes:
 Defines the title screen layout and content. This is a lightweight, templatable
 configuration intended to support ASCII logos, attribution, and menu items.
 The optional `gameover` block configures the gameover screen menu.
+The optional `endgame` block configures completion/credits and post-credits options.
 
 Logo fields:
 
@@ -1749,11 +1751,21 @@ Gameover fields:
   `return_title`, `exit`).
 - `footer`: optional footer override (falls back to the title footer).
 
+Endgame fields:
+
+- `title`: optional heading override (defaults to `The End`).
+- `subtitle`: optional subheading string.
+- `credits`: optional list of credits lines shown before post-credits options.
+- `menu`: list of menu items (ids include `continue`, `return_title`).
+- `footer`: optional footer override (falls back to the title footer).
+
 Localization notes:
 
 - Gameover text can be localized via `ui/strings.json` using keys like
   `gameover.title`, `gameover.subtitle`, `gameover.retry_battle`, `gameover.load_latest`,
   `gameover.load_autosave`, `gameover.return_title`, and `gameover.exit`.
+- Endgame text can be localized via keys `endgame.title`, `endgame.subtitle`,
+  `endgame.continue`, and `endgame.return_title`.
 - When a localization key is missing, the `ui/title.json` label is used as the fallback.
 
 ```json
@@ -1786,6 +1798,7 @@ Localization notes:
   },
   "menu": [
     {"id": "new_game", "label": "New Game"},
+    {"id": "new_game_plus", "label": "New Game+"},
     {"id": "load_game", "label": "Load"},
     {"id": "settings", "label": "Settings"},
     {"id": "exit", "label": "Exit"}
@@ -1805,6 +1818,18 @@ Localization notes:
       "right": "By OpenCrystal Team"
     }
   },
+  "endgame": {
+    "title": "The End",
+    "subtitle": "The journey is complete.",
+    "credits": [
+      "OpenCrystal Engine",
+      "Thanks for playing."
+    ],
+    "menu": [
+      {"id": "continue", "label": "Continue"},
+      {"id": "return_title", "label": "Return to Title"}
+    ]
+  },
   "footer": {
     "left": "A crystal-bound journey",
     "right": "By OpenCrystal Team"
@@ -1823,6 +1848,7 @@ Key patterns:
 
 - `command.<id>`: battle command labels (matches `rules.json` command IDs).
 - `gameover.*`: title screen gameover labels.
+- `endgame.*`: completion and post-credits labels.
 - `battle.*` and `battle.log.*`: battle prompts and log messages.
 
 Battle strings may contain placeholders such as `{actor}`, `{target}`, `{damage}`,
@@ -2052,6 +2078,12 @@ Save data captures the full runtime state. This format is stored as JSON in phas
 `settings` stores user-configurable settings captured at save time. Rules overrides
 are still applied when loading.
 
+Completion fields:
+
+- `metadata.completed` marks saves that reached an end-game condition.
+- UIs may render completed saves with a star marker; this marker is visual only.
+- New Game+ entry selection should be restricted to completed saves.
+
 Inventory ordering:
 
 - `inventory.items_order` and `inventory.equipment_order` persist the current menu order.
@@ -2076,7 +2108,8 @@ Vehicle fields:
     "slot": 1,
     "title": "OpenCrystal",
     "play_time_seconds": 3210,
-    "timestamp_seconds": 1769085720
+    "timestamp_seconds": 1769085720,
+    "completed": true
   },
   "rules": {
     "battle_mode": "turn",
