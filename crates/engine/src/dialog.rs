@@ -1,5 +1,7 @@
 use crate::events::EventExecutionResult;
+use crate::maps::MapCurrencyStack;
 use crate::party::rest_party;
+use crate::rules::RulesFile;
 use crate::runtime::GameRuntime;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
@@ -29,6 +31,7 @@ pub struct DialogAction {
     pub item: Option<String>,
     pub qty: Option<i32>,
     pub recipe: Option<String>,
+    pub cost: Option<MapCurrencyStack>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -79,6 +82,20 @@ pub fn apply_dialog_action(
             EventExecutionResult::Continue
         }
         "rest_party" => {
+            if let Some(cost) = action.cost.as_ref() {
+                if cost.amount > 0 && !cost.id.trim().is_empty() {
+                    let available = runtime.inventory.currency_amount(&cost.id);
+                    if available < cost.amount {
+                        return EventExecutionResult::Narration {
+                            text: format!(
+                                "Need {} to rest.",
+                                format_currency_cost(&runtime.content.rules, cost)
+                            ),
+                        };
+                    }
+                    runtime.inventory.add_currency(&cost.id, -cost.amount);
+                }
+            }
             rest_party(&mut runtime.party, &runtime.content, &runtime.content.rules);
             EventExecutionResult::Continue
         }
@@ -89,6 +106,18 @@ pub fn apply_dialog_action(
             EventExecutionResult::Continue
         }
         _ => EventExecutionResult::Continue,
+    }
+}
+
+fn format_currency_cost(rules: &RulesFile, cost: &MapCurrencyStack) -> String {
+    if let Some(currency) = rules.game.currency(&cost.id) {
+        if currency.symbol.trim().is_empty() {
+            format!("{} {}", cost.amount, currency.name)
+        } else {
+            format!("{}{}", currency.symbol, cost.amount)
+        }
+    } else {
+        format!("{} {}", cost.amount, cost.id)
     }
 }
 

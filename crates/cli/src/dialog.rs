@@ -7,6 +7,12 @@ use tui::ui::DialogUiFile;
 
 use crate::shop::open_shop;
 
+enum DialogActionFlow {
+    Continue,
+    StopNodeActions,
+    ExitDialog,
+}
+
 pub fn run_dialog(
     runtime: &mut GameRuntime,
     dialog_ui: &DialogUiFile,
@@ -62,8 +68,10 @@ pub fn run_dialog(
 
         if let Some(actions) = &node.actions {
             for action in actions {
-                if handle_dialog_action(runtime, session, bindings, action)? {
-                    return Ok(());
+                match handle_dialog_action(runtime, session, dialog_ui, bindings, action)? {
+                    DialogActionFlow::Continue => {}
+                    DialogActionFlow::StopNodeActions => break,
+                    DialogActionFlow::ExitDialog => return Ok(()),
                 }
             }
         }
@@ -145,8 +153,12 @@ pub fn run_dialog_on_map(
 
         if let Some(actions) = &node.actions {
             for action in actions {
-                if handle_dialog_action(runtime, session, bindings, action)? {
-                    return Ok(());
+                match handle_dialog_action_on_map(
+                    runtime, session, dialog_ui, bindings, map, player_pos, action,
+                )? {
+                    DialogActionFlow::Continue => {}
+                    DialogActionFlow::StopNodeActions => break,
+                    DialogActionFlow::ExitDialog => return Ok(()),
                 }
             }
         }
@@ -187,7 +199,11 @@ pub fn run_dialog_console(runtime: &mut GameRuntime, dialog_ui: &DialogUiFile, d
         show_dialog_console(dialog_ui, node.speaker.as_deref().unwrap_or(""), &node.text);
         if let Some(actions) = &node.actions {
             for action in actions {
-                handle_dialog_action_console(runtime, action);
+                match handle_dialog_action_console(runtime, dialog_ui, action) {
+                    DialogActionFlow::Continue => {}
+                    DialogActionFlow::StopNodeActions => break,
+                    DialogActionFlow::ExitDialog => return,
+                }
             }
         }
 
@@ -305,25 +321,79 @@ pub fn default_dialog_ui() -> DialogUiFile {
 fn handle_dialog_action(
     runtime: &mut GameRuntime,
     session: &mut TuiSession,
+    dialog_ui: &DialogUiFile,
     bindings: &InputBindings,
     action: &engine::dialog::DialogAction,
-) -> std::io::Result<bool> {
+) -> std::io::Result<DialogActionFlow> {
     let result = engine::dialog::apply_dialog_action(runtime, action);
     match result {
         engine::events::EventExecutionResult::OpenShop { shop_id } => {
             open_shop(runtime, session, bindings, &shop_id)?;
-            Ok(true)
+            Ok(DialogActionFlow::ExitDialog)
         }
-        _ => Ok(false),
+        engine::events::EventExecutionResult::Dialog { speaker, text } => {
+            tui::dialog::show_dialog(session, dialog_ui, bindings, &speaker, &text)?;
+            Ok(DialogActionFlow::StopNodeActions)
+        }
+        engine::events::EventExecutionResult::Narration { text } => {
+            tui::dialog::show_dialog(session, dialog_ui, bindings, "", &text)?;
+            Ok(DialogActionFlow::StopNodeActions)
+        }
+        engine::events::EventExecutionResult::Abort => Ok(DialogActionFlow::StopNodeActions),
+        _ => Ok(DialogActionFlow::Continue),
     }
 }
 
-fn handle_dialog_action_console(runtime: &mut GameRuntime, action: &engine::dialog::DialogAction) {
+fn handle_dialog_action_on_map(
+    runtime: &mut GameRuntime,
+    session: &mut TuiSession,
+    dialog_ui: &DialogUiFile,
+    bindings: &InputBindings,
+    map: &tui::overworld::MapView,
+    player_pos: (i32, i32),
+    action: &engine::dialog::DialogAction,
+) -> std::io::Result<DialogActionFlow> {
+    let result = engine::dialog::apply_dialog_action(runtime, action);
+    match result {
+        engine::events::EventExecutionResult::OpenShop { shop_id } => {
+            open_shop(runtime, session, bindings, &shop_id)?;
+            Ok(DialogActionFlow::ExitDialog)
+        }
+        engine::events::EventExecutionResult::Dialog { speaker, text } => {
+            show_dialog_on_map(
+                session, map, player_pos, dialog_ui, bindings, &speaker, &text,
+            )?;
+            Ok(DialogActionFlow::StopNodeActions)
+        }
+        engine::events::EventExecutionResult::Narration { text } => {
+            show_dialog_on_map(session, map, player_pos, dialog_ui, bindings, "", &text)?;
+            Ok(DialogActionFlow::StopNodeActions)
+        }
+        engine::events::EventExecutionResult::Abort => Ok(DialogActionFlow::StopNodeActions),
+        _ => Ok(DialogActionFlow::Continue),
+    }
+}
+
+fn handle_dialog_action_console(
+    runtime: &mut GameRuntime,
+    dialog_ui: &DialogUiFile,
+    action: &engine::dialog::DialogAction,
+) -> DialogActionFlow {
     let result = engine::dialog::apply_dialog_action(runtime, action);
     match result {
         engine::events::EventExecutionResult::OpenShop { shop_id } => {
             println!("Open shop: {}", shop_id);
+            DialogActionFlow::ExitDialog
         }
-        _ => {}
+        engine::events::EventExecutionResult::Dialog { speaker, text } => {
+            show_dialog_console(dialog_ui, &speaker, &text);
+            DialogActionFlow::StopNodeActions
+        }
+        engine::events::EventExecutionResult::Narration { text } => {
+            show_dialog_console(dialog_ui, "", &text);
+            DialogActionFlow::StopNodeActions
+        }
+        engine::events::EventExecutionResult::Abort => DialogActionFlow::StopNodeActions,
+        _ => DialogActionFlow::Continue,
     }
 }

@@ -135,7 +135,6 @@
 - [ ] Remove status on KO.
 - [x] Status effects and damage formulas (derived stats).
   - [x] Implement critical hit calculations and messaging.
-  - [ ] Make critical hit messaging louder
 - [x] Implement command-specific behaviors: 
   - [x] Steal
   - [x] Throw
@@ -217,7 +216,7 @@
 - [x] Implement NPC roaming (persisted positions).
 - [x] Implement event-driven NPC controls (show/hide/move/set_sprite).
 - [x] Add event steps for item requirements/removal.
-- [x] Implement inn rest feature (dialog action `rest_party`).
+- [x] Implement inn rest feature (dialog action `rest_party`, with optional currency cost).
 - [x] Add configurable NPC interaction range (default 1 tile).
 - [x] Add event action to teach spells (learn_spell).
 - [x] Add event actions to add/remove party members.

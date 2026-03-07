@@ -127,7 +127,27 @@ pub(crate) fn validate_dialogs(context: &ValidationContext, errors: &mut Vec<Str
                                 ));
                             }
                         }
-                        "rest_party" => {}
+                        "rest_party" => {
+                            if let Some(cost) = action.cost.as_ref() {
+                                if cost.id.trim().is_empty() {
+                                    errors.push(format!(
+                                        "dialog/{}: rest_party cost has empty id",
+                                        dialog.id
+                                    ));
+                                } else if !context.ids.currency_ids.contains(cost.id.as_str()) {
+                                    errors.push(format!(
+                                        "dialog/{}: rest_party references unknown currency '{}'",
+                                        dialog.id, cost.id
+                                    ));
+                                }
+                                if cost.amount <= 0 {
+                                    errors.push(format!(
+                                        "dialog/{}: rest_party has non-positive cost",
+                                        dialog.id
+                                    ));
+                                }
+                            }
+                        }
                         _ => {
                             errors.push(format!(
                                 "dialog/{}: unknown action type '{}'",

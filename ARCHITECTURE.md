@@ -173,7 +173,7 @@ All runtime data is loaded from JSON. Files are organized into top-level categor
 
 - Map triggers (`on_enter`, `trigger: "on_enter"`, `on_step` with zone support).
 - NPC interactions (map NPC `script` event, dialog tree actions).
-- Dialog actions (`start_event`, `open_shop`, `rest_party`, `learn_recipe`).
+- Dialog actions (`start_event`, `open_shop`, `rest_party` with optional currency cost, `learn_recipe`).
 - Item effects (warp, start battle, learn_recipe).
 - Spell learn events (direct grants).
 - Party add/remove events (roster-driven joins/leaves; adds fill active slots, then reserve).

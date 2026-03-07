@@ -881,8 +881,15 @@ Dialog action types:
 - `open_shop` (field: `shop`)
 - `set_flag` (field: `flag`)
 - `give_item` (fields: `item`, `qty`)
-- `rest_party` (no fields)
+- `rest_party` (optional field: `cost`)
 - `learn_recipe` (field: `recipe`)
+
+For `rest_party`, `cost` uses a currency stack payload:
+
+- `cost.id`: currency id.
+- `cost.amount`: positive amount charged before resting.
+
+If the party cannot afford the configured `cost`, rest is not applied.
 
 Dialog choice fields:
 
