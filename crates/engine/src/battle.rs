@@ -251,13 +251,18 @@ pub fn next_living_party_index(
 
 pub fn apply_damage_to_actor(actor: &mut Actor, amount: i32) {
     actor.current_hp = (actor.current_hp - amount).max(0);
-    if actor.current_hp == 0 {
-        actor.statuses.clear();
-    }
+    clear_statuses_on_ko(actor.current_hp, &mut actor.statuses);
 }
 
 pub fn apply_damage_to_enemy(enemy: &mut BattleEnemy, amount: i32) {
     enemy.current_hp = (enemy.current_hp - amount).max(0);
+    clear_statuses_on_ko(enemy.current_hp, &mut enemy.statuses);
+}
+
+fn clear_statuses_on_ko(current_hp: i32, statuses: &mut Vec<StatusInstance>) {
+    if current_hp == 0 {
+        statuses.clear();
+    }
 }
 
 pub fn actor_combat_stats(actor: &Actor) -> CombatantStats {
@@ -896,8 +901,100 @@ pub fn apply_overworld_poison_tick(content: &Content, actor: &mut Actor) -> Opti
         return None;
     }
     actor.current_hp = (actor.current_hp - damage).max(0);
-    if actor.current_hp == 0 {
-        actor.statuses.clear();
-    }
+    clear_statuses_on_ko(actor.current_hp, &mut actor.statuses);
     Some(damage)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{apply_damage_to_actor, apply_damage_to_enemy, BattleEnemy};
+    use crate::entities::{EnemyAiConfig, EnemySprite};
+    use crate::party::{Actor, BattleRow, JobProgress, StatusInstance};
+    use std::collections::{HashMap, HashSet};
+
+    fn status(id: &str) -> StatusInstance {
+        StatusInstance {
+            id: id.to_string(),
+            remaining_turns: 1,
+        }
+    }
+
+    fn test_actor(hp: i32) -> Actor {
+        Actor {
+            id: "actor".to_string(),
+            name: "Actor".to_string(),
+            job_id: "job".to_string(),
+            level: 1,
+            exp: 0,
+            row: BattleRow::Front,
+            current_hp: hp,
+            current_mp: 0,
+            base_stats: HashMap::new(),
+            derived_stats: HashMap::new(),
+            equipment: HashMap::new(),
+            spells: Vec::new(),
+            equipped_spells: Vec::new(),
+            equipped_abilities: Vec::new(),
+            magic_tier_charges: HashMap::new(),
+            secondary_job_id: None,
+            job_progress: HashMap::<String, JobProgress>::new(),
+            weapon_proficiencies: HashMap::new(),
+            magic_proficiencies: HashMap::new(),
+            unlocked_abilities: HashSet::new(),
+            statuses: vec![status("poison")],
+        }
+    }
+
+    fn test_enemy(hp: i32) -> BattleEnemy {
+        BattleEnemy {
+            id: "enemy".to_string(),
+            name: "Enemy".to_string(),
+            stats: HashMap::new(),
+            traits: Vec::new(),
+            sprite: EnemySprite {
+                glyph: "e".to_string(),
+                palette: "red".to_string(),
+            },
+            art: None,
+            loot: Vec::new(),
+            exp: 0,
+            currency: Vec::new(),
+            jp: 0,
+            pos: (0, 0),
+            current_hp: hp,
+            current_mp: 0,
+            scanned: false,
+            statuses: vec![status("poison")],
+            spells: Vec::new(),
+            abilities: Vec::new(),
+            mp_pool: "unlimited".to_string(),
+            ai: EnemyAiConfig::default(),
+            last_palliative_turn: None,
+        }
+    }
+
+    #[test]
+    fn actor_ko_clears_statuses() {
+        let mut actor = test_actor(10);
+        apply_damage_to_actor(&mut actor, 10);
+        assert_eq!(actor.current_hp, 0);
+        assert!(actor.statuses.is_empty());
+    }
+
+    #[test]
+    fn enemy_ko_clears_statuses() {
+        let mut enemy = test_enemy(10);
+        apply_damage_to_enemy(&mut enemy, 10);
+        assert_eq!(enemy.current_hp, 0);
+        assert!(enemy.statuses.is_empty());
+    }
+
+    #[test]
+    fn enemy_non_lethal_damage_keeps_statuses() {
+        let mut enemy = test_enemy(10);
+        apply_damage_to_enemy(&mut enemy, 1);
+        assert_eq!(enemy.current_hp, 9);
+        assert_eq!(enemy.statuses.len(), 1);
+        assert_eq!(enemy.statuses[0].id, "poison");
+    }
 }

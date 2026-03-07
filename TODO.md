@@ -132,7 +132,7 @@
 - [x] Battle pause toggle (freeze progression).
 - [x] Optional front/back row rules (battle + menu toggles).
 - [x] Status persistence rules and overworld poison ticks.
-- [ ] Remove status on KO.
+- [x] Remove status on KO.
 - [x] Status effects and damage formulas (derived stats).
   - [x] Implement critical hit calculations and messaging.
 - [x] Implement command-specific behaviors: 

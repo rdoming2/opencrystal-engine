@@ -437,6 +437,10 @@ Status fields:
 - `clear_on_battle_end`: whether the status is removed after battle ends.
 - `effects`: list of effect IDs applied while the status is active.
 
+Runtime behavior notes:
+
+- Statuses are removed immediately when a combatant is KO'd (`current_hp` reaches 0).
+
 Trait fields:
 
 - `effects`: list of effect IDs applied while the trait is present.
