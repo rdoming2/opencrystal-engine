@@ -384,3 +384,97 @@ fn load_dir<T>(
 
     files
 }
+
+#[cfg(test)]
+mod tests {
+    use super::Content;
+    use crate::entities::StringsFile;
+    use crate::maps::{EncounterZone, MapEvent};
+    use std::path::PathBuf;
+
+    fn load_content() -> Content {
+        let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../content/opencrystal-peak");
+        Content::load(dir).expect("content should load for tests")
+    }
+
+    #[test]
+    #[ignore = "depends on local content bundle"]
+    fn map_on_enter_and_on_step_helpers_filter_by_trigger_and_position() {
+        let mut content = load_content();
+        let map_id = {
+            let map = content.maps.first_mut().expect("content should have maps");
+            map.events.push(MapEvent {
+                id: "test_enter".to_string(),
+                trigger: "on_enter".to_string(),
+                script: "ev_enter".to_string(),
+                zone: None,
+                pos: None,
+            });
+            map.events.push(MapEvent {
+                id: "test_step".to_string(),
+                trigger: "on_step".to_string(),
+                script: "ev_step".to_string(),
+                zone: None,
+                pos: Some([7, 8]),
+            });
+            map.id.clone()
+        };
+
+        let enter = content.get_map_on_enter_events(&map_id);
+        assert!(enter.contains(&"ev_enter".to_string()));
+
+        let step_hit = content.get_map_on_step_events(&map_id, (7, 8));
+        let step_miss = content.get_map_on_step_events(&map_id, (8, 8));
+        assert!(step_hit.contains(&"ev_step".to_string()));
+        assert!(!step_miss.contains(&"ev_step".to_string()));
+        assert!(content.get_map_on_enter_events("missing_map").is_empty());
+    }
+
+    #[test]
+    #[ignore = "depends on local content bundle"]
+    fn zone_step_events_only_trigger_on_zone_entry() {
+        let mut content = load_content();
+        let map_id = {
+            let map = content.maps.first_mut().expect("content should have maps");
+            map.encounters.push(EncounterZone {
+                zone_id: "test_zone".to_string(),
+                rect: [10, 10, 15, 15],
+                table: "none".to_string(),
+            });
+            map.events.push(MapEvent {
+                id: "test_zone_event".to_string(),
+                trigger: "on_step".to_string(),
+                script: "ev_zone".to_string(),
+                zone: Some("test_zone".to_string()),
+                pos: None,
+            });
+            map.id.clone()
+        };
+
+        let entered = content.get_zone_on_step_events(&map_id, (11, 11), (9, 9));
+        let stayed = content.get_zone_on_step_events(&map_id, (11, 11), (12, 12));
+        let outside = content.get_zone_on_step_events(&map_id, (9, 9), (8, 8));
+
+        assert!(entered.contains(&"ev_zone".to_string()));
+        assert!(!stayed.contains(&"ev_zone".to_string()));
+        assert!(!outside.contains(&"ev_zone".to_string()));
+    }
+
+    #[test]
+    #[ignore = "depends on local content bundle"]
+    fn ui_text_returns_values_and_none_for_missing_keys() {
+        let mut content = load_content();
+        content.strings = Some(StringsFile {
+            version: 1,
+            strings: [("menu.test".to_string(), "Hello".to_string())]
+                .into_iter()
+                .collect(),
+        });
+
+        assert_eq!(content.ui_text("menu.test"), Some("Hello"));
+        assert_eq!(content.ui_text("menu.missing"), None);
+
+        content.strings = None;
+        assert_eq!(content.ui_text("menu.test"), None);
+    }
+}

@@ -431,3 +431,116 @@ impl SaveInventory {
         inventory
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{SaveActor, SaveFile, SaveInventory, SaveJobProgress};
+    use crate::content::Content;
+    use crate::party::{BattleRow, JobProgress};
+    use crate::runtime::GameRuntime;
+    use std::collections::HashMap;
+    use std::path::PathBuf;
+
+    #[test]
+    fn save_job_progress_sorts_learned_collections() {
+        let progress = JobProgress {
+            level: 2,
+            exp: 50,
+            jp_earned: 20,
+            jp_spent: 4,
+            learned_spells: ["zeta".to_string(), "alpha".to_string()]
+                .into_iter()
+                .collect(),
+            learned_abilities: ["guard".to_string(), "bash".to_string()]
+                .into_iter()
+                .collect(),
+        };
+
+        let saved = SaveJobProgress::from_progress(&progress);
+        assert_eq!(
+            saved.learned_spells,
+            vec!["alpha".to_string(), "zeta".to_string()]
+        );
+        assert_eq!(
+            saved.learned_abilities,
+            vec!["bash".to_string(), "guard".to_string()]
+        );
+    }
+
+    #[test]
+    fn save_actor_to_actor_migrates_legacy_learned_data() {
+        let actor = SaveActor {
+            id: "a1".to_string(),
+            name: "Hero".to_string(),
+            job_id: "knight".to_string(),
+            level: 1,
+            exp: 0,
+            row: BattleRow::Front,
+            current_hp: 10,
+            current_mp: 5,
+            base_stats: HashMap::new(),
+            derived_stats: HashMap::new(),
+            equipment: HashMap::new(),
+            spells: vec!["fire".to_string()],
+            equipped_spells: Vec::new(),
+            magic_tier_charges: HashMap::new(),
+            secondary_job_id: None,
+            job_progress: HashMap::new(),
+            weapon_proficiencies: HashMap::new(),
+            magic_proficiencies: HashMap::new(),
+            unlocked_abilities: vec!["focus".to_string()],
+        };
+
+        let migrated = actor.to_actor();
+        let progress = migrated
+            .job_progress
+            .get("knight")
+            .expect("job progress should be created");
+        assert!(progress.learned_spells.contains("fire"));
+        assert!(progress.learned_abilities.contains("focus"));
+    }
+
+    #[test]
+    fn save_inventory_to_inventory_normalizes_orders() {
+        let inventory = SaveInventory {
+            items: [
+                ("potion".to_string(), 1),
+                ("ether".to_string(), 2),
+                ("zero".to_string(), 0),
+            ]
+            .into_iter()
+            .collect(),
+            equipment: [("sword".to_string(), 1)].into_iter().collect(),
+            currency: HashMap::new(),
+            items_order: vec!["zero".to_string(), "unknown".to_string()],
+            equipment_order: Vec::new(),
+        };
+
+        let normalized = inventory.to_inventory();
+        assert_eq!(
+            normalized.items_order,
+            vec!["ether".to_string(), "potion".to_string()]
+        );
+        assert_eq!(normalized.equipment_order, vec!["sword".to_string()]);
+    }
+
+    #[test]
+    #[ignore = "depends on local content bundle"]
+    fn apply_to_runtime_excludes_time_played_from_stats_map() {
+        let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../content/opencrystal-peak");
+        let content = Content::load(dir).expect("content should load for tests");
+        let mut runtime = GameRuntime::new(content);
+        runtime.stats.insert("wins".to_string(), 3);
+
+        let mut save = SaveFile::from_runtime(&runtime, 1);
+        save.stats.insert("time_played".to_string(), 9999);
+        save.stats.insert("wins".to_string(), 42);
+        save.metadata.play_time_seconds = 555;
+
+        save.apply_to_runtime(&mut runtime);
+
+        assert_eq!(runtime.stats.get("wins"), Some(&42));
+        assert!(!runtime.stats.contains_key("time_played"));
+        assert_eq!(runtime.playtime, 555);
+    }
+}

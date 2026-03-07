@@ -1638,3 +1638,223 @@ fn clamp_current_stats(actor: &mut Actor) {
     actor.current_hp = actor.current_hp.clamp(0, max_hp);
     actor.current_mp = actor.current_mp.clamp(0, max_mp);
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        activity_proficiency, activity_rank_label, actor_row_label, actor_weapon_category,
+        apply_activity_gain, exp_for_level, job_jp, row_attack_multiplier, row_defense_multiplier,
+        spend_job_jp, toggle_actor_row, ActivityKind, Actor, BattleRow, JobProgress,
+    };
+    use crate::content::Content;
+    use crate::entities::EquipmentDefinition;
+    use crate::rules::{ActivityProgressionRules, ActivityRank, ExpCurveRules};
+    use std::collections::{HashMap, HashSet};
+    use std::path::PathBuf;
+
+    fn test_actor() -> Actor {
+        Actor {
+            id: "actor".to_string(),
+            name: "Actor".to_string(),
+            job_id: "job".to_string(),
+            level: 1,
+            exp: 0,
+            row: BattleRow::Front,
+            current_hp: 10,
+            current_mp: 5,
+            base_stats: HashMap::new(),
+            derived_stats: HashMap::new(),
+            equipment: HashMap::new(),
+            spells: Vec::new(),
+            equipped_spells: Vec::new(),
+            equipped_abilities: Vec::new(),
+            magic_tier_charges: HashMap::new(),
+            secondary_job_id: None,
+            job_progress: HashMap::new(),
+            weapon_proficiencies: HashMap::new(),
+            magic_proficiencies: HashMap::new(),
+            unlocked_abilities: HashSet::new(),
+            statuses: Vec::new(),
+        }
+    }
+
+    fn load_content() -> Content {
+        let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../content/opencrystal-peak");
+        Content::load(dir).expect("content should load for tests")
+    }
+
+    #[test]
+    fn activity_proficiency_is_clamped_and_defaults_to_zero() {
+        let mut actor = test_actor();
+        actor.weapon_proficiencies.insert("sword".to_string(), 2.0);
+        actor.magic_proficiencies.insert("fire".to_string(), -1.0);
+
+        assert_eq!(
+            activity_proficiency(&actor, ActivityKind::Weapon, "sword"),
+            1.0
+        );
+        assert_eq!(
+            activity_proficiency(&actor, ActivityKind::Magic, "fire"),
+            0.0
+        );
+        assert_eq!(
+            activity_proficiency(&actor, ActivityKind::Weapon, "axe"),
+            0.0
+        );
+    }
+
+    #[test]
+    fn apply_activity_gain_obeys_guardrails_and_caps_at_one() {
+        let mut actor = test_actor();
+        assert_eq!(
+            apply_activity_gain(&mut actor, ActivityKind::Weapon, "", 0.5),
+            0.0
+        );
+        assert_eq!(
+            apply_activity_gain(&mut actor, ActivityKind::Weapon, "sword", -0.5),
+            0.0
+        );
+
+        let first = apply_activity_gain(&mut actor, ActivityKind::Weapon, "sword", 0.5);
+        assert_eq!(first, 0.5);
+        let second = apply_activity_gain(&mut actor, ActivityKind::Weapon, "sword", 1.0);
+        assert_eq!(second, 1.0);
+    }
+
+    #[test]
+    fn activity_rank_label_picks_highest_threshold() {
+        let mut rules = ActivityProgressionRules::default();
+        rules.ranks = vec![
+            ActivityRank {
+                min: 0.0,
+                label: "E".to_string(),
+            },
+            ActivityRank {
+                min: 0.5,
+                label: "C".to_string(),
+            },
+            ActivityRank {
+                min: 0.9,
+                label: "S".to_string(),
+            },
+        ];
+
+        assert_eq!(activity_rank_label(&rules, 0.1), Some("E"));
+        assert_eq!(activity_rank_label(&rules, 0.5), Some("C"));
+        assert_eq!(activity_rank_label(&rules, 1.2), Some("S"));
+    }
+
+    #[test]
+    fn exp_for_level_supports_table_formula_and_invalid_modes() {
+        let table_curve = ExpCurveRules {
+            mode: "table".to_string(),
+            table: vec![10, 20],
+            formula: None,
+            max_level: 99,
+        };
+        assert_eq!(exp_for_level(&table_curve, 0), Some(0));
+        assert_eq!(exp_for_level(&table_curve, 2), Some(20));
+        assert_eq!(exp_for_level(&table_curve, 3), None);
+
+        let formula_curve = ExpCurveRules {
+            mode: "formula".to_string(),
+            table: Vec::new(),
+            formula: Some("lvl * 10".to_string()),
+            max_level: 99,
+        };
+        assert_eq!(exp_for_level(&formula_curve, 3), Some(30));
+
+        let invalid = ExpCurveRules {
+            mode: "unknown".to_string(),
+            table: Vec::new(),
+            formula: None,
+            max_level: 99,
+        };
+        assert_eq!(exp_for_level(&invalid, 1), None);
+    }
+
+    #[test]
+    fn jp_helpers_track_spending_and_insufficient_funds() {
+        let mut actor = test_actor();
+        actor.job_progress.insert(
+            "job".to_string(),
+            JobProgress {
+                level: 1,
+                exp: 0,
+                jp_earned: 10,
+                jp_spent: 3,
+                learned_spells: HashSet::new(),
+                learned_abilities: HashSet::new(),
+            },
+        );
+
+        assert_eq!(job_jp(&actor, "job"), 7);
+        assert!(spend_job_jp(&mut actor, "job", 5));
+        assert_eq!(job_jp(&actor, "job"), 2);
+        assert!(!spend_job_jp(&mut actor, "job", 3));
+        assert!(spend_job_jp(&mut actor, "job", 0));
+        assert!(!spend_job_jp(&mut actor, "other", 1));
+    }
+
+    #[test]
+    #[ignore = "depends on local content bundle"]
+    fn row_helpers_and_weapon_category_follow_rules() {
+        let mut content = load_content();
+        content.rules.battle.rows.enabled = true;
+        content.rules.battle.rows.back_row_attack_multiplier = 0.6;
+        content.rules.battle.rows.back_row_defense_multiplier = 0.8;
+        content.rules.battle.rows.ranged_weapon_categories = vec!["bow".to_string()];
+
+        content.equipment.equipment.push(EquipmentDefinition {
+            id: "test_bow".to_string(),
+            name: "Test Bow".to_string(),
+            category: "bow".to_string(),
+            slot: "weapon".to_string(),
+            allowed_jobs: None,
+            stats: HashMap::new(),
+            spells: Vec::new(),
+            abilities: Vec::new(),
+            traits: Vec::new(),
+            price: None,
+            sellable: None,
+        });
+        content.equipment.equipment.push(EquipmentDefinition {
+            id: "test_sword".to_string(),
+            name: "Test Sword".to_string(),
+            category: "sword".to_string(),
+            slot: "weapon".to_string(),
+            allowed_jobs: None,
+            stats: HashMap::new(),
+            spells: Vec::new(),
+            abilities: Vec::new(),
+            traits: Vec::new(),
+            price: None,
+            sellable: None,
+        });
+
+        let mut actor = test_actor();
+        assert_eq!(actor_row_label(&actor), "Front");
+        toggle_actor_row(&mut actor);
+        assert_eq!(actor_row_label(&actor), "Back");
+        assert_eq!(row_attack_multiplier(&content, &actor), 0.6);
+        assert_eq!(row_defense_multiplier(&content, &actor), 0.8);
+
+        actor
+            .equipment
+            .insert("weapon".to_string(), "test_bow".to_string());
+        assert_eq!(row_attack_multiplier(&content, &actor), 1.0);
+        assert_eq!(
+            actor_weapon_category(&content, &actor, "unarmed"),
+            Some("bow".to_string())
+        );
+
+        actor
+            .equipment
+            .insert("weapon".to_string(), "missing".to_string());
+        assert_eq!(
+            actor_weapon_category(&content, &actor, "unarmed"),
+            Some("unarmed".to_string())
+        );
+        assert_eq!(actor_weapon_category(&content, &actor, ""), None);
+    }
+}

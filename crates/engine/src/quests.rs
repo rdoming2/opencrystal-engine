@@ -210,3 +210,127 @@ impl QuestsFile {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{Quest, QuestState, QuestStatus, QuestStep, QuestsFile};
+    use std::collections::HashSet;
+
+    fn step(id: &str, flag: &str, show_flag: Option<&str>, substeps: Vec<QuestStep>) -> QuestStep {
+        QuestStep {
+            id: id.to_string(),
+            text: format!("step-{id}"),
+            flag: flag.to_string(),
+            show_flag: show_flag.map(|value| value.to_string()),
+            substeps,
+        }
+    }
+
+    fn test_file(steps: Vec<QuestStep>) -> QuestsFile {
+        QuestsFile {
+            version: 1,
+            categories: Vec::new(),
+            quests: vec![Quest {
+                id: "q1".to_string(),
+                title: "Quest".to_string(),
+                category_id: "main".to_string(),
+                steps,
+            }],
+        }
+    }
+
+    fn only_quest(states: Vec<QuestState>) -> QuestState {
+        states.into_iter().next().expect("one quest expected")
+    }
+
+    #[test]
+    fn quest_hidden_until_first_step_flag_is_set() {
+        let file = test_file(vec![step("s1", "f1", None, Vec::new())]);
+
+        let empty = HashSet::new();
+        assert!(file.resolve_quests(&empty).is_empty());
+
+        let mut flags = HashSet::new();
+        flags.insert("f1".to_string());
+        let state = only_quest(file.resolve_quests(&flags));
+        assert_eq!(state.status, QuestStatus::Complete);
+    }
+
+    #[test]
+    fn step_sequence_and_show_flag_control_visibility() {
+        let file = test_file(vec![
+            step("s1", "f1", None, Vec::new()),
+            step("s2", "f2", None, Vec::new()),
+            step("s3", "f3", Some("show_s3"), Vec::new()),
+        ]);
+
+        let mut flags = HashSet::new();
+        flags.insert("f1".to_string());
+
+        let state = only_quest(file.resolve_quests(&flags));
+        assert!(state.steps[0].visible);
+        assert!(state.steps[1].visible);
+        assert!(!state.steps[2].visible);
+
+        flags.insert("f2".to_string());
+        let state = only_quest(file.resolve_quests(&flags));
+        assert!(state.steps[1].visible);
+        assert!(!state.steps[2].visible);
+
+        flags.insert("show_s3".to_string());
+        let state = only_quest(file.resolve_quests(&flags));
+        assert!(state.steps[2].visible);
+    }
+
+    #[test]
+    fn visible_substep_makes_parent_visible() {
+        let nested = step("sub", "sub_flag", None, Vec::new());
+        let file = test_file(vec![
+            step("s1", "f1", None, Vec::new()),
+            step("parent", "parent_done", Some("show_parent"), vec![nested]),
+        ]);
+
+        let mut flags = HashSet::new();
+        flags.insert("f1".to_string());
+        flags.insert("sub_flag".to_string());
+
+        let state = only_quest(file.resolve_quests(&flags));
+        assert!(state.steps[1].visible);
+        assert!(state.steps[1].substeps[0].visible);
+    }
+
+    #[test]
+    fn status_in_progress_until_all_steps_complete() {
+        let file = test_file(vec![
+            step("s1", "f1", None, Vec::new()),
+            step("s2", "f2", None, Vec::new()),
+        ]);
+
+        let mut flags = HashSet::new();
+        flags.insert("f1".to_string());
+        let state = only_quest(file.resolve_quests(&flags));
+        assert_eq!(state.status, QuestStatus::InProgress);
+
+        flags.insert("f2".to_string());
+        let state = only_quest(file.resolve_quests(&flags));
+        assert_eq!(state.status, QuestStatus::Complete);
+    }
+
+    #[test]
+    fn history_collects_completed_nested_steps() {
+        let file = test_file(vec![step(
+            "s1",
+            "f1",
+            None,
+            vec![step("sub", "fsub", None, Vec::new())],
+        )]);
+        let mut flags = HashSet::new();
+        flags.insert("f1".to_string());
+        flags.insert("fsub".to_string());
+
+        let history = file.get_history(&flags);
+        assert_eq!(history.len(), 2);
+        assert_eq!(history[0].step_id, "s1");
+        assert_eq!(history[1].step_id, "sub");
+    }
+}

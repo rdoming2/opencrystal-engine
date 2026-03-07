@@ -123,3 +123,87 @@ pub struct InventoryStack {
     pub id: String,
     pub qty: i32,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::InventoryState;
+
+    #[test]
+    fn add_item_respects_quantity_and_stack_limit() {
+        let mut inventory = InventoryState::default();
+
+        inventory.add_item("potion", 0, 99);
+        assert_eq!(inventory.item_qty("potion"), 0);
+
+        inventory.add_item("potion", 5, 8);
+        inventory.add_item("potion", 10, 8);
+        assert_eq!(inventory.item_qty("potion"), 8);
+        assert_eq!(inventory.items_order, vec!["potion".to_string()]);
+    }
+
+    #[test]
+    fn remove_item_and_equipment_updates_order() {
+        let mut inventory = InventoryState::default();
+        inventory.add_item("potion", 3, 99);
+        inventory.add_equipment("sword", 1, 99);
+
+        assert!(!inventory.remove_item("potion", 4));
+        assert!(inventory.remove_item("potion", 2));
+        assert_eq!(inventory.item_qty("potion"), 1);
+        assert!(inventory.remove_item("potion", 1));
+        assert_eq!(inventory.item_qty("potion"), 0);
+        assert!(inventory.items_order.is_empty());
+
+        assert!(inventory.remove_equipment("sword", 0));
+        assert!(inventory.remove_equipment("sword", 1));
+        assert_eq!(inventory.equipment_qty("sword"), 0);
+        assert!(inventory.equipment_order.is_empty());
+    }
+
+    #[test]
+    fn add_currency_saturates_at_bounds() {
+        let mut inventory = InventoryState::default();
+        inventory.add_currency("gold", i32::MAX);
+        inventory.add_currency("gold", 1);
+        assert_eq!(inventory.currency_amount("gold"), i32::MAX);
+
+        inventory.add_currency("gold", -i32::MAX);
+        inventory.add_currency("gold", -10);
+        assert_eq!(inventory.currency_amount("gold"), -10);
+
+        inventory.add_currency("gold", -i32::MAX);
+        assert_eq!(inventory.currency_amount("gold"), i32::MIN);
+    }
+
+    #[test]
+    fn normalize_orders_removes_stale_and_appends_missing_sorted() {
+        let mut inventory = InventoryState::default();
+        inventory.items.insert("ether".to_string(), 2);
+        inventory.items.insert("potion".to_string(), 1);
+        inventory.items.insert("zero".to_string(), 0);
+        inventory.items_order = vec!["zero".to_string(), "unknown".to_string()];
+
+        inventory.equipment.insert("axe".to_string(), 1);
+        inventory.equipment.insert("bow".to_string(), 1);
+        inventory.equipment_order = vec!["bow".to_string()];
+
+        inventory.normalize_orders();
+
+        assert_eq!(
+            inventory.items_order,
+            vec!["ether".to_string(), "potion".to_string()]
+        );
+        assert_eq!(
+            inventory.equipment_order,
+            vec!["bow".to_string(), "axe".to_string()]
+        );
+    }
+
+    #[test]
+    fn is_empty_checks_all_collections() {
+        let mut inventory = InventoryState::default();
+        assert!(inventory.is_empty());
+        inventory.currency.insert("gold".to_string(), 1);
+        assert!(!inventory.is_empty());
+    }
+}

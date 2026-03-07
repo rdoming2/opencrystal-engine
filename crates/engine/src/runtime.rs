@@ -643,3 +643,129 @@ fn initial_vehicle_positions(content: &Content) -> HashMap<String, VehiclePositi
     }
     positions
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{initialize_stats, GameRuntime};
+    use crate::content::Content;
+    use crate::rules::{BattleMode, ChoiceSetting, RangeSetting, ToggleSetting};
+    use std::path::PathBuf;
+
+    fn load_runtime() -> GameRuntime {
+        let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../content/opencrystal-peak");
+        let content = Content::load(dir).expect("content should load for tests");
+        GameRuntime::new(content)
+    }
+
+    #[test]
+    fn initialize_stats_skips_time_played_and_deduplicates() {
+        let stats = initialize_stats(&[
+            "wins".to_string(),
+            "time_played".to_string(),
+            "wins".to_string(),
+        ]);
+        assert_eq!(stats.len(), 1);
+        assert_eq!(stats.get("wins"), Some(&0));
+        assert!(!stats.contains_key("time_played"));
+    }
+
+    #[test]
+    #[ignore = "depends on local content bundle"]
+    fn effective_readiness_speed_clamps_and_rounds_step() {
+        let mut runtime = load_runtime();
+        runtime.content.rules.settings.readiness_speed = Some(RangeSetting {
+            value: 2.0,
+            min: 1.0,
+            max: 3.0,
+            step: 0.5,
+            visible: true,
+            editable: true,
+        });
+
+        runtime.settings.readiness_speed = 3.4;
+        assert_eq!(runtime.effective_readiness_speed(), 3.0);
+
+        runtime.settings.readiness_speed = 2.24;
+        assert_eq!(runtime.effective_readiness_speed(), 2.0);
+    }
+
+    #[test]
+    #[ignore = "depends on local content bundle"]
+    fn effective_difficulty_scale_respects_locked_setting() {
+        let mut runtime = load_runtime();
+        runtime.content.rules.settings.difficulty_scale = Some(RangeSetting {
+            value: 1.7,
+            min: 0.5,
+            max: 2.0,
+            step: 0.1,
+            visible: true,
+            editable: false,
+        });
+        runtime.settings.difficulty_scale = 0.5;
+
+        assert_eq!(runtime.effective_difficulty_scale(), 1.7);
+    }
+
+    #[test]
+    #[ignore = "depends on local content bundle"]
+    fn effective_battle_mode_falls_back_when_selected_option_invalid() {
+        let mut runtime = load_runtime();
+        runtime.content.rules.settings.battle_mode = Some(ChoiceSetting {
+            value: BattleMode::Turn,
+            options: vec![BattleMode::Turn, BattleMode::Dynamic],
+            visible: true,
+            editable: true,
+        });
+        runtime.settings.battle_mode = BattleMode::DynamicWait;
+        assert_eq!(runtime.effective_battle_mode(), BattleMode::Turn);
+
+        runtime.settings.battle_mode = BattleMode::Dynamic;
+        assert_eq!(runtime.effective_battle_mode(), BattleMode::Dynamic);
+    }
+
+    #[test]
+    #[ignore = "depends on local content bundle"]
+    fn effective_death_markers_visible_obeys_render_and_setting() {
+        let mut runtime = load_runtime();
+        runtime.content.rules.settings.death_markers_visible = Some(ToggleSetting {
+            value: false,
+            visible: true,
+            editable: false,
+        });
+        runtime.settings.death_markers_visible = true;
+
+        runtime.content.rules.render.death_markers.show_on_map = true;
+        assert!(!runtime.effective_death_markers_visible());
+
+        runtime.content.rules.render.death_markers.show_on_map = false;
+        assert!(!runtime.effective_death_markers_visible());
+    }
+
+    #[test]
+    #[ignore = "depends on local content bundle"]
+    fn record_and_warp_last_overworld_state() {
+        let mut runtime = load_runtime();
+        let overworld_map = runtime
+            .overworld_map_id(&runtime.world.world_id)
+            .expect("world should have overworld map")
+            .to_string();
+        let non_overworld_map = runtime
+            .content
+            .maps
+            .iter()
+            .find(|map| map.id != overworld_map)
+            .expect("need non-overworld map")
+            .id
+            .clone();
+
+        runtime.world.map_id = overworld_map.clone();
+        runtime.world.position = (3, 4);
+        runtime.record_last_overworld_on_exit(&non_overworld_map);
+
+        runtime.world.map_id = non_overworld_map;
+        runtime.world.position = (99, 99);
+        assert!(runtime.warp_to_last_overworld());
+        assert_eq!(runtime.world.map_id, overworld_map);
+        assert_eq!(runtime.world.position, (3, 4));
+    }
+}

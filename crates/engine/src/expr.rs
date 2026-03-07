@@ -221,3 +221,62 @@ impl<'a> Parser<'a> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::eval_expression;
+    use std::collections::HashMap;
+
+    #[test]
+    fn evaluates_precedence_and_parentheses() {
+        let vars = HashMap::new();
+        assert_eq!(eval_expression("1 + 2 * 3", &vars), Ok(7.0));
+        assert_eq!(eval_expression("(1 + 2) * 3", &vars), Ok(9.0));
+    }
+
+    #[test]
+    fn evaluates_unary_and_variables() {
+        let mut vars = HashMap::new();
+        vars.insert("x".to_string(), 4.0);
+        assert_eq!(eval_expression("-(-2)", &vars), Ok(2.0));
+        assert_eq!(eval_expression("x * -2", &vars), Ok(-8.0));
+    }
+
+    #[test]
+    fn evaluates_builtin_functions() {
+        let vars = HashMap::new();
+        assert_eq!(eval_expression("ROUND(1.6)", &vars), Ok(2.0));
+        assert_eq!(eval_expression("FLOOR(1.9)", &vars), Ok(1.0));
+        assert_eq!(eval_expression("CEIL(1.1)", &vars), Ok(2.0));
+    }
+
+    #[test]
+    fn rand_returns_value_within_bounds() {
+        let vars = HashMap::new();
+        for _ in 0..64 {
+            let value = eval_expression("RAND(3, 5)", &vars).expect("RAND should parse");
+            assert!(value >= 3.0);
+            assert!(value <= 5.0);
+        }
+    }
+
+    #[test]
+    fn reports_parse_and_eval_errors() {
+        let vars = HashMap::new();
+        assert!(eval_expression("unknown + 1", &vars)
+            .expect_err("unknown variable should fail")
+            .contains("unknown variable"));
+        assert_eq!(
+            eval_expression("1 / 0", &vars).expect_err("divide by zero should fail"),
+            "division by zero"
+        );
+        assert_eq!(
+            eval_expression("(1 + 2", &vars).expect_err("missing parenthesis should fail"),
+            "expected ')'"
+        );
+        assert_eq!(
+            eval_expression("ROUND(1, 2)", &vars).expect_err("arity mismatch should fail"),
+            "ROUND expects 1 argument"
+        );
+    }
+}
