@@ -63,7 +63,7 @@
   - [x] crates/engine/src/validate.rs (2437 lines)
   - [x] crates/cli/src/overworld.rs (2038 lines)
   - [x] crates/cli/src/build.rs (1952 lines)
-  - [ ] crates/tui/src/map_editor/objects.rs (1837 lines)
+  - [x] crates/tui/src/map_editor/objects.rs (1837 lines)
   - [ ] crates/engine/src/party.rs (1626 lines)
   - [ ] crates/cli/src/battle/logic.rs (1157)
   - [ ] crates/cli/src/menu/inventory.rs (1115)
