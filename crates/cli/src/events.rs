@@ -56,14 +56,22 @@ pub fn run_event_loop(
                     result,
                     map_view.as_ref(),
                 )?;
-                if let EventLoopOutcome::Defeat(context) = outcome {
-                    return Ok(EventLoopOutcome::Defeat(context));
+                if let Some(outcome) = terminal_event_loop_outcome(outcome) {
+                    return Ok(outcome);
                 }
             }
             None => {}
         }
     }
     Ok(EventLoopOutcome::Continue)
+}
+
+fn terminal_event_loop_outcome(outcome: EventLoopOutcome) -> Option<EventLoopOutcome> {
+    match outcome {
+        EventLoopOutcome::Continue => None,
+        EventLoopOutcome::Defeat(context) => Some(EventLoopOutcome::Defeat(context)),
+        EventLoopOutcome::EndGame(mode) => Some(EventLoopOutcome::EndGame(mode)),
+    }
 }
 
 pub fn run_event_loop_console(runtime: &mut GameRuntime, dialog_ui: &DialogUiFile) {
@@ -253,5 +261,28 @@ fn handle_event_step_console(
         _ => {
             println!("Event step: {}", step.r#type);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{terminal_event_loop_outcome, EventLoopOutcome};
+
+    #[test]
+    fn terminal_event_loop_outcome_returns_endgame() {
+        let outcome = terminal_event_loop_outcome(EventLoopOutcome::EndGame(
+            engine::events::EndGameMode::ReturnTitle,
+        ));
+        assert!(matches!(
+            outcome,
+            Some(EventLoopOutcome::EndGame(
+                engine::events::EndGameMode::ReturnTitle
+            ))
+        ));
+    }
+
+    #[test]
+    fn terminal_event_loop_outcome_ignores_continue() {
+        assert!(terminal_event_loop_outcome(EventLoopOutcome::Continue).is_none());
     }
 }
