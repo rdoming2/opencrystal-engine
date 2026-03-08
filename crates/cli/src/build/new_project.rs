@@ -337,10 +337,6 @@ fn create_project_structure(target_dir: &Path, title: &str) -> Result<(), String
                 label: "Load".to_string(),
             },
             MenuItem {
-                id: "settings".to_string(),
-                label: "Settings".to_string(),
-            },
-            MenuItem {
                 id: "exit".to_string(),
                 label: "Exit".to_string(),
             },

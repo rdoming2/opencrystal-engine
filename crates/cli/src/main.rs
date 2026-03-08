@@ -493,7 +493,6 @@ fn run_play(args: PlayArgs) {
                     }
                 }
             }
-            TitleAction::Settings => println!("Settings not implemented."),
             TitleAction::Exit => running = false,
         }
     }

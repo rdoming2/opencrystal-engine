@@ -1736,6 +1736,11 @@ configuration intended to support ASCII logos, attribution, and menu items.
 The optional `gameover` block configures the gameover screen menu.
 The optional `endgame` block configures completion/credits and post-credits options.
 
+Runtime notes:
+
+- `new_game_plus` is hidden until at least one completed save exists.
+- `settings` is not used on the title screen.
+
 Logo fields:
 
 - `lines`: array of ASCII logo rows.
@@ -1800,7 +1805,6 @@ Localization notes:
     {"id": "new_game", "label": "New Game"},
     {"id": "new_game_plus", "label": "New Game+"},
     {"id": "load_game", "label": "Load"},
-    {"id": "settings", "label": "Settings"},
     {"id": "exit", "label": "Exit"}
   ],
   "gameover": {
@@ -2082,7 +2086,7 @@ Completion fields:
 
 - `metadata.completed` marks saves that reached an end-game condition.
 - UIs may render completed saves with a star marker; this marker is visual only.
-- New Game+ entry selection should be restricted to completed saves.
+- New Game+ is hidden until a completed save exists, and entry selection should be restricted to completed saves.
 
 Inventory ordering:
 

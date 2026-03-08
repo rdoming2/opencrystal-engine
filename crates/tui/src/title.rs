@@ -17,7 +17,6 @@ pub enum TitleAction {
     NewGame,
     NewGamePlus,
     Load,
-    Settings,
     Exit,
 }
 
@@ -55,11 +54,11 @@ pub fn run_title(
     default_selected: usize,
 ) -> io::Result<TitleAction> {
     let mut selected = default_selected.min(title_ui.menu.len().saturating_sub(1));
-    if let Some(index) = first_enabled_menu_item(title_ui, load_enabled, ng_plus_enabled) {
+    if let Some(index) = first_actionable_menu_item(title_ui, load_enabled, ng_plus_enabled) {
         if title_ui
             .menu
             .get(selected)
-            .map(|item| !menu_item_enabled(item, load_enabled, ng_plus_enabled))
+            .map(|item| !title_item_actionable(item, load_enabled, ng_plus_enabled))
             .unwrap_or(true)
         {
             selected = index;
@@ -99,7 +98,7 @@ pub fn run_title(
                     }
                     Action::Confirm => {
                         if let Some(item) = title_ui.menu.get(selected) {
-                            if menu_item_enabled(item, load_enabled, ng_plus_enabled) {
+                            if title_item_actionable(item, load_enabled, ng_plus_enabled) {
                                 return Ok(map_action(&item.id));
                             }
                         }
@@ -373,6 +372,7 @@ pub fn draw_title_frame(
         .menu
         .iter()
         .enumerate()
+        .filter(|(_, item)| title_item_visible(item, ng_plus_enabled))
         .map(|(index, item)| {
             let mut style = Style::default().fg(Color::White);
             if !menu_item_enabled(item, load_enabled, ng_plus_enabled) {
@@ -735,10 +735,24 @@ fn map_action(id: &str) -> TitleAction {
     match id {
         "new_game_plus" => TitleAction::NewGamePlus,
         "load_game" => TitleAction::Load,
-        "settings" => TitleAction::Settings,
         "exit" => TitleAction::Exit,
         _ => TitleAction::NewGame,
     }
+}
+
+fn title_item_visible(item: &MenuItem, ng_plus_enabled: bool) -> bool {
+    if item.id == "new_game_plus" {
+        ng_plus_enabled
+    } else if item.id == "settings" {
+        false
+    } else {
+        true
+    }
+}
+
+fn title_item_actionable(item: &MenuItem, load_enabled: bool, ng_plus_enabled: bool) -> bool {
+    title_item_visible(item, ng_plus_enabled)
+        && menu_item_enabled(item, load_enabled, ng_plus_enabled)
 }
 
 fn map_endgame_action(id: &str) -> EndGameAction {
@@ -793,7 +807,7 @@ fn first_enabled_slot(slots: &[LoadSlotEntry]) -> Option<usize> {
     slots.iter().position(|slot| slot.enabled)
 }
 
-fn first_enabled_menu_item(
+fn first_actionable_menu_item(
     title_ui: &TitleUiFile,
     load_enabled: bool,
     ng_plus_enabled: bool,
@@ -801,7 +815,7 @@ fn first_enabled_menu_item(
     title_ui
         .menu
         .iter()
-        .position(|item| menu_item_enabled(item, load_enabled, ng_plus_enabled))
+        .position(|item| title_item_actionable(item, load_enabled, ng_plus_enabled))
 }
 
 fn first_enabled_endgame_item(menu_items: &[MenuItem], allow_continue: bool) -> Option<usize> {
@@ -845,7 +859,7 @@ fn move_menu_selection(
         if title_ui
             .menu
             .get(index)
-            .map(|item| menu_item_enabled(item, load_enabled, ng_plus_enabled))
+            .map(|item| title_item_actionable(item, load_enabled, ng_plus_enabled))
             .unwrap_or(false)
         {
             return index;
