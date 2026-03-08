@@ -421,23 +421,25 @@ fn draw_endgame_credits_frame(frame: &mut Frame, title_ui: &TitleUiFile) {
     let layout = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
+            Constraint::Fill(1),
             Constraint::Length(1),
             Constraint::Length(1),
             Constraint::Min(6),
+            Constraint::Fill(1),
             Constraint::Length(1),
             Constraint::Length(2),
         ])
         .split(size);
 
     let title_width = line_width(title_text.as_str());
-    let title_area = centered_rect(layout[0], title_width, 1);
+    let title_area = centered_rect(layout[1], title_width, 1);
     let title = Paragraph::new(title_text)
         .alignment(Alignment::Left)
         .block(Block::default().borders(Borders::NONE));
     frame.render_widget(title, title_area);
 
     let subtitle_width = line_width(subtitle_text.as_str());
-    let subtitle_area = centered_rect(layout[1], subtitle_width, 1);
+    let subtitle_area = centered_rect(layout[2], subtitle_width, 1);
     let subtitle = Paragraph::new(subtitle_text)
         .alignment(Alignment::Left)
         .block(Block::default().borders(Borders::NONE))
@@ -458,13 +460,13 @@ fn draw_endgame_credits_frame(frame: &mut Frame, title_ui: &TitleUiFile) {
     let credits_widget = Paragraph::new(credit_lines)
         .alignment(Alignment::Center)
         .block(Block::default().borders(Borders::NONE));
-    frame.render_widget(credits_widget, layout[2]);
+    frame.render_widget(credits_widget, layout[3]);
 
     let prompt = Paragraph::new("Press Confirm to continue.")
         .alignment(Alignment::Center)
         .block(Block::default().borders(Borders::NONE))
         .style(Style::default().fg(Color::Gray));
-    frame.render_widget(prompt, layout[3]);
+    frame.render_widget(prompt, layout[5]);
 
     let footer = Paragraph::new(Line::from(vec![
         Span::raw(footer.left.as_str()),
@@ -473,7 +475,7 @@ fn draw_endgame_credits_frame(frame: &mut Frame, title_ui: &TitleUiFile) {
     ]))
     .alignment(Alignment::Center)
     .block(Block::default().borders(Borders::NONE));
-    frame.render_widget(footer, layout[4]);
+    frame.render_widget(footer, layout[6]);
 }
 
 fn draw_endgame_choice_frame(
