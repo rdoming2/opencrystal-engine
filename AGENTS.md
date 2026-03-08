@@ -1,6 +1,6 @@
 # Agent Notes
 
-- Keep `ARCHITECTURE.md`, `SCHEMAS.md`, and `TODO.md` in sync with feature changes.
+- Keep `ARCHITECTURE.md`, `SCHEMAS.md`, `README.md`, and `TODO.md` in sync with feature changes.
 - Run `cargo check` after code changes unless explicitly told otherwise.
 - Menu subviews should keep the main menu on the left and render details on the right.
 - Prefer extending existing schema fields rather than adding new files.
