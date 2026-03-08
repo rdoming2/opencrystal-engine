@@ -123,6 +123,7 @@
 - [x] When selecting items in menu UI to "use", "drop", "move"
 - [x] Add persistent inventory ordering with autosort actions
 - [x] Prevent dropping items marked as unique in inventory menus
+- [x] Support `items.json` `usage.context: "none"` for non-usable items
 - [x] Add status submenu card view with actor cycling, sprite, and equipment
 - [x] Add wrap-around + scrolling selection behavior for Jobs and map editor choice lists
 - [x] Start job picker selection at the actor's equipped primary/secondary job

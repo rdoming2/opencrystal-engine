@@ -1145,7 +1145,8 @@ Targeting fields:
 ## entities/items.json
 
 Item usage defines where and how items can be used. `context` values: `field`,
-`battle`, or `both`. `target` values: `self`, `ally`, `party`, `enemy`.
+`battle`, `both`, or `none`. Use `none` for items that should never be usable from menus or battle commands.
+`target` values: `self`, `ally`, `party`, `enemy`.
 
 `description` is optional text displayed in item menus.
 `type` is used for inventory/shop filtering; `key_item` shows under the Key Items filter.

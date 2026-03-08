@@ -452,7 +452,7 @@ pub(crate) fn validate_items_equipment_shops(
         .iter()
         .map(|item| item.id.as_str())
         .collect();
-    let valid_contexts: HashSet<&str> = ["field", "battle", "both"].into_iter().collect();
+    let valid_contexts: HashSet<&str> = ["field", "battle", "both", "none"].into_iter().collect();
     let valid_targets: HashSet<&str> = ["self", "ally", "party", "enemy"].into_iter().collect();
     for item in &items.items {
         if !valid_contexts.contains(item.usage.context.as_str()) {
