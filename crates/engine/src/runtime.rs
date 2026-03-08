@@ -3,7 +3,7 @@ use crate::events::{EventExecutionResult, EventStep};
 use crate::inventory::InventoryState;
 use crate::maps::MapState;
 use crate::menu::{MenuFocus, MenuState};
-use crate::party::{reset_magic_tier_charges, PartyState};
+use crate::party::{PartyState, reset_magic_tier_charges};
 use crate::rules::Ruleset;
 use crate::world::WorldState;
 use serde::{Deserialize, Serialize};
@@ -162,6 +162,31 @@ impl GameRuntime {
 
     pub fn transition_to(&mut self, state: GameState) {
         self.state = state;
+    }
+
+    pub fn reset_for_new_game(&mut self) {
+        let start_location = self.content.rules.game.start_location.clone();
+        self.state = GameState::Title;
+        self.event_queue.clear();
+        self.active_event = None;
+        self.event_step = 0;
+        self.flags.clear();
+        self.map_states.clear();
+        self.menu_state = MenuState::default();
+        self.party = PartyState::empty();
+        self.inventory = InventoryState::default();
+        self.shop_states = initial_shop_states(&self.content);
+        self.world.world_id = start_location.world;
+        self.world.map_id = start_location.map;
+        self.world.position = (start_location.x, start_location.y);
+        self.last_overworld = None;
+        self.active_vehicle = None;
+        self.vehicle_positions = initial_vehicle_positions(&self.content);
+        self.vehicle_slow_mode = false;
+        self.stats = initialize_stats(&self.content.rules.stats.track);
+        self.playtime = 0;
+        self.start_time = Instant::now();
+        self.last_manual_save_slot = None;
     }
 
     pub fn open_menu(&mut self) {
@@ -646,7 +671,7 @@ fn initial_vehicle_positions(content: &Content) -> HashMap<String, VehiclePositi
 
 #[cfg(test)]
 mod tests {
-    use super::{initialize_stats, GameRuntime};
+    use super::{GameRuntime, initialize_stats};
     use crate::content::Content;
     use crate::rules::{BattleMode, ChoiceSetting, RangeSetting, ToggleSetting};
     use std::path::PathBuf;

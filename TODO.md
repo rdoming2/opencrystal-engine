@@ -48,7 +48,7 @@
   - [x] Shop sell flow (convert items/equipment to currency).
 - [x] Add idle chance for roaming NPCs.
 - [x] Add map treasure chests (loot + opened flags).
-- [x] New Game+ Option (hidden on title until unlocked by completed save)
+- [x] New Game+ Option (hidden on title until unlocked by completed save, starts fresh run with configurable inventory carryover)
 - [x] Implement save/load system.
   - [x] Define save file schema + versioning.
   - [x] Serialize world/party/inventory/flags.

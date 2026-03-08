@@ -310,6 +310,24 @@ pub struct Ruleset {
 pub struct SaveRules {
     #[serde(default = "default_save_slots_max")]
     pub slots_max: u32,
+    #[serde(default)]
+    pub new_game_plus: NewGamePlusRules,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+pub struct NewGamePlusRules {
+    #[serde(default)]
+    pub carryover: NewGamePlusCarryoverRules,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+pub struct NewGamePlusCarryoverRules {
+    #[serde(default)]
+    pub items: bool,
+    #[serde(default)]
+    pub equipment: bool,
+    #[serde(default)]
+    pub currency: bool,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -515,6 +533,7 @@ impl Default for SaveRules {
     fn default() -> Self {
         Self {
             slots_max: default_save_slots_max(),
+            new_game_plus: NewGamePlusRules::default(),
         }
     }
 }
@@ -943,4 +962,26 @@ fn default_activity_growth_combo_weight() -> f32 {
 
 fn default_activity_growth_survival_bonus() -> f32 {
     1.2
+}
+
+#[cfg(test)]
+mod tests {
+    use super::SaveRules;
+
+    #[test]
+    fn save_rules_default_disables_new_game_plus_carryover() {
+        let rules = SaveRules::default();
+        assert!(!rules.new_game_plus.carryover.items);
+        assert!(!rules.new_game_plus.carryover.equipment);
+        assert!(!rules.new_game_plus.carryover.currency);
+    }
+
+    #[test]
+    fn save_rules_deserialize_legacy_defaults_new_game_plus() {
+        let rules: SaveRules = serde_json::from_str(r#"{"slots_max":10}"#).unwrap();
+        assert_eq!(rules.slots_max, 10);
+        assert!(!rules.new_game_plus.carryover.items);
+        assert!(!rules.new_game_plus.carryover.equipment);
+        assert!(!rules.new_game_plus.carryover.currency);
+    }
 }

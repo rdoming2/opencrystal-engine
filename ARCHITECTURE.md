@@ -189,6 +189,7 @@ Completed save handling:
 - Existing save slots are marked completed when end-game is reached.
 - Completed saves can be rendered with a star marker (visual alias of completion, not a separate state).
 - New Game+ title entry is hidden until completed saves exist and only lists completed saves.
+- New Game+ starts a clean run, then applies configured carryover from the selected completed save (`rules.json` `save.new_game_plus.carryover`).
 - The title screen does not expose a Settings entry.
 
 Event execution is handled by `GameRuntime.apply_event_step`, which:

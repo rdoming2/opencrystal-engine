@@ -72,7 +72,7 @@ data-driven and inspectable. Highlights include:
 | Battle | Turn-based and Readiness modes, pause, command catalogs, targeting modes, rows, traits/status effects, configurable formulas, optional boss-trait scaling, difficulty scaling, enemy spell/ability AI, and encounter-meter smoothing. |
 | Jobs & growth | Character/job/job_points/activity progression, post-battle growth tuning, JP earn/spend modes, optional secondary jobs, spell/ability unlock modes (including equipment-granted), tier charges, and magic equip slots. |
 | Party & inventory | Create/preset/preset_rename party flows, roster + reserve, equipment slots, inventory stacks and persistent ordering, field item use, non-usable item contexts, unique non-droppable items, cooking, multi-currency support, and persistent merchant pools/stock. |
-| UI & UX | Two-pane main menu, focused status cards, journal and gameplay stats panels, settings visibility/locking, save-slot UX (including autosave slot), localized strings, and title/battle/menu layout configs. |
+| UI & UX | Two-pane main menu, focused status cards, journal and gameplay stats panels, settings visibility/locking, save-slot UX (including autosave slot), New Game+ completed-save gating with configurable inventory carryover, localized strings, and title/battle/menu layout configs. |
 | World objects | Signs, chests, doors, puzzles, and campfires as interactive map objects with flags, loot/costs, and event hooks. |
 | Tooling | Validation, content stubs, a TUI map editor (objects/zones/resize warnings), string scaffolding, and docs output for automation workflows. |
 

@@ -16,29 +16,29 @@ use std::path::PathBuf;
 
 use clap::{CommandFactory, Parser, Subcommand, ValueEnum, ValueHint};
 use engine::{
+    Engine,
     content::Content,
     party::PartyState,
     rules::{PartyMode, RulesFile, Ruleset},
     runtime::{GameRuntime, GameState},
     save::SaveFile,
     world::WorldState,
-    Engine,
 };
 use tui::input::{InputBindings, InputFile};
-use tui::menu::{run_content_menu, ContentMenuEntry};
+use tui::menu::{ContentMenuEntry, run_content_menu};
 use tui::renderer::RenderMode;
 use tui::session::TuiSession;
 use tui::title::{
-    run_endgame, run_gameover, run_load_menu, run_title, EndGameAction, GameOverAction,
-    GameOverOptions, LoadSlotEntry, TitleAction,
+    EndGameAction, GameOverAction, GameOverOptions, LoadSlotEntry, TitleAction, run_endgame,
+    run_gameover, run_load_menu, run_title,
 };
 use tui::ui::{BattleUiFile, DialogUiFile, MenuUiFile, ProgressUiFile, TitleUiFile};
 
-use crate::battle::{run_battle, BattleOutcome, BattleSource, LastBattleContext};
+use crate::battle::{BattleOutcome, BattleSource, LastBattleContext, run_battle};
 use crate::dialog::default_dialog_ui;
-use crate::events::{run_event_loop, run_event_loop_console, EventLoopOutcome};
+use crate::events::{EventLoopOutcome, run_event_loop, run_event_loop_console};
 use crate::overworld::{
-    build_map_view, find_spawn, record_death_marker, run_overworld_loop, OverworldOutcome,
+    OverworldOutcome, build_map_view, find_spawn, record_death_marker, run_overworld_loop,
 };
 use crate::party::{default_party_names, run_party_create_flow};
 
@@ -128,6 +128,13 @@ enum SessionExit {
 struct DefeatCarryover {
     map_id: String,
     pos: (i32, i32),
+}
+
+#[derive(Clone, Debug, Default)]
+struct NewGamePlusCarryover {
+    items: std::collections::HashMap<String, i32>,
+    equipment: std::collections::HashMap<String, i32>,
+    currency: std::collections::HashMap<String, i32>,
 }
 
 impl SessionGuard {
@@ -340,6 +347,7 @@ fn run_play(args: PlayArgs) {
         match action {
             TitleAction::NewGame => {
                 pending_carryover = None;
+                runtime.reset_for_new_game();
                 if let Some(session) = session_guard.as_mut() {
                     match rules.party_mode {
                         PartyMode::Create => {
@@ -463,8 +471,43 @@ fn run_play(args: PlayArgs) {
                         &input_bindings,
                         &save_dir,
                     ) {
-                        Ok(true) => {
+                        Ok(Some(carryover)) => {
                             pending_carryover = None;
+                            runtime.reset_for_new_game();
+                            match rules.party_mode {
+                                PartyMode::Create => {
+                                    if let Err(err) = run_party_create_flow(
+                                        session,
+                                        &mut runtime,
+                                        &rules,
+                                        &input_bindings,
+                                    ) {
+                                        if err.kind() == std::io::ErrorKind::Interrupted {
+                                            return;
+                                        }
+                                    }
+                                }
+                                PartyMode::Preset => {
+                                    runtime.party =
+                                        PartyState::from_content(&runtime.content, &rules);
+                                }
+                                PartyMode::PresetRename => {
+                                    runtime.party =
+                                        PartyState::from_content(&runtime.content, &rules);
+                                    if let Err(err) = party::run_preset_rename_flow(
+                                        session,
+                                        &mut runtime,
+                                        &rules,
+                                        &input_bindings,
+                                    ) {
+                                        if err.kind() == std::io::ErrorKind::Interrupted {
+                                            return;
+                                        }
+                                    }
+                                }
+                            }
+                            runtime.start_new_game(&rules);
+                            apply_new_game_plus_carryover(&mut runtime, &rules, &carryover);
                             match run_session_with_gameover(
                                 session,
                                 &mut runtime,
@@ -486,7 +529,7 @@ fn run_play(args: PlayArgs) {
                                 }
                             }
                         }
-                        Ok(false) => {}
+                        Ok(None) => {}
                         Err(err) => {
                             eprintln!("Failed to start New Game+: {}", err);
                         }
@@ -769,19 +812,71 @@ fn run_new_game_plus_flow(
     title_ui: &TitleUiFile,
     bindings: &InputBindings,
     save_dir: &PathBuf,
-) -> Result<bool, String> {
+) -> Result<Option<NewGamePlusCarryover>, String> {
     let slots = build_completed_load_slots(runtime, save_dir);
     let selection =
         run_load_menu(session, title_ui, bindings, &slots).map_err(|err| err.to_string())?;
     let Some(index) = selection else {
-        return Ok(false);
+        return Ok(None);
     };
     let entry = slots
         .get(index)
         .filter(|entry| entry.enabled)
         .ok_or_else(|| "Selected slot is unavailable".to_string())?;
-    load_save_slot(runtime, save_dir, entry.slot)?;
-    Ok(true)
+    let save = SaveFile::load(save_slot_path(save_dir, entry.slot))?;
+    Ok(Some(new_game_plus_carryover_from_save(
+        &save,
+        &runtime.content.rules.save.new_game_plus,
+    )))
+}
+
+fn new_game_plus_carryover_from_save(
+    save: &SaveFile,
+    rules: &engine::rules::NewGamePlusRules,
+) -> NewGamePlusCarryover {
+    new_game_plus_carryover_from_inventory(&save.inventory, rules)
+}
+
+fn new_game_plus_carryover_from_inventory(
+    inventory: &engine::save::SaveInventory,
+    rules: &engine::rules::NewGamePlusRules,
+) -> NewGamePlusCarryover {
+    let mut carryover = NewGamePlusCarryover::default();
+    if rules.carryover.items {
+        carryover.items = inventory.items.clone();
+    }
+    if rules.carryover.equipment {
+        carryover.equipment = inventory.equipment.clone();
+    }
+    if rules.carryover.currency {
+        carryover.currency = inventory.currency.clone();
+    }
+    carryover
+}
+
+fn apply_new_game_plus_carryover(
+    runtime: &mut GameRuntime,
+    rules: &Ruleset,
+    carryover: &NewGamePlusCarryover,
+) {
+    apply_inventory_carryover(&mut runtime.inventory, rules.inventory.max_stack, carryover);
+}
+
+fn apply_inventory_carryover(
+    inventory: &mut engine::inventory::InventoryState,
+    max_stack: i32,
+    carryover: &NewGamePlusCarryover,
+) {
+    for (item_id, qty) in &carryover.items {
+        inventory.add_item(item_id, *qty, max_stack);
+    }
+    for (equipment_id, qty) in &carryover.equipment {
+        inventory.add_equipment(equipment_id, *qty, max_stack);
+    }
+    for (currency_id, amount) in &carryover.currency {
+        inventory.add_currency(currency_id, *amount);
+    }
+    inventory.normalize_orders();
 }
 
 fn defeat_carryover_from_context(context: &LastBattleContext) -> DefeatCarryover {
@@ -1240,7 +1335,9 @@ fn build_completed_load_slots(runtime: &GameRuntime, save_dir: &PathBuf) -> Vec<
         if !save_slot_is_completed(save_dir, slot) {
             continue;
         }
-        if let Some(entry) = build_load_slot_entry(runtime, save_dir, slot, &format!("Slot {}", slot)) {
+        if let Some(entry) =
+            build_load_slot_entry(runtime, save_dir, slot, &format!("Slot {}", slot))
+        {
             slots.push(entry);
         }
     }
@@ -1311,5 +1408,57 @@ fn slugify(value: &str) -> String {
         "opencrystal".to_string()
     } else {
         out
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
+
+    use engine::inventory::InventoryState;
+    use engine::rules::{NewGamePlusCarryoverRules, NewGamePlusRules};
+    use engine::save::SaveInventory;
+
+    use super::{
+        NewGamePlusCarryover, apply_inventory_carryover, new_game_plus_carryover_from_inventory,
+    };
+
+    #[test]
+    fn new_game_plus_carryover_extracts_only_enabled_categories() {
+        let mut rules = NewGamePlusRules::default();
+        rules.carryover = NewGamePlusCarryoverRules {
+            items: true,
+            equipment: false,
+            currency: true,
+        };
+        let inventory = SaveInventory {
+            items: HashMap::from([("potion".to_string(), 3)]),
+            equipment: HashMap::from([("bronze_sword".to_string(), 1)]),
+            currency: HashMap::from([("gold".to_string(), 500)]),
+            items_order: Vec::new(),
+            equipment_order: Vec::new(),
+        };
+
+        let carryover = new_game_plus_carryover_from_inventory(&inventory, &rules);
+        assert_eq!(carryover.items.get("potion"), Some(&3));
+        assert!(carryover.equipment.is_empty());
+        assert_eq!(carryover.currency.get("gold"), Some(&500));
+    }
+
+    #[test]
+    fn apply_inventory_carryover_merges_with_existing_inventory() {
+        let mut inventory = InventoryState::default();
+        inventory.add_item("potion", 2, 99);
+        let carryover = NewGamePlusCarryover {
+            items: HashMap::from([("potion".to_string(), 5)]),
+            equipment: HashMap::from([("bronze_sword".to_string(), 1)]),
+            currency: HashMap::from([("gold".to_string(), 250)]),
+        };
+
+        apply_inventory_carryover(&mut inventory, 99, &carryover);
+
+        assert_eq!(inventory.item_qty("potion"), 7);
+        assert_eq!(inventory.equipment_qty("bronze_sword"), 1);
+        assert_eq!(inventory.currency_amount("gold"), 250);
     }
 }

@@ -109,6 +109,8 @@ for `battle_mode`, `options` lists the allowed choices (leave empty to lock to `
 Tier charges are defined within each job's `magic_slots`; `magic_system` `tier_charges` uses those definitions per actor.
 `save` configures slot count. `slots_max` counts manual slots
 only; autosave uses slot 0 and never reduces the manual slot total.
+`save.new_game_plus.carryover` controls which inventory categories are brought
+forward when starting New Game+ from a completed save.
 
 ```json
 {
@@ -223,7 +225,14 @@ only; autosave uses slot 0 and never reduces the manual slot total.
     "magic_equip": false
   },
   "save": {
-    "slots_max": 10
+    "slots_max": 10,
+    "new_game_plus": {
+      "carryover": {
+        "items": false,
+        "equipment": false,
+        "currency": false
+      }
+    }
   },
   "settings": {
     "autosave_enabled": {"value": true, "visible": true, "editable": true},
@@ -1741,6 +1750,8 @@ The optional `endgame` block configures completion/credits and post-credits opti
 Runtime notes:
 
 - `new_game_plus` is hidden until at least one completed save exists.
+- New Game+ starts from a fresh new game state, then applies optional carryover
+  from the selected completed save according to `rules.json` `save.new_game_plus.carryover`.
 - `settings` is not used on the title screen.
 
 Logo fields:
@@ -2089,6 +2100,7 @@ Completion fields:
 - `metadata.completed` marks saves that reached an end-game condition.
 - UIs may render completed saves with a star marker; this marker is visual only.
 - New Game+ is hidden until a completed save exists, and entry selection should be restricted to completed saves.
+- New Game+ uses the selected completed save only as a carryover source; world/event/flag progress does not persist unless explicitly configured by future carryover fields.
 
 Inventory ordering:
 
@@ -2422,6 +2434,16 @@ to the schemas defined above and consolidate the former `BATTLE_MOCK.md` example
     "settings": true,
     "summons": false,
     "magic_equip": false
+  },
+  "save": {
+    "slots_max": 10,
+    "new_game_plus": {
+      "carryover": {
+        "items": false,
+        "equipment": false,
+        "currency": false
+      }
+    }
   },
   "settings": {
     "death_markers_visible": {"value": true, "visible": true, "editable": true}

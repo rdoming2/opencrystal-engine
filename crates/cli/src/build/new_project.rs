@@ -13,8 +13,8 @@ use engine::quests::QuestsFile;
 use engine::rules::{
     AbilityAcquisition, ActivityGrowthRules, ActivityProgressionRules, BattleMode, Currency,
     ExpCurveRules, GameRules, JobSystemRules, JpMode, MagicAcquisition, MagicSystem,
-    PartyCreateRules, PartyMode, ProgressionMode, RenderRules, RulesFile, SaveRules, SettingsRules,
-    StatsRules,
+    NewGamePlusCarryoverRules, NewGamePlusRules, PartyCreateRules, PartyMode, ProgressionMode,
+    RenderRules, RulesFile, SaveRules, SettingsRules, StatsRules,
 };
 use engine::stats::{StatEntry, StatsDefinition, StatsFile};
 use engine::world::{FastTravelConfig, WorldDefinition, WorldsFile};
@@ -110,7 +110,12 @@ fn create_project_structure(target_dir: &Path, title: &str) -> Result<(), String
         activity_growth: ActivityGrowthRules::default(),
         inventory: engine::rules::InventoryRules::default(),
         systems: default_systems(),
-        save: SaveRules::default(),
+        save: SaveRules {
+            slots_max: 10,
+            new_game_plus: NewGamePlusRules {
+                carryover: NewGamePlusCarryoverRules::default(),
+            },
+        },
         settings: SettingsRules::default(),
         render: RenderRules {
             min_art_width: 110,
