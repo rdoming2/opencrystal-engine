@@ -195,6 +195,7 @@ fn build_new_item(content_dir: &Path, id: &str, name: &str, force: bool) -> Resu
         id: id.to_string(),
         name: name.to_string(),
         r#type: "consumable".to_string(),
+        unique: false,
         description: None,
         usage: ItemUsage {
             context: "field".to_string(),

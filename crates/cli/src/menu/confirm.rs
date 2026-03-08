@@ -13,8 +13,8 @@ use super::equipment::{
     detail_actor_id, equip_item, equipment_entries_for_menu, equipment_slot_for_menu,
 };
 use super::inventory::{
-    apply_item_to_targets, build_inventory_entries, item_action_for_entry, item_targets_for_entry,
-    move_inventory_entry, ItemActionId,
+    apply_item_to_targets, build_inventory_entries, item_action_for_entry_with_runtime,
+    item_targets_for_entry, move_inventory_entry, ItemActionId,
 };
 use super::jobs::{
     apply_learn_purchase, apply_primary_change, apply_secondary_change, equipped_job_selection,
@@ -274,7 +274,8 @@ fn confirm_items(
         }
         1 => {
             let action_selection = runtime.menu_state.detail_selection;
-            let Some((action_id, enabled)) = item_action_for_entry(Some(entry), action_selection)
+            let Some((action_id, enabled)) =
+                item_action_for_entry_with_runtime(runtime, Some(entry), action_selection)
             else {
                 return Ok(());
             };

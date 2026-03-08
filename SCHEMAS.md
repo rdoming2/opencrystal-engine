@@ -1149,6 +1149,7 @@ Item usage defines where and how items can be used. `context` values: `field`,
 
 `description` is optional text displayed in item menus.
 `type` is used for inventory/shop filtering; `key_item` shows under the Key Items filter.
+`unique` is an optional boolean (default `false`); when `true`, the item cannot be manually dropped from inventory.
 `price` is an optional map of currency IDs to sell values used by shops (and for shops that
 restock sold items). Items can list multiple currencies; selling is only allowed in shops whose
 currency matches one of the listed prices (unless a shop entry overrides the sell price).

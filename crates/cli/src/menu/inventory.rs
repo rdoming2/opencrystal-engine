@@ -249,15 +249,34 @@ struct ItemActionEntry {
     enabled: bool,
 }
 
-fn item_action_entries(entry: Option<&InventoryEntry>) -> Vec<ItemActionEntry> {
+fn can_drop_item(total_qty: i32, unique: bool) -> bool {
+    total_qty > 0 && !unique
+}
+
+fn can_drop_inventory_entry(runtime: Option<&GameRuntime>, entry: &InventoryEntry) -> bool {
+    match entry.kind {
+        InventoryKind::Item => {
+            let Some(runtime) = runtime else {
+                return can_drop_item(entry.total_qty, false);
+            };
+            let unique = find_item_definition(runtime, &entry.id)
+                .map(|item| item.unique)
+                .unwrap_or(false);
+            can_drop_item(entry.total_qty, unique)
+        }
+        InventoryKind::Equipment => entry.available_qty > 0,
+    }
+}
+
+fn item_action_entries(
+    runtime: Option<&GameRuntime>,
+    entry: Option<&InventoryEntry>,
+) -> Vec<ItemActionEntry> {
     let Some(entry) = entry else {
         return Vec::new();
     };
     let can_use = entry.kind == InventoryKind::Item && entry.usable;
-    let can_drop = match entry.kind {
-        InventoryKind::Item => entry.total_qty > 0,
-        InventoryKind::Equipment => entry.available_qty > 0,
-    };
+    let can_drop = can_drop_inventory_entry(runtime, entry);
     vec![
         ItemActionEntry {
             id: ItemActionId::Use,
@@ -278,14 +297,15 @@ fn item_action_entries(entry: Option<&InventoryEntry>) -> Vec<ItemActionEntry> {
 }
 
 pub(super) fn item_actions_len(entry: Option<&InventoryEntry>) -> usize {
-    item_action_entries(entry).len()
+    item_action_entries(None, entry).len()
 }
 
-pub(super) fn item_action_for_entry(
+pub(super) fn item_action_for_entry_with_runtime(
+    runtime: &GameRuntime,
     entry: Option<&InventoryEntry>,
     index: usize,
 ) -> Option<(ItemActionId, bool)> {
-    let actions = item_action_entries(entry);
+    let actions = item_action_entries(Some(runtime), entry);
     actions.get(index).map(|action| (action.id, action.enabled))
 }
 
@@ -792,7 +812,7 @@ fn build_item_action_panel(
     runtime: &GameRuntime,
     entry: Option<&InventoryEntry>,
 ) -> Vec<MenuPanelLine> {
-    let actions = item_action_entries(entry);
+    let actions = item_action_entries(Some(runtime), entry);
     if actions.is_empty() {
         return vec![panel_line("No actions available."), panel_line("")];
     }
@@ -1119,4 +1139,43 @@ pub fn build_battle_item_entries(runtime: &GameRuntime) -> Vec<InventoryEntry> {
     }
     entries.sort_by(|left, right| left.label.cmp(&right.label));
     entries
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{can_drop_inventory_entry, can_drop_item};
+    use crate::menu::common::{InventoryEntry, InventoryKind};
+
+    #[test]
+    fn can_drop_item_allows_non_unique_with_quantity() {
+        assert!(can_drop_item(1, false));
+    }
+
+    #[test]
+    fn can_drop_item_disallows_unique_items() {
+        assert!(!can_drop_item(1, true));
+    }
+
+    #[test]
+    fn can_drop_inventory_entry_allows_unequipped_equipment_only() {
+        let mut equipment = inventory_entry(InventoryKind::Equipment, 2, 2);
+        assert!(can_drop_inventory_entry(None, &equipment));
+        equipment.available_qty = 0;
+        assert!(!can_drop_inventory_entry(None, &equipment));
+    }
+
+    fn inventory_entry(kind: InventoryKind, available_qty: i32, total_qty: i32) -> InventoryEntry {
+        InventoryEntry {
+            id: "id".to_string(),
+            label: "label".to_string(),
+            available_qty,
+            total_qty,
+            kind,
+            slot: None,
+            category: None,
+            usable: false,
+            equipped_by: Vec::new(),
+            usage_target: String::new(),
+        }
+    }
 }

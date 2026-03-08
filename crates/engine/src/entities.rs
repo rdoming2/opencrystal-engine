@@ -333,6 +333,8 @@ pub struct ItemDefinition {
     pub name: String,
     pub r#type: String,
     #[serde(default)]
+    pub unique: bool,
+    #[serde(default)]
     pub description: Option<String>,
     pub usage: ItemUsage,
     pub effect: ItemEffect,
