@@ -617,32 +617,12 @@ pub fn run_battle(
             }
         }
 
-        let spell_entries = build_battle_spell_entries(runtime, &actor_id);
         let mut command_entries = command_entries_for_actor(runtime, &actor_id);
-        let ability_groups = ability_groups_for_commands(&command_entries);
-        let ability_ids = ability_ids_for_commands(&command_entries);
-        let ability_entries_raw = build_battle_ability_entries(runtime, &actor_id, None);
-        let mut ability_entries_all = ability_entries_raw.clone();
-        if !ability_groups.is_empty() || !ability_ids.is_empty() {
-            ability_entries_all.retain(|entry| {
-                if ability_ids.contains(entry.id.as_str()) {
-                    return false;
-                }
-                let Some(ability) = runtime
-                    .content
-                    .abilities
-                    .abilities
-                    .iter()
-                    .find(|ability| ability.id == entry.id)
-                else {
-                    return true;
-                };
-                match ability.command_group.as_deref() {
-                    Some(group) => !ability_groups.contains(group),
-                    None => true,
-                }
-            });
-        }
+        let command_inputs = build_actor_command_inputs(runtime, &actor_id, &command_entries);
+        let spell_entries = command_inputs.spell_entries;
+        let ability_entries_raw = command_inputs.ability_entries_raw;
+        let ability_entries_all = command_inputs.ability_entries_all;
+        let item_entries = command_inputs.item_entries;
         let selected_command = menu_state.command_id.as_deref().and_then(|command_id| {
             command_entries
                 .iter()
@@ -660,18 +640,15 @@ pub fn run_battle(
         } else {
             Vec::new()
         };
-        let item_entries = build_battle_item_entries(runtime);
-        command_entries.retain(|command| {
-            command_is_enabled(
-                runtime,
-                &actor_id,
-                command,
-                &spell_entries,
-                &ability_entries_all,
-                &ability_entries_raw,
-                &item_entries,
-            )
-        });
+        command_entries = filter_enabled_command_entries(
+            runtime,
+            &actor_id,
+            command_entries,
+            &spell_entries,
+            &ability_entries_all,
+            &ability_entries_raw,
+            &item_entries,
+        );
         if menu_state.command_index >= command_entries.len() {
             menu_state.command_index = command_entries.len().saturating_sub(1);
         }
@@ -2628,7 +2605,102 @@ fn command_entries_for_active_actor(
     let Some(actor_id) = battle_state.party_order.get(battle_state.active_index) else {
         return Vec::new();
     };
-    command_entries_for_actor(runtime, actor_id)
+    command_entries_for_ui(runtime, actor_id)
+}
+
+struct ActorCommandInputs {
+    spell_entries: Vec<SpellEntry>,
+    ability_entries_raw: Vec<AbilityEntry>,
+    ability_entries_all: Vec<AbilityEntry>,
+    item_entries: Vec<InventoryEntry>,
+}
+
+fn build_actor_command_inputs(
+    runtime: &GameRuntime,
+    actor_id: &str,
+    command_entries: &[CommandEntry],
+) -> ActorCommandInputs {
+    let spell_entries = build_battle_spell_entries(runtime, actor_id);
+    let ability_groups = ability_groups_for_commands(command_entries);
+    let ability_ids = ability_ids_for_commands(command_entries);
+    let ability_entries_raw = build_battle_ability_entries(runtime, actor_id, None);
+    let mut ability_entries_all = ability_entries_raw.clone();
+    if !ability_groups.is_empty() || !ability_ids.is_empty() {
+        ability_entries_all.retain(|entry| {
+            if ability_ids.contains(entry.id.as_str()) {
+                return false;
+            }
+            let Some(ability) = runtime
+                .content
+                .abilities
+                .abilities
+                .iter()
+                .find(|ability| ability.id == entry.id)
+            else {
+                return true;
+            };
+            match ability.command_group.as_deref() {
+                Some(group) => !ability_groups.contains(group),
+                None => true,
+            }
+        });
+    }
+    let item_entries = build_battle_item_entries(runtime);
+    ActorCommandInputs {
+        spell_entries,
+        ability_entries_raw,
+        ability_entries_all,
+        item_entries,
+    }
+}
+
+fn filter_enabled_command_entries(
+    runtime: &GameRuntime,
+    actor_id: &str,
+    command_entries: Vec<CommandEntry>,
+    spell_entries: &[SpellEntry],
+    ability_entries_all: &[AbilityEntry],
+    ability_entries_raw: &[AbilityEntry],
+    item_entries: &[InventoryEntry],
+) -> Vec<CommandEntry> {
+    filter_command_entries_by(command_entries, |command| {
+        command_is_enabled(
+            runtime,
+            actor_id,
+            command,
+            spell_entries,
+            ability_entries_all,
+            ability_entries_raw,
+            item_entries,
+        )
+    })
+}
+
+fn filter_command_entries_by<F>(
+    command_entries: Vec<CommandEntry>,
+    mut is_enabled: F,
+) -> Vec<CommandEntry>
+where
+    F: FnMut(&CommandEntry) -> bool,
+{
+    command_entries
+        .into_iter()
+        .filter(|command| is_enabled(command))
+        .collect()
+}
+
+fn command_entries_for_ui(runtime: &GameRuntime, actor_id: &str) -> Vec<CommandEntry> {
+    let command_entries = command_entries_for_actor(runtime, actor_id);
+    let command_inputs = build_actor_command_inputs(runtime, actor_id, &command_entries);
+    filter_enabled_command_entries(
+        runtime,
+        actor_id,
+        command_entries,
+        &command_inputs.spell_entries,
+        &command_inputs.ability_entries_all,
+        &command_inputs.ability_entries_raw,
+        &command_inputs.item_entries,
+    )
 }
 
 fn ability_group_for_command(runtime: &GameRuntime, command_id: Option<&str>) -> Option<String> {
@@ -2820,4 +2892,40 @@ fn tile_id_for_pos(map: &engine::maps::MapFile, pos: (i32, i32)) -> Option<Strin
     map.legend
         .get(&glyph.to_string())
         .map(|entry| entry.tile.clone())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{filter_command_entries_by, CommandEntry, CommandKind};
+
+    fn command(id: &str, sort_order: i32) -> CommandEntry {
+        CommandEntry {
+            id: id.to_string(),
+            label: id.to_string(),
+            kind: CommandKind::Attack,
+            sort_order,
+            ability_group: None,
+            ability_id: None,
+        }
+    }
+
+    #[test]
+    fn filter_command_entries_by_keeps_only_enabled_commands() {
+        let commands = vec![
+            command("attack", 0),
+            command("magic", 1),
+            command("items", 2),
+        ];
+        let filtered = filter_command_entries_by(commands, |entry| entry.id != "magic");
+        let ids: Vec<_> = filtered.iter().map(|entry| entry.id.as_str()).collect();
+        assert_eq!(ids, vec!["attack", "items"]);
+    }
+
+    #[test]
+    fn filter_command_entries_by_preserves_original_order() {
+        let commands = vec![command("items", 2), command("attack", 0), command("run", 3)];
+        let filtered = filter_command_entries_by(commands, |entry| entry.id != "attack");
+        let ids: Vec<_> = filtered.iter().map(|entry| entry.id.as_str()).collect();
+        assert_eq!(ids, vec!["items", "run"]);
+    }
 }
