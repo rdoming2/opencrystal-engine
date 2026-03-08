@@ -1221,14 +1221,12 @@ pub fn run_battle(
             },
             BattlePhase::Magic => match action {
                 Action::MoveUp => {
-                    if menu_state.magic_index > 0 {
-                        menu_state.magic_index -= 1;
-                    }
+                    menu_state.magic_index =
+                        step_submenu_index(menu_state.magic_index, spell_entries.len(), -1);
                 }
                 Action::MoveDown => {
-                    if menu_state.magic_index + 1 < spell_entries.len() {
-                        menu_state.magic_index += 1;
-                    }
+                    menu_state.magic_index =
+                        step_submenu_index(menu_state.magic_index, spell_entries.len(), 1);
                 }
                 Action::Cancel | Action::Menu => {
                     menu_state.reset_for_actor();
@@ -1292,14 +1290,12 @@ pub fn run_battle(
             },
             BattlePhase::Abilities => match action {
                 Action::MoveUp => {
-                    if menu_state.ability_index > 0 {
-                        menu_state.ability_index -= 1;
-                    }
+                    menu_state.ability_index =
+                        step_submenu_index(menu_state.ability_index, ability_entries.len(), -1);
                 }
                 Action::MoveDown => {
-                    if menu_state.ability_index + 1 < ability_entries.len() {
-                        menu_state.ability_index += 1;
-                    }
+                    menu_state.ability_index =
+                        step_submenu_index(menu_state.ability_index, ability_entries.len(), 1);
                 }
                 Action::Cancel | Action::Menu => {
                     menu_state.reset_for_actor();
@@ -1356,14 +1352,12 @@ pub fn run_battle(
             },
             BattlePhase::Items => match action {
                 Action::MoveUp => {
-                    if menu_state.item_index > 0 {
-                        menu_state.item_index -= 1;
-                    }
+                    menu_state.item_index =
+                        step_submenu_index(menu_state.item_index, item_entries.len(), -1);
                 }
                 Action::MoveDown => {
-                    if menu_state.item_index + 1 < item_entries.len() {
-                        menu_state.item_index += 1;
-                    }
+                    menu_state.item_index =
+                        step_submenu_index(menu_state.item_index, item_entries.len(), 1);
                 }
                 Action::Cancel | Action::Menu => {
                     menu_state.reset_for_actor();
@@ -2053,6 +2047,18 @@ fn step_target_option(
         (current_index + len - 1) % len
     };
     options.get(next_index).copied()
+}
+
+fn step_submenu_index(current: usize, len: usize, direction: i32) -> usize {
+    if len == 0 {
+        return 0;
+    }
+    let current = current.min(len - 1);
+    if direction >= 0 {
+        (current + 1) % len
+    } else {
+        (current + len - 1) % len
+    }
 }
 
 pub fn try_start_random_battle(
@@ -2896,7 +2902,7 @@ fn tile_id_for_pos(map: &engine::maps::MapFile, pos: (i32, i32)) -> Option<Strin
 
 #[cfg(test)]
 mod tests {
-    use super::{filter_command_entries_by, CommandEntry, CommandKind};
+    use super::{filter_command_entries_by, step_submenu_index, CommandEntry, CommandKind};
 
     fn command(id: &str, sort_order: i32) -> CommandEntry {
         CommandEntry {
@@ -2927,5 +2933,21 @@ mod tests {
         let filtered = filter_command_entries_by(commands, |entry| entry.id != "attack");
         let ids: Vec<_> = filtered.iter().map(|entry| entry.id.as_str()).collect();
         assert_eq!(ids, vec!["items", "run"]);
+    }
+
+    #[test]
+    fn submenu_index_wraps_forward() {
+        assert_eq!(step_submenu_index(2, 3, 1), 0);
+    }
+
+    #[test]
+    fn submenu_index_wraps_backward() {
+        assert_eq!(step_submenu_index(0, 3, -1), 2);
+    }
+
+    #[test]
+    fn submenu_index_handles_empty_list() {
+        assert_eq!(step_submenu_index(0, 0, 1), 0);
+        assert_eq!(step_submenu_index(5, 0, -1), 0);
     }
 }

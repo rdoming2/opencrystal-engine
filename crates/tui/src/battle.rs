@@ -523,6 +523,18 @@ fn draw_command_panel(
         BattleCommandPanelMode::Magic
         | BattleCommandPanelMode::Abilities
         | BattleCommandPanelMode::Items => {
+            let available_lines = area.height.saturating_sub(2) as usize;
+            let header_lines = if state.command_panel.columns.is_empty() {
+                0
+            } else {
+                1
+            };
+            let row_window_size = available_lines.saturating_sub(header_lines).max(1);
+            let (selected, start, end) = list_window(
+                state.command_panel.rows.len(),
+                state.command_panel.selected,
+                row_window_size,
+            );
             let widths = column_widths(&state.command_panel.columns, &state.command_panel.rows);
             if !state.command_panel.columns.is_empty() {
                 lines.push(Line::from(Span::styled(
@@ -530,8 +542,9 @@ fn draw_command_panel(
                     Style::default().fg(Color::Cyan),
                 )));
             }
-            for (index, row) in state.command_panel.rows.iter().enumerate() {
-                let is_selected = index == state.command_panel.selected;
+            for (offset, row) in state.command_panel.rows[start..end].iter().enumerate() {
+                let index = start + offset;
+                let is_selected = index == selected;
                 let mut style = Style::default().fg(Color::White);
                 if is_selected {
                     style = list_highlight_style(
@@ -966,6 +979,18 @@ fn format_row(values: &[String], widths: &[usize]) -> String {
     line
 }
 
+fn list_window(total: usize, selected: usize, window_size: usize) -> (usize, usize, usize) {
+    if total == 0 {
+        return (0, 0, 0);
+    }
+    let selected = selected.min(total - 1);
+    let window_size = window_size.max(1);
+    let page = selected / window_size;
+    let start = page.saturating_mul(window_size);
+    let end = (start + window_size).min(total);
+    (selected, start, end)
+}
+
 #[derive(Clone, Copy)]
 struct BattleCell {
     ch: char,
@@ -994,5 +1019,24 @@ fn place_glyph(cells: &mut [Vec<BattleCell>], ch: char, x: i32, y: i32, style: S
     };
     if let Some(cell) = row.get_mut(x as usize) {
         *cell = BattleCell::new(ch, style);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::list_window;
+
+    #[test]
+    fn list_window_keeps_selected_row_visible() {
+        assert_eq!(list_window(10, 0, 3), (0, 0, 3));
+        assert_eq!(list_window(10, 2, 3), (2, 0, 3));
+        assert_eq!(list_window(10, 3, 3), (3, 3, 6));
+        assert_eq!(list_window(10, 9, 3), (9, 9, 10));
+    }
+
+    #[test]
+    fn list_window_handles_empty_and_oversized_selection() {
+        assert_eq!(list_window(0, 5, 3), (0, 0, 0));
+        assert_eq!(list_window(2, 9, 5), (1, 0, 2));
     }
 }
