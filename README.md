@@ -67,13 +67,14 @@ data-driven and inspectable. Highlights include:
 | Area | Highlights |
 | --- | --- |
 | Rendering | ANSI + 256 colors, palette-based styling, wide/modern modes, glyph or ASCII battle art based on terminal size. |
-| Worlds & travel | Multi-world maps, overworld/town/dungeon layers, encounters, transitions, fast travel, vehicles, and downsampled overworld map views. |
-| Events & dialog | Scripted events with flags, warps, battles, shops, rests, stat updates, and dialog trees with actions and gated choices. |
-| Battle | Turn-based and Readiness modes, pause, command catalogs, targeting rules, rows, traits/status effects, boss scaling (by level), difficulty scaling (global), and configurable formulas. |
-| Jobs & growth | Character/job/job_points/activity progression, post-battle stat growth, JP earn/spend modes, optional secondary jobs, spell/ability unlock modes (including equipment-granted), tier charges, and magic equip slots. |
-| Party & inventory | Create/preset/preset_rename party flows, roster + reserve, equipment slots, inventory stacks, field/battle item use, cooking, multi-currency support, and persistent merchant pools/stock. |
-| UI & UX | Two-pane main menu, journal and gameplay stats panels, settings visibility/locking, localized strings, title and battle layout configs. |
-| Tooling | Validation, content stubs, a TUI map editor, and docs output for automation workflows. |
+| Worlds & travel | Multi-world maps, overworld/town/dungeon layers, transitions, overworld fast travel, vehicles, per-map edge looping, and downsampled overworld map views. |
+| Events & dialog | Scripted events with flags, item/equipment requirements, warps, battles, shops, rests, party add/remove, stat updates, and dialog trees with actions and gated choices. |
+| Battle | Turn-based and Readiness modes, pause, command catalogs, targeting modes, rows, traits/status effects, configurable formulas, optional boss-trait scaling, difficulty scaling, enemy spell/ability AI, and encounter-meter smoothing. |
+| Jobs & growth | Character/job/job_points/activity progression, post-battle growth tuning, JP earn/spend modes, optional secondary jobs, spell/ability unlock modes (including equipment-granted), tier charges, and magic equip slots. |
+| Party & inventory | Create/preset/preset_rename party flows, roster + reserve, equipment slots, inventory stacks and persistent ordering, field item use, cooking, multi-currency support, and persistent merchant pools/stock. |
+| UI & UX | Two-pane main menu, focused status cards, journal and gameplay stats panels, settings visibility/locking, save-slot UX (including autosave slot), localized strings, and title/battle/menu layout configs. |
+| World objects | Signs, chests, doors, puzzles, and campfires as interactive map objects with flags, loot/costs, and event hooks. |
+| Tooling | Validation, content stubs, a TUI map editor (objects/zones/resize warnings), string scaffolding, and docs output for automation workflows. |
 
 See `SCHEMAS.md`, `ARCHITECTURE.md`, `JOBS.md` and `CONTENT_AUTHORING_GUIDE.md` for deeper references.
 
@@ -97,7 +98,7 @@ See `SCHEMAS.md`, `ARCHITECTURE.md`, `JOBS.md` and `CONTENT_AUTHORING_GUIDE.md` 
 - `cryst validate [--content path] [--content-dir path]`
 - `cryst new-project <name> [--path path]`
 - `cryst build new <kind> <id> [--content path] [--content-dir path] [--name label] [--force]`
-- `cryst build map <id> [--content path]`
+- `cryst build map <id> [--content path] [--content-dir path]`
 - `cryst build upgrade [--content path] [--content-dir path] [--dry-run]`
 - `cryst build strings [--content path] [--content-dir path] [--force]`
 - `cryst build new-project <name> [--path path]`
