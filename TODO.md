@@ -57,6 +57,7 @@
   - [x] Default save selection to last used slot.
   - [x] Enforce save rules (map allow_save + save_points).
   - [x] Autosave slot after transitions.
+  - [x] Persist `last_overworld` save context for warp scroll returns after reload.
 - [ ] Refactor the following into smaller modules:
   - [x] crates/cli/src/battle/actions.rs (2864 lines)
   - [ ] crates/cli/src/battle/mod.rs (2800 lines)

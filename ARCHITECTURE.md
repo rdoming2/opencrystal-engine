@@ -383,6 +383,7 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
 - JSON saves with versioning fields for future obfuscation.
 - Use a reserved field for `encoding` (e.g., "plain") to allow future formats.
 - Save data includes map state (flags + entity state), active vehicle, and vehicle positions.
+- Save data persists `last_overworld` so escape/warp returns survive save/load from interiors.
 - Autosave writes to slot 0 after every map transition when enabled.
 - Save files live under the user data directory (`~/.local/share/opencrystal/saves/<content>/`).
 - Title "Load" opens a slot picker and restores the runtime state.

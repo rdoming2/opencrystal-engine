@@ -15,6 +15,8 @@ pub struct SaveFile {
     pub party: SaveParty,
     pub inventory: SaveInventory,
     #[serde(default)]
+    pub last_overworld: Option<SaveLastOverworld>,
+    #[serde(default)]
     pub shops: HashMap<String, crate::runtime::ShopState>,
     pub flags: HashSet<String>,
     pub map_states: HashMap<String, MapState>,
@@ -43,6 +45,13 @@ pub struct SaveWorld {
     pub pos: [i32; 2],
     #[serde(default)]
     pub vehicle: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct SaveLastOverworld {
+    pub world_id: String,
+    pub map_id: String,
+    pub pos: [i32; 2],
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -130,6 +139,14 @@ impl SaveFile {
                 pos: [runtime.world.position.0, runtime.world.position.1],
                 vehicle: runtime.active_vehicle.clone(),
             },
+            last_overworld: runtime
+                .last_overworld
+                .as_ref()
+                .map(|entry| SaveLastOverworld {
+                    world_id: entry.world_id.clone(),
+                    map_id: entry.map_id.clone(),
+                    pos: [entry.pos.0, entry.pos.1],
+                }),
             party: SaveParty::from_party(&runtime.party),
             inventory: SaveInventory::from_inventory(&runtime.inventory),
             shops: runtime.shop_states.clone(),
@@ -159,15 +176,30 @@ impl SaveFile {
         runtime.world.world_id = self.world.world_id.clone();
         runtime.world.map_id = self.world.map_id.clone();
         runtime.world.position = (self.world.pos[0], self.world.pos[1]);
-        if runtime.is_overworld_map(&runtime.world.map_id) {
-            runtime.last_overworld = Some(crate::runtime::LastOverworld {
-                world_id: runtime.world.world_id.clone(),
-                map_id: runtime.world.map_id.clone(),
-                pos: runtime.world.position,
+        runtime.last_overworld = self
+            .last_overworld
+            .as_ref()
+            .and_then(|entry| {
+                runtime
+                    .overworld_map_id(&entry.world_id)
+                    .filter(|overworld_map_id| *overworld_map_id == entry.map_id)
+                    .map(|_| crate::runtime::LastOverworld {
+                        world_id: entry.world_id.clone(),
+                        map_id: entry.map_id.clone(),
+                        pos: (entry.pos[0], entry.pos[1]),
+                    })
+            })
+            .or_else(|| {
+                if runtime.is_overworld_map(&runtime.world.map_id) {
+                    Some(crate::runtime::LastOverworld {
+                        world_id: runtime.world.world_id.clone(),
+                        map_id: runtime.world.map_id.clone(),
+                        pos: runtime.world.position,
+                    })
+                } else {
+                    None
+                }
             });
-        } else {
-            runtime.last_overworld = None;
-        }
         runtime.active_vehicle = self.world.vehicle.clone();
         runtime.vehicle_positions = self
             .vehicles
@@ -437,7 +469,7 @@ impl SaveInventory {
 
 #[cfg(test)]
 mod tests {
-    use super::{SaveActor, SaveFile, SaveInventory, SaveJobProgress};
+    use super::{SaveActor, SaveFile, SaveInventory, SaveJobProgress, SaveLastOverworld};
     use crate::content::Content;
     use crate::party::{BattleRow, JobProgress};
     use crate::runtime::GameRuntime;
@@ -545,5 +577,42 @@ mod tests {
         assert_eq!(runtime.stats.get("wins"), Some(&42));
         assert!(!runtime.stats.contains_key("time_played"));
         assert_eq!(runtime.playtime, 555);
+    }
+
+    #[test]
+    #[ignore = "depends on local content bundle"]
+    fn apply_to_runtime_restores_last_overworld_from_save() {
+        let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../content/opencrystal-peak");
+        let content = Content::load(dir).expect("content should load for tests");
+        let mut runtime = GameRuntime::new(content);
+        let overworld_map = runtime
+            .overworld_map_id(&runtime.world.world_id)
+            .expect("world should have overworld map")
+            .to_string();
+        let non_overworld_map = runtime
+            .content
+            .maps
+            .iter()
+            .find(|map| map.id != overworld_map)
+            .expect("need non-overworld map")
+            .id
+            .clone();
+
+        let mut save = SaveFile::from_runtime(&runtime, 1);
+        save.world.map_id = non_overworld_map;
+        save.last_overworld = Some(SaveLastOverworld {
+            world_id: runtime.world.world_id.clone(),
+            map_id: overworld_map,
+            pos: [11, 7],
+        });
+
+        save.apply_to_runtime(&mut runtime);
+
+        let last_overworld = runtime
+            .last_overworld
+            .as_ref()
+            .expect("saved last overworld should restore");
+        assert_eq!(last_overworld.pos, (11, 7));
+        assert!(runtime.warp_to_last_overworld());
     }
 }

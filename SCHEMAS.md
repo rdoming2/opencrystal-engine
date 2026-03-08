@@ -2100,6 +2100,7 @@ Vehicle fields:
 
 - `world.vehicle`: active vehicle id or null when on foot.
 - `vehicles`: per-vehicle map positions keyed by vehicle id.
+- `last_overworld`: most recent overworld entry used by `target: "last_overworld"` warp effects.
 - `party.members.*.row`: `front` or `back` when battle rows are enabled.
 - `party.members.*.weapon_proficiencies`: map of weapon category -> 0.0-1.0 proficiency.
 - `party.members.*.magic_proficiencies`: map of magic school -> 0.0-1.0 proficiency.
@@ -2126,6 +2127,11 @@ Vehicle fields:
     "map_id": "overworld_gaia",
     "pos": [20, 14],
     "vehicle": "ship"
+  },
+  "last_overworld": {
+    "world_id": "gaia",
+    "map_id": "overworld_gaia",
+    "pos": [20, 14]
   },
   "vehicles": {
     "ship": {"map_id": "overworld_gaia", "pos": [0, 1]},
