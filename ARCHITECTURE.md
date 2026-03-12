@@ -433,6 +433,7 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
     - `abilities.rs`: ability system
   - `battle/`: complete battle system
     - `mod.rs`: main battle loop and encounters
+      - dynamic-mode enemy feedback can render non-blocking updates (extended lunge + target flash) while command/target menus remain interactive
     - `state.rs`: battle state management and turn phases
     - `logic.rs`: turn order, enemy AI, battle logging
     - `actions.rs`: action execution (attack, magic, ability, use item)

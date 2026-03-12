@@ -201,6 +201,25 @@ fn reward_item_label(runtime: &GameRuntime, item_id: &str) -> String {
 
 const MODAL_LINES_PER_PAGE: usize = 8;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ActionFeedbackMode {
+    Blocking,
+    NonBlocking,
+}
+
+#[derive(Clone, Debug)]
+struct TransientActionFeedback {
+    started_at: Instant,
+    frame_ms: u64,
+    total_frames: u64,
+    acting_enemies: Vec<usize>,
+    acting_party: Vec<usize>,
+    flash_enemies: Vec<usize>,
+    flash_party: Vec<usize>,
+}
+
+const NON_BLOCKING_FEEDBACK_FRAME_MULTIPLIER: u64 = 2;
+
 fn format_stat_change_line(stat: &str, new_value: i32, diff: i32) -> String {
     let diff_text = if diff >= 0 {
         format!("+{}", diff)
@@ -321,6 +340,7 @@ fn run_battle_with_escape(
     let mut last_actor_id: Option<String> = None;
     let mut battle_result: Option<BattleResult> = None;
     let mut victory_state: Option<VictoryState> = None;
+    let mut transient_feedback: Option<TransientActionFeedback> = None;
 
     loop {
         if is_enemies_defeated(&battle_state.enemies) {
@@ -453,16 +473,37 @@ fn run_battle_with_escape(
                             &[],
                             active_party_index.is_some(),
                         );
-                        pause_after_action(
-                            session,
-                            battle_ui,
-                            bindings,
-                            &render_state,
-                            vec![enemy_index],
-                            Vec::new(),
-                            Vec::new(),
-                            vec![target_index],
-                        )?;
+                        let feedback_mode = if enemy_feedback_should_block(
+                            &battle_state.mode,
+                            &menu_state,
+                            active_party_index.is_some(),
+                        ) {
+                            ActionFeedbackMode::Blocking
+                        } else {
+                            ActionFeedbackMode::NonBlocking
+                        };
+                        if feedback_mode == ActionFeedbackMode::Blocking {
+                            pause_after_action_with_mode(
+                                session,
+                                battle_ui,
+                                bindings,
+                                &render_state,
+                                vec![enemy_index],
+                                Vec::new(),
+                                Vec::new(),
+                                vec![target_index],
+                                feedback_mode,
+                            )?;
+                        } else {
+                            queue_transient_action_feedback(
+                                &mut transient_feedback,
+                                battle_ui,
+                                vec![enemy_index],
+                                Vec::new(),
+                                Vec::new(),
+                                vec![target_index],
+                            );
+                        }
                     }
                 }
             }
@@ -612,16 +653,37 @@ fn run_battle_with_escape(
                                     &[],
                                     false,
                                 );
-                                pause_after_action(
-                                    session,
-                                    battle_ui,
-                                    bindings,
-                                    &render_state,
-                                    vec![enemy_index],
-                                    Vec::new(),
-                                    Vec::new(),
-                                    vec![target_index],
-                                )?;
+                                let feedback_mode = if enemy_feedback_should_block(
+                                    &battle_state.mode,
+                                    &menu_state,
+                                    false,
+                                ) {
+                                    ActionFeedbackMode::Blocking
+                                } else {
+                                    ActionFeedbackMode::NonBlocking
+                                };
+                                if feedback_mode == ActionFeedbackMode::Blocking {
+                                    pause_after_action_with_mode(
+                                        session,
+                                        battle_ui,
+                                        bindings,
+                                        &render_state,
+                                        vec![enemy_index],
+                                        Vec::new(),
+                                        Vec::new(),
+                                        vec![target_index],
+                                        feedback_mode,
+                                    )?;
+                                } else {
+                                    queue_transient_action_feedback(
+                                        &mut transient_feedback,
+                                        battle_ui,
+                                        vec![enemy_index],
+                                        Vec::new(),
+                                        Vec::new(),
+                                        vec![target_index],
+                                    );
+                                }
                             }
                             advance_turn(&mut menu_state, &mut turn_state, &mut battle_state);
                             last_actor_id = None;
@@ -671,7 +733,7 @@ fn run_battle_with_escape(
         if menu_state.command_index >= command_entries.len() {
             menu_state.command_index = command_entries.len().saturating_sub(1);
         }
-        let render_state = build_battle_render_state(
+        let mut render_state = build_battle_render_state(
             runtime,
             &battle_state,
             &menu_state,
@@ -683,6 +745,7 @@ fn run_battle_with_escape(
             &item_entries,
             current_turn.is_some(),
         );
+        apply_transient_action_feedback(&mut render_state, &mut transient_feedback);
 
         if menu_state.phase == BattlePhase::Victory {
             match victory_state {
@@ -2202,6 +2265,30 @@ fn pause_after_action(
     flash_enemies: Vec<usize>,
     flash_party: Vec<usize>,
 ) -> std::io::Result<()> {
+    pause_after_action_with_mode(
+        session,
+        battle_ui,
+        bindings,
+        render_state,
+        acting_enemies,
+        acting_party,
+        flash_enemies,
+        flash_party,
+        ActionFeedbackMode::Blocking,
+    )
+}
+
+fn pause_after_action_with_mode(
+    session: &mut TuiSession,
+    battle_ui: &BattleUiFile,
+    bindings: &InputBindings,
+    render_state: &BattleRenderState,
+    acting_enemies: Vec<usize>,
+    acting_party: Vec<usize>,
+    flash_enemies: Vec<usize>,
+    flash_party: Vec<usize>,
+    feedback_mode: ActionFeedbackMode,
+) -> std::io::Result<()> {
     if let Some(animation) = &battle_ui.animation {
         if !flash_enemies.is_empty()
             || !flash_party.is_empty()
@@ -2220,14 +2307,96 @@ fn pause_after_action(
                 flash_state.flash_enemies = flash_enemies.clone();
                 flash_state.flash_party = flash_party.clone();
                 draw_battle(session, battle_ui, &flash_state)?;
-                sleep(delay);
+                if feedback_mode == ActionFeedbackMode::Blocking {
+                    sleep(delay);
+                }
                 draw_battle(session, battle_ui, &base_acting_state)?;
-                sleep(delay);
+                if feedback_mode == ActionFeedbackMode::Blocking {
+                    sleep(delay);
+                }
             }
         }
     }
     draw_battle(session, battle_ui, render_state)?;
-    wait_for_battle_dialog(session, bindings, battle_ui, render_state)
+    if feedback_mode == ActionFeedbackMode::Blocking {
+        wait_for_battle_dialog(session, bindings, battle_ui, render_state)
+    } else {
+        Ok(())
+    }
+}
+
+fn enemy_feedback_should_block(
+    mode: &BattleMode,
+    menu_state: &BattleMenuState,
+    has_ready_party_actor: bool,
+) -> bool {
+    if !matches!(mode, BattleMode::Dynamic | BattleMode::DynamicWait) {
+        return true;
+    }
+    if !has_ready_party_actor {
+        return true;
+    }
+    !matches!(
+        menu_state.phase,
+        BattlePhase::Command
+            | BattlePhase::Magic
+            | BattlePhase::Abilities
+            | BattlePhase::Items
+            | BattlePhase::TargetEnemy
+            | BattlePhase::TargetParty
+    )
+}
+
+fn queue_transient_action_feedback(
+    transient_feedback: &mut Option<TransientActionFeedback>,
+    battle_ui: &BattleUiFile,
+    acting_enemies: Vec<usize>,
+    acting_party: Vec<usize>,
+    flash_enemies: Vec<usize>,
+    flash_party: Vec<usize>,
+) {
+    let animation = battle_ui.animation.as_ref();
+    let frame_ms = animation.map(|cfg| cfg.flash_ms.max(1)).unwrap_or(150);
+    let cycles = animation.map(|cfg| cfg.flash_cycles.max(1)).unwrap_or(2);
+    *transient_feedback = Some(TransientActionFeedback {
+        started_at: Instant::now(),
+        frame_ms,
+        total_frames: non_blocking_feedback_total_frames(cycles),
+        acting_enemies,
+        acting_party,
+        flash_enemies,
+        flash_party,
+    });
+}
+
+fn apply_transient_action_feedback(
+    render_state: &mut BattleRenderState,
+    transient_feedback: &mut Option<TransientActionFeedback>,
+) {
+    let Some(feedback) = transient_feedback.as_ref() else {
+        return;
+    };
+    let elapsed_frames =
+        (feedback.started_at.elapsed().as_millis() / u128::from(feedback.frame_ms)) as u64;
+    if elapsed_frames >= feedback.total_frames {
+        *transient_feedback = None;
+        return;
+    }
+
+    render_state.acting_enemies = feedback.acting_enemies.clone();
+    render_state.acting_party = feedback.acting_party.clone();
+    if non_blocking_feedback_is_flash_frame(elapsed_frames) {
+        render_state.flash_enemies = feedback.flash_enemies.clone();
+        render_state.flash_party = feedback.flash_party.clone();
+    }
+}
+
+fn non_blocking_feedback_total_frames(cycles: u16) -> u64 {
+    u64::from(cycles.max(1)) * 2 * NON_BLOCKING_FEEDBACK_FRAME_MULTIPLIER
+}
+
+fn non_blocking_feedback_is_flash_frame(frame: u64) -> bool {
+    frame % 2 == 0
 }
 
 fn pause_on_enemy_defeat(
@@ -2958,9 +3127,11 @@ fn tile_id_for_pos(map: &engine::maps::MapFile, pos: (i32, i32)) -> Option<Strin
 #[cfg(test)]
 mod tests {
     use super::{
-        command_enabled_in_context, filter_command_entries_by, step_submenu_index, CommandEntry,
-        CommandKind,
+        command_enabled_in_context, enemy_feedback_should_block, filter_command_entries_by,
+        non_blocking_feedback_is_flash_frame, non_blocking_feedback_total_frames,
+        step_submenu_index, BattleMenuState, BattlePhase, CommandEntry, CommandKind,
     };
+    use engine::battle::BattleMode;
 
     fn command(id: &str, sort_order: i32) -> CommandEntry {
         CommandEntry {
@@ -3015,5 +3186,49 @@ mod tests {
         assert!(!command_enabled_in_context(CommandKind::Run, false));
         assert!(command_enabled_in_context(CommandKind::Run, true));
         assert!(command_enabled_in_context(CommandKind::Attack, false));
+    }
+
+    #[test]
+    fn enemy_feedback_blocks_outside_dynamic_modes() {
+        let menu_state = BattleMenuState::new();
+        assert!(enemy_feedback_should_block(
+            &BattleMode::Turn,
+            &menu_state,
+            true,
+        ));
+    }
+
+    #[test]
+    fn enemy_feedback_non_blocking_when_player_is_interacting() {
+        let mut menu_state = BattleMenuState::new();
+        menu_state.phase = BattlePhase::TargetEnemy;
+        assert!(!enemy_feedback_should_block(
+            &BattleMode::Dynamic,
+            &menu_state,
+            true,
+        ));
+    }
+
+    #[test]
+    fn enemy_feedback_blocks_without_ready_party_actor() {
+        let menu_state = BattleMenuState::new();
+        assert!(enemy_feedback_should_block(
+            &BattleMode::DynamicWait,
+            &menu_state,
+            false,
+        ));
+    }
+
+    #[test]
+    fn non_blocking_feedback_total_frames_extends_animation() {
+        assert_eq!(non_blocking_feedback_total_frames(2), 8);
+        assert_eq!(non_blocking_feedback_total_frames(1), 4);
+    }
+
+    #[test]
+    fn non_blocking_feedback_flashes_on_even_frames() {
+        assert!(non_blocking_feedback_is_flash_frame(0));
+        assert!(!non_blocking_feedback_is_flash_frame(1));
+        assert!(non_blocking_feedback_is_flash_frame(2));
     }
 }

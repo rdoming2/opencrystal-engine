@@ -163,6 +163,7 @@
 - [x] Add optional difficulty scaling for EXP and currency rewards.
 - [x] Remove readiness meter from turn non-Dynamic turn mode battle UI
 - [x] Disable RUN command for certain battles (`start_battle.can_run`, default `false` for event battles).
+- [x] Keep dynamic battle command/target menus responsive while enemy actions resolve (with extended lunge + target flash feedback).
 - [ ] Optional penalty on party defeat
 - [ ] Support for multiple hits per turn
 - [x] Basic enemy AI with weighted actions and heal/revive heuristics
