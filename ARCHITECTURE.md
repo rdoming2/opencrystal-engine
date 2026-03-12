@@ -319,6 +319,7 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
 - Fallen party members earn EXP/JP only when `battle.exp_for_fallen` is enabled.
 - Battle commands come from `rules.json` `battle.commands` plus job/secondary-job additions.
 - The global command list defines the base menu; job commands augment it without duplicates.
+- Event `start_battle` steps can override escape with `can_run`; omitted defaults to `false` for scripted encounters.
 - Command ordering follows `sort_order`, and the command panel pages when the list overflows.
 - Optional front/back row rules can reduce physical damage in back row and reduce melee damage unless
   using a ranged weapon category; row switching can be enabled as a battle command.

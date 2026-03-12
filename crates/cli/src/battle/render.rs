@@ -313,7 +313,7 @@ pub fn build_battle_command_panel(
                 .iter()
                 .map(|command| BattleCommandItem {
                     label: command.label.clone(),
-                    enabled: true,
+                    enabled: command.enabled,
                 })
                 .collect();
             BattleCommandPanelView {

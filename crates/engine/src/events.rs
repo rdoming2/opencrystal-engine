@@ -40,6 +40,7 @@ pub struct EventStep {
     pub recipe: Option<String>,
     pub ms: Option<i32>,
     pub mode: Option<String>,
+    pub can_run: Option<bool>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -76,6 +77,7 @@ pub enum EventExecutionResult {
     StartBattle {
         encounter: String,
         formation: Vec<FormationMember>,
+        can_run: bool,
     },
     OpenShop {
         shop_id: String,
@@ -211,6 +213,7 @@ pub fn apply_event_step(runtime: &mut GameRuntime, step: &EventStep) -> EventExe
             EventExecutionResult::StartBattle {
                 encounter,
                 formation,
+                can_run: step_can_run(step),
             }
         }
         "open_shop" => {
@@ -337,6 +340,10 @@ pub fn apply_event_step(runtime: &mut GameRuntime, step: &EventStep) -> EventExe
     }
 }
 
+fn step_can_run(step: &EventStep) -> bool {
+    step.can_run.unwrap_or(false)
+}
+
 fn unlock_recipe(runtime: &mut GameRuntime, recipe_id: &str) {
     let flag = runtime
         .content
@@ -347,5 +354,51 @@ fn unlock_recipe(runtime: &mut GameRuntime, recipe_id: &str) {
         .filter(|flag| !flag.trim().is_empty());
     if let Some(flag) = flag {
         runtime.set_flag(&flag);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{step_can_run, EventStep};
+
+    fn start_battle_step(can_run: Option<bool>) -> EventStep {
+        EventStep {
+            r#type: "start_battle".to_string(),
+            speaker: None,
+            text: None,
+            flag: None,
+            flags: None,
+            requires: None,
+            item: None,
+            qty: None,
+            shop: None,
+            stat: None,
+            value: None,
+            target: None,
+            encounter: None,
+            formation: None,
+            npc: None,
+            pos: None,
+            sprite: None,
+            dialog: None,
+            spell: None,
+            member: None,
+            recipe: None,
+            ms: None,
+            mode: None,
+            can_run,
+        }
+    }
+
+    #[test]
+    fn start_battle_step_disables_run_by_default() {
+        let step = start_battle_step(None);
+        assert!(!step_can_run(&step));
+    }
+
+    #[test]
+    fn start_battle_step_respects_can_run_override() {
+        let step = start_battle_step(Some(true));
+        assert!(step_can_run(&step));
     }
 }

@@ -1412,7 +1412,7 @@ Supported event step types:
 - `party_remove` (fields: `member`)
 - `learn_recipe` (fields: `recipe`)
 - `warp` (fields: `target` with `map` and `pos`; use `map: "last_overworld"` to return to the last overworld entry)
-- `start_battle` (fields: `encounter`, `formation`)
+- `start_battle` (fields: `encounter`, `formation`, optional `can_run`)
 - `open_shop` (fields: `shop`)
 - `npc_show`, `npc_hide`, `npc_move`, `npc_set_sprite` (fields: `npc`, `pos`, `sprite`)
 - `start_dialog` (fields: `dialog`)
@@ -1425,6 +1425,8 @@ Supported event step types:
 `party_add` pulls the member from `party.json` roster and places them in the active party if there is space, otherwise in reserve. `party_remove` only removes the member from active/reserve lists; the roster entry remains so the member can rejoin later. Both steps abort the event if the member cannot be added/removed.
 
 `npc_show` applies `pos` when provided; `npc_move` requires `pos` to update the NPC location.
+
+`start_battle` defaults to `can_run: false` so scripted encounters are non-escapable unless you explicitly opt in.
 
 Mode notes:
 - `preset` and `preset_rename` always use `party.json`, so `party_add` is available.
@@ -1481,6 +1483,7 @@ Example steps:
 {
   "type": "start_battle",
   "encounter": "gaia_grasslands",
+  "can_run": false,
   "formation": [
     {"enemy": "imp", "pos": [0, 1]},
     {"enemy": "wisp", "pos": [2, 1]}

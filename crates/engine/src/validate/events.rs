@@ -34,6 +34,12 @@ pub(crate) fn validate_events(context: &ValidationContext, errors: &mut Vec<Stri
     let event_types: HashSet<&str> = EVENT_TYPES.iter().copied().collect();
     for event in context.events {
         for step in &event.steps {
+            if step.can_run.is_some() && step.r#type != "start_battle" {
+                errors.push(format!(
+                    "events/{}: can_run is only valid on start_battle steps",
+                    event.id
+                ));
+            }
             if !event_types.contains(step.r#type.as_str()) {
                 errors.push(format!(
                     "events/{}: unknown step type '{}'",

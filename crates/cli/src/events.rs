@@ -142,12 +142,13 @@ fn handle_event_result(
         engine::events::EventExecutionResult::StartBattle {
             encounter,
             formation,
+            can_run,
         } => {
             let event_id = runtime.active_event.clone();
             let event_step = runtime.event_step.saturating_sub(1);
             let snapshot = BattleSnapshot::capture(runtime);
             let report = run_event_battle_with_result(
-                runtime, battle_ui, bindings, session, &encounter, &formation, snapshot,
+                runtime, battle_ui, bindings, session, &encounter, &formation, can_run, snapshot,
             )?;
             if matches!(report.outcome, BattleOutcome::Defeat) {
                 let map_id = runtime.world.map_id.clone();

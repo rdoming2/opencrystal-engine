@@ -276,6 +276,18 @@ pub fn run_battle(
     formation: &[engine::encounters::EncounterMember],
     rng: &mut impl Rng,
 ) -> std::io::Result<BattleOutcome> {
+    run_battle_with_escape(runtime, battle_ui, bindings, session, formation, true, rng)
+}
+
+fn run_battle_with_escape(
+    runtime: &mut GameRuntime,
+    battle_ui: &BattleUiFile,
+    bindings: &InputBindings,
+    session: &mut TuiSession,
+    formation: &[engine::encounters::EncounterMember],
+    can_run: bool,
+    rng: &mut impl Rng,
+) -> std::io::Result<BattleOutcome> {
     let mut battle_state = build_battle_state(
         &runtime.content,
         &runtime.party,
@@ -428,7 +440,7 @@ pub fn run_battle(
                         rng,
                     ) {
                         let command_entries =
-                            command_entries_for_active_actor(runtime, &battle_state);
+                            command_entries_for_active_actor(runtime, &battle_state, can_run);
                         let render_state = build_battle_render_state(
                             runtime,
                             &battle_state,
@@ -545,7 +557,7 @@ pub fn run_battle(
                                 rng,
                             );
                             let command_entries =
-                                command_entries_for_active_actor(runtime, &battle_state);
+                                command_entries_for_active_actor(runtime, &battle_state, can_run);
                             let render_state = build_battle_render_state(
                                 runtime,
                                 &battle_state,
@@ -583,8 +595,11 @@ pub fn run_battle(
                                 &mut menu_state,
                                 rng,
                             ) {
-                                let command_entries =
-                                    command_entries_for_active_actor(runtime, &battle_state);
+                                let command_entries = command_entries_for_active_actor(
+                                    runtime,
+                                    &battle_state,
+                                    can_run,
+                                );
                                 let render_state = build_battle_render_state(
                                     runtime,
                                     &battle_state,
@@ -643,12 +658,16 @@ pub fn run_battle(
         command_entries = filter_enabled_command_entries(
             runtime,
             &actor_id,
+            can_run,
             command_entries,
             &spell_entries,
             &ability_entries_all,
             &ability_entries_raw,
             &item_entries,
         );
+        for command in &mut command_entries {
+            command.enabled = command_enabled_in_context(command.kind, can_run);
+        }
         if menu_state.command_index >= command_entries.len() {
             menu_state.command_index = command_entries.len().saturating_sub(1);
         }
@@ -960,6 +979,7 @@ pub fn run_battle(
                         runtime,
                         &actor_id,
                         command,
+                        can_run,
                         &spell_entries,
                         &ability_entries_all,
                         &ability_entries_raw,
@@ -1093,6 +1113,17 @@ pub fn run_battle(
                             }
                         }
                         CommandKind::Run => {
+                            if !can_run {
+                                push_battle_log(
+                                    &mut battle_state.log,
+                                    ui_text(
+                                        runtime,
+                                        "battle.command_unavailable",
+                                        "Command unavailable.",
+                                    ),
+                                );
+                                continue;
+                            }
                             if rng.random::<f32>() < 0.5 {
                                 push_battle_log(
                                     &mut battle_state.log,
@@ -2123,6 +2154,7 @@ pub fn run_event_battle_with_result(
     session: &mut TuiSession,
     encounter_id: &str,
     formation: &[engine::events::FormationMember],
+    can_run: bool,
     snapshot: BattleSnapshot,
 ) -> std::io::Result<BattleReport> {
     let mut rng = rand::rng();
@@ -2152,7 +2184,9 @@ pub fn run_event_battle_with_result(
             snapshot,
         });
     }
-    let outcome = run_battle(runtime, battle_ui, bindings, session, &formation, &mut rng)?;
+    let outcome = run_battle_with_escape(
+        runtime, battle_ui, bindings, session, &formation, can_run, &mut rng,
+    )?;
     Ok(BattleReport {
         outcome,
         formation,
@@ -2494,6 +2528,7 @@ pub struct CommandEntry {
     pub id: String,
     pub label: String,
     pub kind: CommandKind,
+    pub enabled: bool,
     pub sort_order: i32,
     pub ability_group: Option<String>,
     pub ability_id: Option<String>,
@@ -2559,6 +2594,7 @@ pub fn command_entries_for_actor(runtime: &GameRuntime, actor_id: &str) -> Vec<C
             id: command.id.clone(),
             label: ui_text(runtime, &label_key, command.label.as_str()),
             kind,
+            enabled: true,
             sort_order: command.sort_order,
             ability_group: command.ability_group.clone(),
             ability_id: command.ability_id.clone(),
@@ -2607,11 +2643,12 @@ pub fn command_definition_for_id<'a>(
 fn command_entries_for_active_actor(
     runtime: &GameRuntime,
     battle_state: &BattleState,
+    can_run: bool,
 ) -> Vec<CommandEntry> {
     let Some(actor_id) = battle_state.party_order.get(battle_state.active_index) else {
         return Vec::new();
     };
-    command_entries_for_ui(runtime, actor_id)
+    command_entries_for_ui(runtime, actor_id, can_run)
 }
 
 struct ActorCommandInputs {
@@ -2663,6 +2700,7 @@ fn build_actor_command_inputs(
 fn filter_enabled_command_entries(
     runtime: &GameRuntime,
     actor_id: &str,
+    can_run: bool,
     command_entries: Vec<CommandEntry>,
     spell_entries: &[SpellEntry],
     ability_entries_all: &[AbilityEntry],
@@ -2670,10 +2708,14 @@ fn filter_enabled_command_entries(
     item_entries: &[InventoryEntry],
 ) -> Vec<CommandEntry> {
     filter_command_entries_by(command_entries, |command| {
+        if command.kind == CommandKind::Run {
+            return true;
+        }
         command_is_enabled(
             runtime,
             actor_id,
             command,
+            can_run,
             spell_entries,
             ability_entries_all,
             ability_entries_raw,
@@ -2695,18 +2737,27 @@ where
         .collect()
 }
 
-fn command_entries_for_ui(runtime: &GameRuntime, actor_id: &str) -> Vec<CommandEntry> {
+fn command_entries_for_ui(
+    runtime: &GameRuntime,
+    actor_id: &str,
+    can_run: bool,
+) -> Vec<CommandEntry> {
     let command_entries = command_entries_for_actor(runtime, actor_id);
     let command_inputs = build_actor_command_inputs(runtime, actor_id, &command_entries);
-    filter_enabled_command_entries(
+    let mut filtered = filter_enabled_command_entries(
         runtime,
         actor_id,
+        can_run,
         command_entries,
         &command_inputs.spell_entries,
         &command_inputs.ability_entries_all,
         &command_inputs.ability_entries_raw,
         &command_inputs.item_entries,
-    )
+    );
+    for command in &mut filtered {
+        command.enabled = command_enabled_in_context(command.kind, can_run);
+    }
+    filtered
 }
 
 fn ability_group_for_command(runtime: &GameRuntime, command_id: Option<&str>) -> Option<String> {
@@ -2793,6 +2844,7 @@ fn command_is_enabled(
     runtime: &GameRuntime,
     actor_id: &str,
     command: &CommandEntry,
+    can_run: bool,
     spell_entries: &[SpellEntry],
     ability_entries_all: &[AbilityEntry],
     ability_entries_raw: &[AbilityEntry],
@@ -2825,8 +2877,13 @@ fn command_is_enabled(
             let rows = &runtime.content.rules.battle.rows;
             rows.enabled && rows.allow_battle_switch
         }
+        CommandKind::Run => command_enabled_in_context(command.kind, can_run),
         _ => true,
     }
+}
+
+fn command_enabled_in_context(kind: CommandKind, can_run: bool) -> bool {
+    kind != CommandKind::Run || can_run
 }
 
 fn encounter_zone_for_pos(
@@ -2902,13 +2959,17 @@ fn tile_id_for_pos(map: &engine::maps::MapFile, pos: (i32, i32)) -> Option<Strin
 
 #[cfg(test)]
 mod tests {
-    use super::{filter_command_entries_by, step_submenu_index, CommandEntry, CommandKind};
+    use super::{
+        command_enabled_in_context, filter_command_entries_by, step_submenu_index, CommandEntry,
+        CommandKind,
+    };
 
     fn command(id: &str, sort_order: i32) -> CommandEntry {
         CommandEntry {
             id: id.to_string(),
             label: id.to_string(),
             kind: CommandKind::Attack,
+            enabled: true,
             sort_order,
             ability_group: None,
             ability_id: None,
@@ -2949,5 +3010,12 @@ mod tests {
     fn submenu_index_handles_empty_list() {
         assert_eq!(step_submenu_index(0, 0, 1), 0);
         assert_eq!(step_submenu_index(5, 0, -1), 0);
+    }
+
+    #[test]
+    fn run_command_is_unavailable_when_run_disabled() {
+        assert!(!command_enabled_in_context(CommandKind::Run, false));
+        assert!(command_enabled_in_context(CommandKind::Run, true));
+        assert!(command_enabled_in_context(CommandKind::Attack, false));
     }
 }

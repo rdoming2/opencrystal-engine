@@ -162,7 +162,7 @@
 - [x] Add difficulty scale setting for enemy stats.
 - [x] Add optional difficulty scaling for EXP and currency rewards.
 - [x] Remove readiness meter from turn non-Dynamic turn mode battle UI
-- [ ] Disable RUN command for certain battles.
+- [x] Disable RUN command for certain battles (`start_battle.can_run`, default `false` for event battles).
 - [ ] Optional penalty on party defeat
 - [ ] Support for multiple hits per turn
 - [x] Basic enemy AI with weighted actions and heal/revive heuristics
@@ -192,6 +192,7 @@
 - [ ] Apply job growth formulas/tables on level-up.
 - [x] Fallen character EXP earn option
 - [ ] Expand status panel JP display (earned/spent/available).
+- [ ] Add job progression by tree | skill/spell gating
 - [x] Recompute derived stats with `lvl` variable.
 - [ ] Ability to optionally lock job changes but allow spending of JP for progression
 - [ ] Option to restore health and/or mp on level up

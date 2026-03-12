@@ -506,7 +506,7 @@ fn draw_command_panel(
                 } else {
                     Style::default().fg(Color::DarkGray)
                 };
-                if is_selected {
+                if is_selected && item.enabled {
                     style = list_highlight_style(
                         style,
                         &battle_ui.selection.list_highlight,
