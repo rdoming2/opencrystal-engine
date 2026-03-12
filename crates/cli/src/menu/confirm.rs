@@ -83,7 +83,17 @@ pub(super) fn handle_confirm(
             return Ok(Some(outcome));
         }
     } else if submenu_action == "items" {
-        confirm_items(session, runtime, dialog_ui, bindings)?;
+        confirm_items(
+            session,
+            runtime,
+            menu_ui,
+            dialog_ui,
+            bindings,
+            entry_views,
+            focus,
+            right_panel,
+            footer_text,
+        )?;
     } else if submenu_action == "magic" {
         confirm_magic(runtime)?;
     } else if submenu_action == "abilities" {
@@ -241,8 +251,13 @@ fn confirm_overworld_map(runtime: &mut GameRuntime) -> Option<MenuOutcome> {
 fn confirm_items(
     session: &mut TuiSession,
     runtime: &mut GameRuntime,
+    menu_ui: &MenuUiFile,
     dialog_ui: &DialogUiFile,
     bindings: &InputBindings,
+    entry_views: &[MenuEntryView],
+    focus: MenuPane,
+    right_panel: &MenuPanelView,
+    footer_text: &'static str,
 ) -> std::io::Result<()> {
     let entries = build_inventory_entries(
         runtime,
@@ -293,17 +308,49 @@ fn confirm_items(
                         if result.consumed {
                             runtime.inventory.remove_item(&entry.id, 1);
                         }
-                        if let Some(message) = result.warp_message {
-                            tui::dialog::show_dialog(session, dialog_ui, bindings, "", &message)?;
+                        if let Some(message) = result.message {
+                            if message == "No valid targets." {
+                                show_no_valid_targets_modal(
+                                    session,
+                                    runtime,
+                                    menu_ui,
+                                    bindings,
+                                    entry_views,
+                                    focus,
+                                    right_panel,
+                                    footer_text,
+                                )?;
+                            } else {
+                                tui::dialog::show_dialog(
+                                    session, dialog_ui, bindings, "", &message,
+                                )?;
+                            }
                         }
-                        runtime.menu_state.detail_page = 0;
-                        runtime.menu_state.detail_selection = list_selection;
-                        runtime.menu_state.detail_slot = usize::MAX;
-                        runtime.menu_state.detail_target = 0;
+                        if result.consumed {
+                            runtime.menu_state.detail_page = 0;
+                            runtime.menu_state.detail_selection = list_selection;
+                            runtime.menu_state.detail_slot = usize::MAX;
+                            runtime.menu_state.detail_target = 0;
+                        } else {
+                            runtime.menu_state.detail_page = 1;
+                            runtime.menu_state.detail_slot = list_selection;
+                            runtime.menu_state.detail_selection = action_selection;
+                            runtime.menu_state.detail_target = 0;
+                        }
                     } else if targets.is_empty() {
-                        runtime.menu_state.detail_page = 0;
-                        runtime.menu_state.detail_selection = list_selection;
-                        runtime.menu_state.detail_slot = usize::MAX;
+                        show_no_valid_targets_modal(
+                            session,
+                            runtime,
+                            menu_ui,
+                            bindings,
+                            entry_views,
+                            focus,
+                            right_panel,
+                            footer_text,
+                        )?;
+                        runtime.menu_state.detail_page = 1;
+                        runtime.menu_state.detail_slot = list_selection;
+                        runtime.menu_state.detail_selection = action_selection;
                         runtime.menu_state.detail_target = 0;
                     } else {
                         runtime.menu_state.detail_page = 2;
@@ -334,19 +381,51 @@ fn confirm_items(
         }
         2 => {
             let targets = item_targets_for_entry(runtime, entry);
+            let mut consumed = false;
             if let Some(target_id) = targets.get(runtime.menu_state.detail_target) {
                 let result = apply_item_to_targets(runtime, entry, &[target_id.clone()]);
                 if result.consumed {
                     runtime.inventory.remove_item(&entry.id, 1);
+                    consumed = true;
                 }
-                if let Some(message) = result.warp_message {
-                    tui::dialog::show_dialog(session, dialog_ui, bindings, "", &message)?;
+                if let Some(message) = result.message {
+                    if message == "No valid targets." {
+                        show_no_valid_targets_modal(
+                            session,
+                            runtime,
+                            menu_ui,
+                            bindings,
+                            entry_views,
+                            focus,
+                            right_panel,
+                            footer_text,
+                        )?;
+                    } else {
+                        tui::dialog::show_dialog(session, dialog_ui, bindings, "", &message)?;
+                    }
                 }
+            } else {
+                show_no_valid_targets_modal(
+                    session,
+                    runtime,
+                    menu_ui,
+                    bindings,
+                    entry_views,
+                    focus,
+                    right_panel,
+                    footer_text,
+                )?;
             }
-            runtime.menu_state.detail_page = 0;
-            runtime.menu_state.detail_selection =
-                list_selection.min(entries.len().saturating_sub(1));
-            runtime.menu_state.detail_slot = usize::MAX;
+            if consumed {
+                runtime.menu_state.detail_page = 0;
+                runtime.menu_state.detail_selection =
+                    list_selection.min(entries.len().saturating_sub(1));
+                runtime.menu_state.detail_slot = usize::MAX;
+            } else {
+                runtime.menu_state.detail_page = 1;
+                runtime.menu_state.detail_slot = list_selection;
+                runtime.menu_state.detail_selection = 0;
+            }
             runtime.menu_state.detail_target = 0;
         }
         3 => {
@@ -375,6 +454,36 @@ fn confirm_items(
         }
     }
     Ok(())
+}
+
+fn show_no_valid_targets_modal(
+    session: &mut TuiSession,
+    runtime: &GameRuntime,
+    menu_ui: &MenuUiFile,
+    bindings: &InputBindings,
+    entry_views: &[MenuEntryView],
+    focus: MenuPane,
+    right_panel: &MenuPanelView,
+    footer_text: &'static str,
+) -> std::io::Result<()> {
+    let stats = build_menu_stats_view(runtime);
+    tui::menu::show_menu_notice_modal(
+        session,
+        bindings,
+        |frame| {
+            tui::menu::draw_menu_frame(
+                frame,
+                menu_ui,
+                entry_views,
+                runtime.menu_state.selected,
+                focus,
+                right_panel,
+                Some(&stats),
+                footer_text,
+            );
+        },
+        "No valid targets.",
+    )
 }
 
 fn confirm_magic(runtime: &mut GameRuntime) -> std::io::Result<()> {

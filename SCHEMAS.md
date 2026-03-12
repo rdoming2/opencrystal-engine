@@ -1171,6 +1171,11 @@ Common effect types: `heal_hp`, `heal_mp`, `revive`, `warp`, `learn_spell`, `lea
 `warp` supports `effect.target: "last_overworld"` to return to the last overworld entry and
 `effect.destination` to warp to a specific map/position.
 
+Runtime use rules:
+
+- Usable items still show a `Use` action, but consumption is prevented when the item would have no effect.
+- This includes full HP/MP healing targets, revive without KO targets, status cures with no matching status, and duplicate spell/recipe learning.
+
 ```json
 {
   "version": 1,

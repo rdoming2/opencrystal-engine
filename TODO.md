@@ -200,6 +200,7 @@
 ## Items + Equipment
 - [x] Fix equipment quantity tracking and shared equip counts.
 - [x] Unequip incompatible equipment on job change.
+- [x] Prevent consumable use when it would have no effect (full HP/MP, no matching status, no KO revive target, duplicate learn spell/recipe).
 
 ## World + Events
 - [x] Map transitions (enter/exit dungeons, overworld zoom).

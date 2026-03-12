@@ -325,7 +325,7 @@ pub fn item_targets_for_entry(runtime: &GameRuntime, entry: &InventoryEntry) -> 
 
 pub struct ItemUseResult {
     pub consumed: bool,
-    pub warp_message: Option<String>,
+    pub message: Option<String>,
 }
 
 pub fn apply_item_to_targets(
@@ -346,59 +346,86 @@ pub fn apply_item_to_targets(
         None => {
             return ItemUseResult {
                 consumed: false,
-                warp_message: None,
+                message: None,
             }
         }
     };
     if !item_usage_allows_field(&item.usage.context) {
         return ItemUseResult {
             consumed: false,
-            warp_message: None,
+            message: None,
         };
     }
     if item.effect.r#type == "learn_recipe" {
         if let Some(recipe_id) = item.effect.target.as_deref() {
             if let Some(flag) = recipe_unlock_flag(runtime, recipe_id) {
+                if runtime.has_flag(&flag) {
+                    return ItemUseResult {
+                        consumed: false,
+                        message: Some("No valid targets.".to_string()),
+                    };
+                }
                 runtime.set_flag(&flag);
+                return ItemUseResult {
+                    consumed: true,
+                    message: None,
+                };
             }
-            return ItemUseResult {
-                consumed: true,
-                warp_message: None,
-            };
         }
+        return ItemUseResult {
+            consumed: false,
+            message: Some("No valid targets.".to_string()),
+        };
     }
     if item.effect.r#type == "warp" {
         if let Some(destination) = &item.effect.destination {
             runtime.warp_to_map(&destination.map, (destination.pos[0], destination.pos[1]));
             return ItemUseResult {
                 consumed: true,
-                warp_message,
+                message: warp_message,
             };
         }
         if item.effect.target.as_deref() == Some("last_overworld") {
             if runtime.warp_to_last_overworld() {
                 return ItemUseResult {
                     consumed: true,
-                    warp_message,
+                    message: warp_message,
                 };
             } else {
                 return ItemUseResult {
                     consumed: false,
-                    warp_message: Some("The scroll has no effect.".to_string()),
+                    message: Some("The scroll has no effect.".to_string()),
                 };
             }
         }
         return ItemUseResult {
             consumed: false,
-            warp_message: None,
+            message: None,
         };
     }
-    for target_id in targets {
+    let valid_targets = targets
+        .iter()
+        .filter_map(|target_id| {
+            let actor = runtime.party.roster.get(target_id)?;
+            if item_has_effect_on_actor(runtime, &item, actor, false) {
+                Some(target_id.clone())
+            } else {
+                None
+            }
+        })
+        .collect::<Vec<_>>();
+    if valid_targets.is_empty() {
+        return ItemUseResult {
+            consumed: false,
+            message: Some("No valid targets.".to_string()),
+        };
+    }
+    for target_id in &valid_targets {
         apply_item_to_actor(runtime, &item, target_id);
     }
     ItemUseResult {
         consumed: true,
-        warp_message: None,
+        message: None,
     }
 }
 
@@ -944,86 +971,125 @@ fn build_item_targets(
     item: &engine::entities::ItemDefinition,
 ) -> Vec<String> {
     let mut targets = runtime.party.active_ids();
+    targets.retain(|id| {
+        runtime
+            .party
+            .roster
+            .get(id)
+            .map(|actor| item_has_effect_on_actor(runtime, item, actor, false))
+            .unwrap_or(false)
+    });
+    targets
+}
+
+pub fn item_has_effect_on_actor(
+    runtime: &GameRuntime,
+    item: &engine::entities::ItemDefinition,
+    actor: &engine::party::Actor,
+    in_battle: bool,
+) -> bool {
+    let max_hp = actor.derived_stats.get("hp").copied().unwrap_or(0);
+    let max_mp = actor.derived_stats.get("mp").copied().unwrap_or(0);
+    let power = item.effect.power.unwrap_or(0);
     match item.effect.r#type.as_str() {
-        "revive" => {
-            targets.retain(|id| {
-                runtime
-                    .party
-                    .roster
-                    .get(id)
-                    .map(|actor| actor.current_hp <= 0)
-                    .unwrap_or(false)
-            });
-        }
-        "cure_status" => {
-            if !item.effect.statuses.is_empty() {
-                targets.retain(|id| {
-                    runtime
-                        .party
-                        .roster
-                        .get(id)
-                        .map(|actor| {
-                            actor
-                                .statuses
-                                .iter()
-                                .any(|status| item.effect.statuses.contains(&status.id))
-                        })
-                        .unwrap_or(false)
-                });
+        "heal_hp" => {
+            if in_battle {
+                let inverted = engine::battle::healing_inverted(
+                    &runtime.content,
+                    &engine::party::actor_traits(&runtime.content, actor),
+                );
+                if inverted {
+                    actor.current_hp > 0 && power.max(1) > 0
+                } else {
+                    actor.current_hp < max_hp && power > 0
+                }
+            } else {
+                actor.current_hp < max_hp && power > 0
             }
         }
-        "learn_spell" => {
-            let spell_id = item.effect.target.as_deref().unwrap_or("");
-            targets.retain(|id| {
-                let Some(actor) = runtime.party.roster.get(id) else {
-                    return false;
-                };
-                if actor.spells.iter().any(|s| s == spell_id) {
-                    return false;
-                }
-                let mut job_ids = vec![actor.job_id.as_str()];
-                if runtime.content.rules.job_system.secondary_jobs {
-                    if let Some(job_id) = actor.secondary_job_id.as_deref() {
-                        job_ids.push(job_id);
-                    }
-                }
-                for job_id in job_ids {
-                    let Some(job) = runtime.content.jobs.jobs.iter().find(|j| j.id == job_id)
-                    else {
-                        continue;
-                    };
-                    let acquisition = resolve_magic_acquisition(runtime, job, spell_id);
-                    if acquisition != MagicAcquisition::Item {
-                        continue;
-                    }
-                    if let Some(entry) = job.spells.iter().find(|s| s.id == spell_id) {
-                        if entry.item.is_none() || entry.item.as_deref() == Some(item.id.as_str()) {
-                            return true;
-                        }
-                        continue;
-                    }
-                    let school_allowed = runtime
-                        .content
-                        .spells
-                        .spells
-                        .iter()
-                        .find(|spell| spell.id == spell_id)
-                        .map(|spell| {
-                            job.magic_schools
-                                .iter()
-                                .any(|school| school == &spell.school)
-                        })
-                        .unwrap_or(false);
-                    if school_allowed {
-                        return true;
-                    }
-                }
-                false
-            });
+        "heal_mp" => actor.current_mp < max_mp && power > 0,
+        "revive" => actor.current_hp <= 0 && max_hp > 0,
+        "cure_status" => {
+            !item.effect.statuses.is_empty()
+                && actor
+                    .statuses
+                    .iter()
+                    .any(|status| item.effect.statuses.contains(&status.id))
         }
-        _ => {}
+        "learn_spell" => actor_can_learn_spell_from_item(runtime, item, actor),
+        "learn_recipe" => item_recipe_can_unlock(runtime, item),
+        _ => true,
     }
-    targets
+}
+
+pub fn item_recipe_can_unlock(
+    runtime: &GameRuntime,
+    item: &engine::entities::ItemDefinition,
+) -> bool {
+    if item.effect.r#type != "learn_recipe" {
+        return false;
+    }
+    let Some(recipe_id) = item.effect.target.as_deref() else {
+        return false;
+    };
+    let Some(flag) = recipe_unlock_flag(runtime, recipe_id) else {
+        return false;
+    };
+    !runtime.has_flag(&flag)
+}
+
+fn actor_can_learn_spell_from_item(
+    runtime: &GameRuntime,
+    item: &engine::entities::ItemDefinition,
+    actor: &engine::party::Actor,
+) -> bool {
+    let spell_id = item.effect.target.as_deref().unwrap_or("");
+    if spell_id.is_empty() || actor.spells.iter().any(|spell| spell == spell_id) {
+        return false;
+    }
+    let mut job_ids = vec![actor.job_id.as_str()];
+    if runtime.content.rules.job_system.secondary_jobs {
+        if let Some(job_id) = actor.secondary_job_id.as_deref() {
+            job_ids.push(job_id);
+        }
+    }
+    for job_id in job_ids {
+        let Some(job) = runtime
+            .content
+            .jobs
+            .jobs
+            .iter()
+            .find(|job| job.id == job_id)
+        else {
+            continue;
+        };
+        let acquisition = resolve_magic_acquisition(runtime, job, spell_id);
+        if acquisition != MagicAcquisition::Item {
+            continue;
+        }
+        if let Some(entry) = job.spells.iter().find(|entry| entry.id == spell_id) {
+            if entry.item.is_none() || entry.item.as_deref() == Some(item.id.as_str()) {
+                return true;
+            }
+            continue;
+        }
+        let school_allowed = runtime
+            .content
+            .spells
+            .spells
+            .iter()
+            .find(|spell| spell.id == spell_id)
+            .map(|spell| {
+                job.magic_schools
+                    .iter()
+                    .any(|school| school == &spell.school)
+            })
+            .unwrap_or(false);
+        if school_allowed {
+            return true;
+        }
+    }
+    false
 }
 
 pub fn build_item_description(

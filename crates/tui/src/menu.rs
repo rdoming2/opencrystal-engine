@@ -567,6 +567,57 @@ where
     }
 }
 
+pub fn show_menu_notice_modal<F>(
+    session: &mut TuiSession,
+    bindings: &InputBindings,
+    draw_background: F,
+    message: &str,
+) -> io::Result<()>
+where
+    F: Fn(&mut Frame),
+{
+    loop {
+        session.terminal_mut().draw(|frame| {
+            draw_background(frame);
+            let width = (message.chars().count() as u16).saturating_add(4).max(24);
+            let area = centered_rect(frame.area(), width, 3);
+            frame.render_widget(Clear, area);
+            let content = vec![Line::from(Span::raw(message))];
+            let paragraph = Paragraph::new(content)
+                .block(Block::default().borders(Borders::ALL))
+                .alignment(Alignment::Center);
+            frame.render_widget(paragraph, area);
+        })?;
+
+        if let Event::Key(key) = event::read()? {
+            if !is_actionable_key(&key) {
+                continue;
+            }
+            if let Some(action) = bindings.action_for(key.code) {
+                match action {
+                    Action::Confirm | Action::Cancel | Action::Menu => return Ok(()),
+                    Action::Quit => {
+                        if confirm_quit(session, |frame| {
+                            draw_background(frame);
+                            let width = (message.chars().count() as u16).saturating_add(4).max(24);
+                            let area = centered_rect(frame.area(), width, 3);
+                            frame.render_widget(Clear, area);
+                            let content = vec![Line::from(Span::raw(message))];
+                            let paragraph = Paragraph::new(content)
+                                .block(Block::default().borders(Borders::ALL))
+                                .alignment(Alignment::Center);
+                            frame.render_widget(paragraph, area);
+                        })? {
+                            return Err(io::Error::new(io::ErrorKind::Interrupted, "quit"));
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+}
+
 fn draw_content_frame(frame: &mut Frame, entries: &[ContentMenuEntry], selected: usize) {
     let size = frame.area();
     let layout = Layout::default()

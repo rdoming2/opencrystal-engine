@@ -262,6 +262,7 @@ Event execution is handled by `GameRuntime.apply_event_step`, which:
 - Inventory stacks are seeded from `rules.json` `inventory` and capped by `max_stack`.
 - Items marked `unique` in `items.json` cannot be manually dropped from the inventory menu.
 - Item usage supports `context: "none"` for non-usable items that should never expose a Use action.
+- Consumable use is blocked when it would have no effect (full HP/MP heals, no matching status cure, no fallen ally for revive, duplicate spell/recipe learning).
 - Equipment is slot-based (weapons, armor, accessories) and validated by job categories.
 - Equipping recomputes derived stats and clamps current HP/MP to new maxima.
 - Equipment can grant spells or abilities while equipped.

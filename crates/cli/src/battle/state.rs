@@ -220,14 +220,44 @@ pub fn set_initial_party_target(
     runtime: &engine::runtime::GameRuntime,
     action: &PendingBattleAction,
 ) -> bool {
-    let rule = party_target_rule(action, runtime);
-    let valid = party_target_indices(runtime, battle_state, rule);
+    let valid = party_target_indices_for_action(runtime, battle_state, action);
     if let Some(index) = ensure_valid_index(menu_state.party_index, &valid) {
         menu_state.party_index = index;
         true
     } else {
         false
     }
+}
+
+pub fn party_target_indices_for_action(
+    runtime: &engine::runtime::GameRuntime,
+    battle_state: &BattleState,
+    action: &PendingBattleAction,
+) -> Vec<usize> {
+    let rule = party_target_rule(action, runtime);
+    let mut valid = party_target_indices(runtime, battle_state, rule);
+    if let PendingBattleAction::Item(item_id) = action {
+        if let Some(item) = runtime
+            .content
+            .items
+            .items
+            .iter()
+            .find(|item| item.id == *item_id)
+        {
+            valid.retain(|index| {
+                let Some(actor_id) = battle_state.party_order.get(*index) else {
+                    return false;
+                };
+                let Some(actor) = runtime.party.roster.get(actor_id) else {
+                    return false;
+                };
+                crate::menu::inventory::item_has_effect_on_actor(runtime, item, actor, true)
+            });
+        } else {
+            valid.clear();
+        }
+    }
+    valid
 }
 
 pub fn party_target_rule(

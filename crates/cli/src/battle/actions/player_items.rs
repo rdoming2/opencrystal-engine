@@ -156,49 +156,103 @@ pub fn execute_item_action(
         );
         return;
     }
-    if !runtime.inventory.remove_item(&item.id, 1) {
-        logic::push_battle_log(
-            &mut battle_state.log,
-            crate::battle::ui_text(runtime, "battle.item_none_left", "No items left."),
-        );
-        return;
+    if item.effect.r#type == "learn_recipe" {
+        if !crate::menu::inventory::item_recipe_can_unlock(runtime, item) {
+            logic::push_battle_log(
+                &mut battle_state.log,
+                crate::battle::ui_text(runtime, "battle.no_targets", "No valid targets."),
+            );
+            return;
+        }
     }
-    if item.usage.target == "enemy" {
-        if let Some(enemy_index) = target_index {
-            if let Some(enemy) = battle_state.enemies.get_mut(enemy_index) {
-                if let Some(message) =
-                    apply_item_to_enemy_battle(&runtime.content, item, enemy, &mut rand::rng())
-                {
-                    logic::push_battle_log(&mut battle_state.log, message);
+    if item.usage.target != "enemy" {
+        let valid_targets = target_ids
+            .iter()
+            .filter_map(|target_id| {
+                let actor = runtime.party.roster.get(target_id)?;
+                if crate::menu::inventory::item_has_effect_on_actor(runtime, item, actor, true) {
+                    Some(target_id.clone())
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>();
+        if valid_targets.is_empty() {
+            logic::push_battle_log(
+                &mut battle_state.log,
+                crate::battle::ui_text(runtime, "battle.no_targets", "No valid targets."),
+            );
+            return;
+        }
+        if !runtime.inventory.remove_item(&item.id, 1) {
+            logic::push_battle_log(
+                &mut battle_state.log,
+                crate::battle::ui_text(runtime, "battle.item_none_left", "No items left."),
+            );
+            return;
+        }
+        for target_id in valid_targets {
+            let message = if let Some(actor) = runtime.party.roster.get_mut(&target_id) {
+                apply_item_to_actor_battle(&runtime.content, item, actor)
+            } else {
+                None
+            };
+            if let Some(message) = message {
+                logic::push_battle_log(&mut battle_state.log, message);
+            } else {
+                crate::menu::inventory::apply_item_to_actor(runtime, item, &target_id);
+            }
+            if !item.effect.effects.is_empty() {
+                if let Some(actor) = runtime.party.roster.get_mut(&target_id) {
+                    let applied = apply_status_effects(
+                        &runtime.content,
+                        &item.effect.effects,
+                        &mut actor.statuses,
+                        &mut rand::rng(),
+                    );
+                    for label in applied {
+                        logic::push_battle_log(
+                            &mut battle_state.log,
+                            format!("{} is affected by {}.", actor.name, label),
+                        );
+                    }
                 }
             }
         }
-    }
-    for target_id in target_ids {
-        let message = if let Some(actor) = runtime.party.roster.get_mut(&target_id) {
-            apply_item_to_actor_battle(&runtime.content, item, actor)
-        } else {
-            None
+    } else {
+        let Some(enemy_index) = target_index else {
+            logic::push_battle_log(
+                &mut battle_state.log,
+                crate::battle::ui_text(runtime, "battle.no_targets", "No valid targets."),
+            );
+            return;
         };
-        if let Some(message) = message {
-            logic::push_battle_log(&mut battle_state.log, message);
-        } else {
-            crate::menu::inventory::apply_item_to_actor(runtime, item, &target_id);
+        if !runtime.inventory.remove_item(&item.id, 1) {
+            logic::push_battle_log(
+                &mut battle_state.log,
+                crate::battle::ui_text(runtime, "battle.item_none_left", "No items left."),
+            );
+            return;
         }
-        if !item.effect.effects.is_empty() {
-            if let Some(actor) = runtime.party.roster.get_mut(&target_id) {
-                let applied = apply_status_effects(
-                    &runtime.content,
-                    &item.effect.effects,
-                    &mut actor.statuses,
-                    &mut rand::rng(),
-                );
-                for label in applied {
-                    logic::push_battle_log(
-                        &mut battle_state.log,
-                        format!("{} is affected by {}.", actor.name, label),
-                    );
-                }
+        if let Some(enemy) = battle_state.enemies.get_mut(enemy_index) {
+            if let Some(message) =
+                apply_item_to_enemy_battle(&runtime.content, item, enemy, &mut rand::rng())
+            {
+                logic::push_battle_log(&mut battle_state.log, message);
+            }
+        }
+    }
+    if item.effect.r#type == "learn_recipe" {
+        if let Some(recipe_id) = item.effect.target.as_deref() {
+            if let Some(flag) = runtime
+                .content
+                .cooking
+                .as_ref()
+                .and_then(|cooking| cooking.recipes.iter().find(|recipe| recipe.id == recipe_id))
+                .and_then(|recipe| recipe.unlock_flag.clone())
+                .filter(|flag| !flag.trim().is_empty())
+            {
+                runtime.set_flag(&flag);
             }
         }
     }

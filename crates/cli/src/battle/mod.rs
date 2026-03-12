@@ -29,10 +29,10 @@ use self::actions::{
 use self::logic::{advance_turn, build_turn_order, enemy_take_turn, push_battle_log};
 use self::render::build_battle_render_state;
 use self::state::{
-    enemy_target_indices, ensure_valid_index, party_target_indices, party_target_rule,
-    set_initial_enemy_target, set_initial_party_target, step_target_index, BattleMenuState,
-    BattlePhase, BattleTurnActor, BattleTurnState, PendingBattleAction, TargetMode, TargetRule,
-    TargetSide, VictoryState,
+    enemy_target_indices, ensure_valid_index, party_target_indices,
+    party_target_indices_for_action, party_target_rule, set_initial_enemy_target,
+    set_initial_party_target, step_target_index, BattleMenuState, BattlePhase, BattleTurnActor,
+    BattleTurnState, PendingBattleAction, TargetMode, TargetRule, TargetSide, VictoryState,
 };
 use crate::menu::abilities::build_battle_ability_entries;
 use crate::menu::common::{AbilityEntry, InventoryEntry, SpellEntry};
@@ -1729,16 +1729,14 @@ fn run_battle_with_escape(
             BattlePhase::TargetParty => match action {
                 Action::MoveUp => {
                     if let Some(action) = menu_state.pending_action.as_ref() {
-                        let rule = party_target_rule(action, runtime);
-                        let valid = party_target_indices(runtime, &battle_state, rule);
+                        let valid = party_target_indices_for_action(runtime, &battle_state, action);
                         menu_state.party_index =
                             step_target_index(menu_state.party_index, &valid, -1);
                     }
                 }
                 Action::MoveDown => {
                     if let Some(action) = menu_state.pending_action.as_ref() {
-                        let rule = party_target_rule(action, runtime);
-                        let valid = party_target_indices(runtime, &battle_state, rule);
+                        let valid = party_target_indices_for_action(runtime, &battle_state, action);
                         menu_state.party_index =
                             step_target_index(menu_state.party_index, &valid, 1);
                     }
@@ -1789,7 +1787,7 @@ fn run_battle_with_escape(
                         continue;
                     };
                     let rule = party_target_rule(&action, runtime);
-                    let valid = party_target_indices(runtime, &battle_state, rule);
+                    let valid = party_target_indices_for_action(runtime, &battle_state, &action);
                     let Some(target_index) = ensure_valid_index(menu_state.party_index, &valid)
                     else {
                         let message = match rule {
