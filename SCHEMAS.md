@@ -963,8 +963,8 @@ Growth modes:
       "commands": ["abilities"]
     },
     {
-      "id": "white_mage",
-      "name": "White Mage",
+      "id": "cleric",
+      "name": "Cleric",
       "stats": {"hp": 20, "mp": 10, "str": 2, "int": 8},
       "growth": {
         "mode": "formula",
@@ -2185,7 +2185,7 @@ Vehicle fields:
     "members": {
       "hero_1": {
         "name": "Luna",
-        "job": "white_mage",
+        "job": "cleric",
         "row": "front",
         "level": 3,
         "exp": 120,
@@ -2494,8 +2494,8 @@ to the schemas defined above and consolidate the former `BATTLE_MOCK.md` example
       "spells": []
     },
     {
-      "id": "white_mage",
-      "name": "White Mage",
+      "id": "cleric",
+      "name": "Cleric",
       "stats": {"hp": 20, "mp": 10, "str": 2, "int": 8},
       "growth": {
         "type": "formula",
