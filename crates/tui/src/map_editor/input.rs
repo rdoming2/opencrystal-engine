@@ -256,38 +256,64 @@ fn request_follow_transition(
     state: &mut EditorState,
     map_ids: &[String],
 ) -> io::Result<Option<EditorAction>> {
+    #[derive(Clone)]
+    struct FollowCandidate {
+        label: String,
+        target_map: String,
+        target_pos: [i32; 2],
+    }
+
     let pos = [state.cursor.0, state.cursor.1];
-    let mut matches = state
+    let mut candidates = state
         .map
         .transitions
         .iter()
-        .enumerate()
-        .filter(|(_, transition)| transition.pos == pos)
+        .filter(|transition| transition.pos == pos)
+        .map(|transition| FollowCandidate {
+            label: format!(
+                "transition:{} -> {}@{},{}",
+                transition.id,
+                transition.target_map,
+                transition.target_pos[0],
+                transition.target_pos[1]
+            ),
+            target_map: transition.target_map.clone(),
+            target_pos: transition.target_pos,
+        })
         .collect::<Vec<_>>();
-    if matches.is_empty() {
-        state.status = "No transition at cursor".to_string();
+    for door in state.map.doors.iter().filter(|door| door.pos == pos) {
+        let Some(target_map) = door.target_map.as_ref() else {
+            continue;
+        };
+        let Some(target_pos) = door.target_pos else {
+            continue;
+        };
+        candidates.push(FollowCandidate {
+            label: format!(
+                "door:{} -> {}@{},{}",
+                door.id, target_map, target_pos[0], target_pos[1]
+            ),
+            target_map: target_map.clone(),
+            target_pos,
+        });
+    }
+
+    if candidates.is_empty() {
+        state.status = "No transition or door target at cursor".to_string();
         return Ok(Some(EditorAction::Continue));
     }
-    matches.sort_by(|(_, left), (_, right)| left.id.cmp(&right.id));
-    let selected_index = if matches.len() == 1 {
+    candidates.sort_by(|left, right| left.label.cmp(&right.label));
+    let selected_index = if candidates.len() == 1 {
         0
     } else {
-        let options = matches
+        let options = candidates
             .iter()
-            .map(|(_, transition)| {
-                format!(
-                    "{} -> {}@{},{}",
-                    transition.id,
-                    transition.target_map,
-                    transition.target_pos[0],
-                    transition.target_pos[1]
-                )
-            })
+            .map(|candidate| candidate.label.clone())
             .collect::<Vec<_>>();
         let Some(selection) = prompt_choice(
             session,
             bindings,
-            "Follow Transition",
+            "Follow Exit",
             "Choose destination:",
             &options,
             0,
@@ -298,9 +324,9 @@ fn request_follow_transition(
         };
         selection
     };
-    let (_, transition) = matches[selected_index];
-    if !map_ids.iter().any(|id| id == &transition.target_map) {
-        state.status = format!("Target map missing: {}", transition.target_map);
+    let candidate = &candidates[selected_index];
+    if !map_ids.iter().any(|id| id == &candidate.target_map) {
+        state.status = format!("Target map missing: {}", candidate.target_map);
     }
     let action = confirm_dirty_action(session, bindings, state)?;
     let save_action = match action {
@@ -314,8 +340,8 @@ fn request_follow_transition(
     Ok(Some(EditorAction::Exit(
         MapEditorOutcome::FollowTransition(FollowTransition {
             map: state.map.clone(),
-            target_map: transition.target_map.clone(),
-            target_pos: transition.target_pos,
+            target_map: candidate.target_map.clone(),
+            target_pos: candidate.target_pos,
             save_action,
         }),
     )))

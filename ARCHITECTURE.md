@@ -109,8 +109,8 @@ legacy save folder exists using the content directory name, the engine falls bac
 - Visual selection is rectangular (anchored) and supports yank/paste plus undo/redo.
 - Objects can be added or edited in-place at the cursor, with prompts for related IDs and
   schema fields (glyphs, palettes, costs, loot, and flags) using lookup lists where available.
-- Transition follow (`f`) jumps to the target map from the current cursor tile and prompts to
-  save, discard, or cancel when unsaved edits exist.
+- Exit follow (`f`) jumps to the target map from transition/door tiles and prompts to save,
+  discard, or cancel when unsaved edits exist.
 - Resize prompts for anchor placement and warns about objects that will be removed;
   encounter zones are truncated and included in the warnings.
 - Object rendering can toggle between configured glyphs and type markers.

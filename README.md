@@ -137,7 +137,7 @@ cryst build new npc innkeeper --content content/demo --name "Coral Innkeeper"
 - `cryst build map`: launches the TUI map editor for `maps/<id>.json`.
   - Tile paint, rectangular visual selection, yank/paste, undo/redo.
   - Move mode: press `m` to pick an object at the cursor; move it with arrows/HJKL; press `m` again to place.
-  - Transition follow: press `f` on a transition tile to jump to its target map, with save/discard/cancel prompts for unsaved changes.
+  - Exit follow: press `f` on a transition/door tile to jump to its target map, with save/discard/cancel prompts for unsaved changes.
 
 ## Documentation
 
