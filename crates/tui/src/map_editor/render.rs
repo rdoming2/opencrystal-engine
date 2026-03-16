@@ -139,6 +139,7 @@ fn draw_info_panel(
     lines.push("V visual, y yank, p paste".to_string());
     lines.push("R paint, t tile, L legend".to_string());
     lines.push("o add, e edit, m move".to_string());
+    lines.push("f follow transition".to_string());
     lines.push("x delete, u undo, U redo".to_string());
     lines.push("g glyphs".to_string());
     lines.push("= resize".to_string());

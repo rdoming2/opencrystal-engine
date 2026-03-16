@@ -15,10 +15,10 @@ use super::state::{
     cycle_active_tile, move_cursor, paint_active_tile, paste_selection, push_undo, redo,
     replace_tile_glyph, toggle_object_glyphs, toggle_visual, undo, yank_selection, EditorState,
 };
-use super::MapEditorOutcome;
+use super::{FollowSaveAction, FollowTransition, MapEditorOutcome};
 
 #[derive(Clone, Debug)]
-enum ExitAction {
+enum DirtyAction {
     Save,
     Discard,
     Cancel,
@@ -29,31 +29,31 @@ pub(super) enum EditorAction {
     Exit(MapEditorOutcome),
 }
 
-fn confirm_exit(
+fn confirm_dirty_action(
     session: &mut TuiSession,
     bindings: &InputBindings,
     state: &EditorState,
-) -> io::Result<ExitAction> {
+) -> io::Result<DirtyAction> {
     if !state.dirty {
-        return Ok(ExitAction::Discard);
+        return Ok(DirtyAction::Discard);
     }
     let options = vec![
-        "Save and quit".to_string(),
-        "Quit without saving".to_string(),
+        "Save changes".to_string(),
+        "Discard changes".to_string(),
         "Cancel".to_string(),
     ];
     let selection = prompt_choice(
         session,
         bindings,
         "Unsaved Changes",
-        "Select an action:",
+        "How should we continue?",
         &options,
         0,
     )?;
     Ok(match selection {
-        Some(0) => ExitAction::Save,
-        Some(1) => ExitAction::Discard,
-        _ => ExitAction::Cancel,
+        Some(0) => DirtyAction::Save,
+        Some(1) => DirtyAction::Discard,
+        _ => DirtyAction::Cancel,
     })
 }
 
@@ -234,12 +234,13 @@ fn handle_prompted_key(
             resize_map(session, bindings, state)?;
             Ok(Some(EditorAction::Continue))
         }
+        KeyCode::Char('f') => request_follow_transition(session, bindings, state, map_ids),
         KeyCode::Char('q') => {
-            let action = confirm_exit(session, bindings, state)?;
+            let action = confirm_dirty_action(session, bindings, state)?;
             Ok(Some(match action {
-                ExitAction::Cancel => EditorAction::Continue,
-                ExitAction::Discard => EditorAction::Exit(MapEditorOutcome::Cancelled),
-                ExitAction::Save => {
+                DirtyAction::Cancel => EditorAction::Continue,
+                DirtyAction::Discard => EditorAction::Exit(MapEditorOutcome::Cancelled),
+                DirtyAction::Save => {
                     state.dirty = false;
                     EditorAction::Exit(MapEditorOutcome::Saved(state.map.clone()))
                 }
@@ -247,6 +248,77 @@ fn handle_prompted_key(
         }
         _ => Ok(None),
     }
+}
+
+fn request_follow_transition(
+    session: &mut TuiSession,
+    bindings: &InputBindings,
+    state: &mut EditorState,
+    map_ids: &[String],
+) -> io::Result<Option<EditorAction>> {
+    let pos = [state.cursor.0, state.cursor.1];
+    let mut matches = state
+        .map
+        .transitions
+        .iter()
+        .enumerate()
+        .filter(|(_, transition)| transition.pos == pos)
+        .collect::<Vec<_>>();
+    if matches.is_empty() {
+        state.status = "No transition at cursor".to_string();
+        return Ok(Some(EditorAction::Continue));
+    }
+    matches.sort_by(|(_, left), (_, right)| left.id.cmp(&right.id));
+    let selected_index = if matches.len() == 1 {
+        0
+    } else {
+        let options = matches
+            .iter()
+            .map(|(_, transition)| {
+                format!(
+                    "{} -> {}@{},{}",
+                    transition.id,
+                    transition.target_map,
+                    transition.target_pos[0],
+                    transition.target_pos[1]
+                )
+            })
+            .collect::<Vec<_>>();
+        let Some(selection) = prompt_choice(
+            session,
+            bindings,
+            "Follow Transition",
+            "Choose destination:",
+            &options,
+            0,
+        )?
+        else {
+            state.status = "Follow cancelled".to_string();
+            return Ok(Some(EditorAction::Continue));
+        };
+        selection
+    };
+    let (_, transition) = matches[selected_index];
+    if !map_ids.iter().any(|id| id == &transition.target_map) {
+        state.status = format!("Target map missing: {}", transition.target_map);
+    }
+    let action = confirm_dirty_action(session, bindings, state)?;
+    let save_action = match action {
+        DirtyAction::Save => FollowSaveAction::Save,
+        DirtyAction::Discard => FollowSaveAction::Discard,
+        DirtyAction::Cancel => {
+            state.status = "Follow cancelled".to_string();
+            return Ok(Some(EditorAction::Continue));
+        }
+    };
+    Ok(Some(EditorAction::Exit(
+        MapEditorOutcome::FollowTransition(FollowTransition {
+            map: state.map.clone(),
+            target_map: transition.target_map.clone(),
+            target_pos: transition.target_pos,
+            save_action,
+        }),
+    )))
 }
 
 fn choose_active_tile(

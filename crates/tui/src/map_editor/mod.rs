@@ -175,6 +175,7 @@ pub struct MapCampfire {
 #[derive(Clone, Debug)]
 pub struct MapEditorConfig {
     pub map: MapData,
+    pub start_cursor: Option<[i32; 2]>,
     pub map_ids: Vec<String>,
     pub event_ids: Vec<String>,
     pub vehicle_ids: Vec<String>,
@@ -187,17 +188,32 @@ pub struct MapEditorConfig {
     pub encounter_table_ids: Vec<String>,
 }
 
+#[derive(Clone, Copy, Debug)]
+pub enum FollowSaveAction {
+    Save,
+    Discard,
+}
+
+#[derive(Clone, Debug)]
+pub struct FollowTransition {
+    pub map: MapData,
+    pub target_map: String,
+    pub target_pos: [i32; 2],
+    pub save_action: FollowSaveAction,
+}
+
 #[derive(Clone, Debug)]
 pub enum MapEditorOutcome {
     Saved(MapData),
     Cancelled,
+    FollowTransition(FollowTransition),
 }
 
 pub fn run_map_editor(
     session: &mut TuiSession,
     config: MapEditorConfig,
 ) -> io::Result<MapEditorOutcome> {
-    let mut state = EditorState::new(config.map);
+    let mut state = EditorState::new(config.map, config.start_cursor);
     let bindings = InputBindings::default_bindings();
     let mut map_ids = config.map_ids;
     let mut event_ids = config.event_ids;

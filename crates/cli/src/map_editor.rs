@@ -13,8 +13,9 @@ use engine::maps::{
 };
 use engine::rules::RulesFile;
 use tui::dialog::prompt_text;
+use tui::input::InputBindings;
 use tui::map_editor::{
-    EncounterZone as UiEncounterZone, InventoryStack as UiInventoryStack,
+    EncounterZone as UiEncounterZone, FollowSaveAction, InventoryStack as UiInventoryStack,
     LegendEntry as UiLegendEntry, MapCampfire as UiMapCampfire, MapChest as UiMapChest,
     MapChestLoot as UiMapChestLoot, MapCurrencyStack as UiCurrencyStack, MapData as UiMapData,
     MapDoor as UiMapDoor, MapEditorConfig, MapEditorOutcome, MapEvent as UiMapEvent,
@@ -24,21 +25,8 @@ use tui::map_editor::{
 use tui::session::TuiSession;
 
 pub fn run_map_editor(content_dir: &Path, id: &str) -> Result<(), String> {
-    let map_path = content_dir.join("maps").join(format!("{}.json", id));
     let mut session = TuiSession::start().map_err(|err| format!("Failed to start TUI: {}", err))?;
-    let map = if map_path.exists() {
-        MapFile::load(&map_path).map_err(|err| err.to_string())?
-    } else {
-        match prompt_new_map(&mut session, id)? {
-            Some(map) => map,
-            None => {
-                session.finish().ok();
-                return Ok(());
-            }
-        }
-    };
 
-    let map_ids = load_map_ids(content_dir);
     let event_ids = load_event_ids(content_dir);
     let vehicle_ids = load_vehicle_ids(content_dir);
     let npc_ids = load_npc_ids(content_dir);
@@ -46,46 +34,125 @@ pub fn run_map_editor(content_dir: &Path, id: &str) -> Result<(), String> {
     let equipment_ids = load_equipment_ids(content_dir);
     let currency_ids = load_currency_ids(content_dir);
     let campfire_ids = load_campfire_ids(content_dir);
-    let encounter_zone_ids = load_encounter_zone_ids(&map);
     let encounter_table_ids = load_encounter_table_ids(content_dir);
+    let mut current_map_id = id.to_string();
+    let mut start_cursor = None;
 
-    let config = MapEditorConfig {
-        map: map_to_ui(map),
-        map_ids,
-        event_ids,
-        vehicle_ids,
-        npc_ids,
-        item_ids,
-        equipment_ids,
-        currency_ids,
-        campfire_ids,
-        encounter_zone_ids,
-        encounter_table_ids,
-    };
-
-    let outcome = match tui::map_editor::run_map_editor(&mut session, config) {
-        Ok(outcome) => outcome,
-        Err(err) => {
-            session.finish().ok();
-            return Err(err.to_string());
-        }
-    };
-    session.finish().ok();
-
-    match outcome {
-        MapEditorOutcome::Saved(map) => {
-            let map = ui_to_map(map);
-            if let Some(parent) = map_path.parent() {
-                fs::create_dir_all(parent).map_err(|err| err.to_string())?;
+    loop {
+        let map_path = content_dir
+            .join("maps")
+            .join(format!("{}.json", current_map_id));
+        let map = if map_path.exists() {
+            MapFile::load(&map_path).map_err(|err| err.to_string())?
+        } else {
+            match prompt_new_map(&mut session, &current_map_id)? {
+                Some(map) => map,
+                None => {
+                    session.finish().ok();
+                    return Ok(());
+                }
             }
-            write_json_pretty(&map_path, &map)?;
-            println!("Saved {}", map_path.display());
-        }
-        MapEditorOutcome::Cancelled => {
-            println!("Map edit cancelled");
+        };
+
+        let map_ids = load_map_ids(content_dir);
+        let encounter_zone_ids = load_encounter_zone_ids(&map);
+        let config = MapEditorConfig {
+            map: map_to_ui(map),
+            start_cursor,
+            map_ids,
+            event_ids: event_ids.clone(),
+            vehicle_ids: vehicle_ids.clone(),
+            npc_ids: npc_ids.clone(),
+            item_ids: item_ids.clone(),
+            equipment_ids: equipment_ids.clone(),
+            currency_ids: currency_ids.clone(),
+            campfire_ids: campfire_ids.clone(),
+            encounter_zone_ids,
+            encounter_table_ids: encounter_table_ids.clone(),
+        };
+
+        let outcome = match tui::map_editor::run_map_editor(&mut session, config) {
+            Ok(outcome) => outcome,
+            Err(err) => {
+                session.finish().ok();
+                return Err(err.to_string());
+            }
+        };
+
+        match outcome {
+            MapEditorOutcome::Saved(map) => {
+                save_map(content_dir, &current_map_id, &ui_to_map(map))?;
+                println!("Saved maps/{}.json", current_map_id);
+                session.finish().ok();
+                return Ok(());
+            }
+            MapEditorOutcome::Cancelled => {
+                println!("Map edit cancelled");
+                session.finish().ok();
+                return Ok(());
+            }
+            MapEditorOutcome::FollowTransition(request) => {
+                if matches!(request.save_action, FollowSaveAction::Save) {
+                    save_map(content_dir, &current_map_id, &ui_to_map(request.map))?;
+                    println!("Saved maps/{}.json", current_map_id);
+                }
+
+                if !target_map_exists(content_dir, &request.target_map)
+                    && !prompt_create_target_map(content_dir, &mut session, &request.target_map)?
+                {
+                    start_cursor = None;
+                    continue;
+                }
+
+                current_map_id = request.target_map;
+                start_cursor = Some(request.target_pos);
+            }
         }
     }
+}
+
+fn save_map(content_dir: &Path, id: &str, map: &MapFile) -> Result<(), String> {
+    let map_path = content_dir.join("maps").join(format!("{}.json", id));
+    if let Some(parent) = map_path.parent() {
+        fs::create_dir_all(parent).map_err(|err| err.to_string())?;
+    }
+    write_json_pretty(&map_path, map)?;
     Ok(())
+}
+
+fn target_map_exists(content_dir: &Path, id: &str) -> bool {
+    content_dir
+        .join("maps")
+        .join(format!("{}.json", id))
+        .exists()
+}
+
+fn prompt_create_target_map(
+    content_dir: &Path,
+    session: &mut TuiSession,
+    id: &str,
+) -> Result<bool, String> {
+    let options = vec!["Create target map".to_string(), "Cancel jump".to_string()];
+    let bindings = InputBindings::default_bindings();
+    let choice = tui::dialog::prompt_choice(
+        session,
+        &bindings,
+        "Missing Target Map",
+        &format!("Target '{}' does not exist.", id),
+        &options,
+        0,
+    )
+    .map_err(|err| err.to_string())?;
+    if choice != Some(0) {
+        return Ok(false);
+    }
+    match prompt_new_map(session, id)? {
+        Some(map) => {
+            save_map(content_dir, id, &map)?;
+            Ok(true)
+        }
+        None => Ok(false),
+    }
 }
 
 fn prompt_new_map(session: &mut TuiSession, id: &str) -> Result<Option<MapFile>, String> {

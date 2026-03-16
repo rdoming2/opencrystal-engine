@@ -115,6 +115,7 @@
 - [x] Add startup content chooser when `--content` is omitted.
 - [x] Add `cryst build map` TUI editor (tiles, legend, objects, resize warnings).
 - [x] Add encounter zone editing to map editor.
+- [x] Add map-editor transition follow flow with save/discard jump options.
 - [x] Show campfire recipe ingredient requirements with inventory counts.
 - [x] Gameover screen and optional restart logic (last battle, last save, fallback to main menu)
 - [x] End game screen with option to continue vs. return to main menu. Option to "star" the save

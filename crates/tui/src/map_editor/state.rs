@@ -58,11 +58,12 @@ pub(super) enum ObjectGlyphMode {
 }
 
 impl EditorState {
-    pub(super) fn new(mut map: MapData) -> Self {
+    pub(super) fn new(mut map: MapData, start_cursor: Option<[i32; 2]>) -> Self {
         normalize_tiles(&mut map, None);
         let active_tile_index = if map.legend.is_empty() { 0 } else { 0 };
         let active_tile_index = active_tile_index.min(map.legend.len().saturating_sub(1));
-        let cursor = (0, 0);
+        let cursor = start_cursor.map(|pos| (pos[0], pos[1])).unwrap_or((0, 0));
+        let cursor = clamp_cursor(cursor, map.width, map.height);
         Self {
             map,
             cursor,
@@ -92,6 +93,12 @@ impl EditorState {
             ObjectGlyphMode::Markers => "markers",
         }
     }
+}
+
+fn clamp_cursor(cursor: (i32, i32), width: u32, height: u32) -> (i32, i32) {
+    let max_x = (width as i32).saturating_sub(1).max(0);
+    let max_y = (height as i32).saturating_sub(1).max(0);
+    (cursor.0.clamp(0, max_x), cursor.1.clamp(0, max_y))
 }
 
 impl ObjectGlyphMode {

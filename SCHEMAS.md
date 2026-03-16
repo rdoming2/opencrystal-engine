@@ -26,6 +26,8 @@ pack. It does not invent missing required context; for example, spell creation r
 one magic school in `entities/spells.json`.
 
 `cryst build map <id>` opens a TUI map editor that edits `maps/<id>.json` in place.
+From a transition tile, `f` follows to the target map and prompts to save, discard, or cancel
+when unsaved edits exist before jumping.
 
 Supported kinds: `spell`, `ability`, `item`, `equipment`, `enemy`, `vehicle`, `shop`, `npc`,
 `encounter`, `job`.
