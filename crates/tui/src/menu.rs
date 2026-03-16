@@ -1,17 +1,17 @@
 use std::io;
 
 use crossterm::event::{self, Event};
+use ratatui::Frame;
 use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, Paragraph, Wrap};
-use ratatui::Frame;
 
 use crate::dialog::confirm_quit;
-use crate::input::{is_actionable_key, Action, InputBindings};
+use crate::input::{Action, InputBindings, is_actionable_key};
 use crate::session::TuiSession;
 use crate::ui::{MenuLayout, MenuUiFile};
-use crate::utils::centered_rect;
+use crate::utils::{centered_rect, palette_color};
 
 #[derive(Clone, Copy, Debug)]
 pub enum MenuPane {
@@ -53,6 +53,7 @@ pub struct MenuPanelLine {
 pub struct MenuPanelSpan {
     pub text: String,
     pub style: PanelSpanStyle,
+    pub palette: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -556,10 +557,10 @@ where
             }
             match key.code {
                 crossterm::event::KeyCode::Char('y') | crossterm::event::KeyCode::Char('Y') => {
-                    return Ok(true)
+                    return Ok(true);
                 }
                 crossterm::event::KeyCode::Char('n') | crossterm::event::KeyCode::Char('N') => {
-                    return Ok(false)
+                    return Ok(false);
                 }
                 _ => return Ok(false),
             }
@@ -852,9 +853,20 @@ pub fn render_panel_line(line: &MenuPanelLine) -> Line<'_> {
     let spans = line
         .spans
         .iter()
-        .map(|span| Span::styled(span.text.as_str(), panel_span_style(span.style)))
+        .map(|span| Span::styled(span.text.as_str(), panel_span_style_with_palette(span)))
         .collect::<Vec<_>>();
     Line::from(spans)
+}
+
+fn panel_span_style_with_palette(span: &MenuPanelSpan) -> Style {
+    let base = panel_span_style(span.style);
+    if !matches!(span.style, PanelSpanStyle::Normal) {
+        return base;
+    }
+    if let Some(color) = span.palette.as_deref().and_then(palette_color) {
+        return base.fg(color);
+    }
+    base
 }
 
 pub fn panel_span_style(style: PanelSpanStyle) -> Style {
@@ -892,6 +904,53 @@ pub fn right_panel_inner_size(
 
 fn first_enabled_content(entries: &[ContentMenuEntry]) -> Option<usize> {
     entries.iter().position(|entry| entry.enabled)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn normal_style_uses_palette_color_when_known() {
+        let line = MenuPanelLine {
+            spans: vec![MenuPanelSpan {
+                text: "~".to_string(),
+                style: PanelSpanStyle::Normal,
+                palette: Some("blue".to_string()),
+            }],
+        };
+
+        let rendered = render_panel_line(&line);
+        assert_eq!(rendered.spans[0].style.fg, Some(Color::Blue));
+    }
+
+    #[test]
+    fn non_normal_style_ignores_palette_color() {
+        let line = MenuPanelLine {
+            spans: vec![MenuPanelSpan {
+                text: "X".to_string(),
+                style: PanelSpanStyle::Highlight,
+                palette: Some("green".to_string()),
+            }],
+        };
+
+        let rendered = render_panel_line(&line);
+        assert_eq!(rendered.spans[0].style.fg, Some(Color::Yellow));
+    }
+
+    #[test]
+    fn unknown_palette_falls_back_to_base_style() {
+        let line = MenuPanelLine {
+            spans: vec![MenuPanelSpan {
+                text: ".".to_string(),
+                style: PanelSpanStyle::Normal,
+                palette: Some("not_a_palette".to_string()),
+            }],
+        };
+
+        let rendered = render_panel_line(&line);
+        assert_eq!(rendered.spans[0].style.fg, Some(Color::White));
+    }
 }
 
 fn move_content_selection(current: usize, entries: &[ContentMenuEntry], direction: i32) -> usize {

@@ -4,7 +4,7 @@ use engine::maps::MapFile;
 use engine::runtime::GameRuntime;
 use tui::menu::{MenuPanelLine, MenuPanelView, PanelSpanStyle};
 
-use super::inventory::{panel_line, panel_line_spans, panel_span};
+use super::inventory::{panel_line, panel_line_spans, panel_span, panel_span_with_palette};
 use super::panels::PanelSize;
 
 pub(super) struct OverworldDestination {
@@ -79,7 +79,26 @@ pub(super) fn build_overworld_map_panel(
     }
     let map_view = build_overworld_map_view(map, panel_size.width, map_height);
     let markers = build_overworld_markers(runtime, map, &map_view, &destinations, selection);
-    let mut lines = build_overworld_map_lines(&map_view, &markers);
+    let use_color = runtime
+        .content
+        .rules
+        .render
+        .palette
+        .eq_ignore_ascii_case("terminal");
+    let tile_palettes = map
+        .legend
+        .iter()
+        .filter_map(|(glyph, entry)| {
+            let key = glyph.chars().next()?;
+            let palette = entry
+                .palette
+                .as_ref()
+                .filter(|palette| !palette.trim().is_empty())?
+                .clone();
+            Some((key, palette))
+        })
+        .collect::<HashMap<_, _>>();
+    let mut lines = build_overworld_map_lines(&map_view, &markers, &tile_palettes, use_color);
     if map_height < panel_size.height && !list_lines.is_empty() {
         lines.push(panel_line(""));
     }
@@ -96,6 +115,8 @@ pub(super) fn build_overworld_map_panel(
 fn build_overworld_map_lines(
     view: &OverworldMapView,
     markers: &HashMap<(i32, i32), MapMarker>,
+    tile_palettes: &HashMap<char, String>,
+    use_color: bool,
 ) -> Vec<MenuPanelLine> {
     let mut lines = Vec::new();
     for y in 0..view.height as i32 {
@@ -106,17 +127,87 @@ fn build_overworld_map_lines(
             .unwrap_or("");
         let mut spans = Vec::new();
         for x in 0..view.width as i32 {
-            let mut ch = row.chars().nth(x as usize).unwrap_or(' ');
-            let mut style = PanelSpanStyle::Normal;
             if let Some(marker) = markers.get(&(x, y)) {
-                ch = marker.glyph;
-                style = marker.style;
+                spans.push(panel_span(marker.glyph.to_string(), marker.style));
+                continue;
             }
-            spans.push(panel_span(ch.to_string(), style));
+            let ch = row.chars().nth(x as usize).unwrap_or(' ');
+            let palette = if use_color {
+                tile_palettes.get(&ch).cloned()
+            } else {
+                None
+            };
+            spans.push(panel_span_with_palette(
+                ch.to_string(),
+                PanelSpanStyle::Normal,
+                palette,
+            ));
         }
         lines.push(panel_line_spans(spans));
     }
     lines
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn overworld_map_line_uses_tile_palette_in_color_mode() {
+        let view = OverworldMapView {
+            width: 1,
+            height: 1,
+            tiles: vec!["~".to_string()],
+        };
+        let markers = HashMap::new();
+        let tile_palettes = HashMap::from([('~', "blue".to_string())]);
+
+        let lines = build_overworld_map_lines(&view, &markers, &tile_palettes, true);
+
+        assert_eq!(lines.len(), 1);
+        assert_eq!(lines[0].spans.len(), 1);
+        assert_eq!(lines[0].spans[0].text, "~");
+        assert!(matches!(lines[0].spans[0].style, PanelSpanStyle::Normal));
+        assert_eq!(lines[0].spans[0].palette.as_deref(), Some("blue"));
+    }
+
+    #[test]
+    fn overworld_map_line_skips_tile_palette_when_color_disabled() {
+        let view = OverworldMapView {
+            width: 1,
+            height: 1,
+            tiles: vec!["~".to_string()],
+        };
+        let markers = HashMap::new();
+        let tile_palettes = HashMap::from([('~', "blue".to_string())]);
+
+        let lines = build_overworld_map_lines(&view, &markers, &tile_palettes, false);
+
+        assert_eq!(lines[0].spans[0].palette, None);
+    }
+
+    #[test]
+    fn marker_style_overrides_tile_palette() {
+        let view = OverworldMapView {
+            width: 1,
+            height: 1,
+            tiles: vec!["~".to_string()],
+        };
+        let markers = HashMap::from([(
+            (0, 0),
+            MapMarker {
+                glyph: 'X',
+                style: PanelSpanStyle::Highlight,
+            },
+        )]);
+        let tile_palettes = HashMap::from([('~', "blue".to_string())]);
+
+        let lines = build_overworld_map_lines(&view, &markers, &tile_palettes, true);
+
+        assert_eq!(lines[0].spans[0].text, "X");
+        assert!(matches!(lines[0].spans[0].style, PanelSpanStyle::Highlight));
+        assert_eq!(lines[0].spans[0].palette, None);
+    }
 }
 
 fn build_destination_list_lines(

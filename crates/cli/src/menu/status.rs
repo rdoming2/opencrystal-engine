@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
 use engine::party::{
-    activity_proficiency, activity_rank_label, actor_magic_tiers, actor_row_label,
-    actor_weapon_category, exp_for_level, get_actor_max_charges, job_jp, ActivityKind,
+    ActivityKind, activity_proficiency, activity_rank_label, actor_magic_tiers, actor_row_label,
+    actor_weapon_category, exp_for_level, get_actor_max_charges, job_jp,
 };
 use engine::rules::{MagicSystem, ProgressionMode};
 use engine::runtime::GameRuntime;
@@ -473,6 +473,7 @@ fn panel_line(text: impl Into<String>) -> MenuPanelLine {
         spans: vec![MenuPanelSpan {
             text: text.into(),
             style: PanelSpanStyle::Normal,
+            palette: None,
         }],
     }
 }
@@ -482,6 +483,7 @@ fn panel_line_with_style(text: impl Into<String>, style: PanelSpanStyle) -> Menu
         spans: vec![MenuPanelSpan {
             text: text.into(),
             style,
+            palette: None,
         }],
     }
 }
@@ -494,6 +496,7 @@ fn panel_span(text: impl Into<String>, style: PanelSpanStyle) -> MenuPanelSpan {
     MenuPanelSpan {
         text: text.into(),
         style,
+        palette: None,
     }
 }
 

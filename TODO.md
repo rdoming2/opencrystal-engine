@@ -80,6 +80,7 @@
   - [x] NPC rendering + gating.
   - [x] Transition markers (glyph + palette highlight).
   - [x] Terminal palette tile coloring (theme-aware).
+- [x] Main menu overworld panel uses map legend tile palettes.
 - [x] Battle renderer.
   - [x] Battlefield + enemy art/glyph modes.
   - [x] Command row (enemy list, commands, party list).

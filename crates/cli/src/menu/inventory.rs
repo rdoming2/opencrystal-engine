@@ -5,8 +5,8 @@ use engine::runtime::GameRuntime;
 use tui::menu::{MenuPanelLine, MenuPanelSpan, MenuPanelView, PanelSpanStyle};
 
 use super::common::{
-    filter_from_index, sort_from_index, InventoryEntry, InventoryFilter, InventoryKind,
-    InventorySort,
+    InventoryEntry, InventoryFilter, InventoryKind, InventorySort, filter_from_index,
+    sort_from_index,
 };
 use super::equipment::build_equipped_map;
 
@@ -347,7 +347,7 @@ pub fn apply_item_to_targets(
             return ItemUseResult {
                 consumed: false,
                 message: None,
-            }
+            };
         }
     };
     if !item_usage_allows_field(&item.usage.context) {
@@ -479,6 +479,7 @@ pub fn panel_line(text: impl Into<String>) -> MenuPanelLine {
         spans: vec![MenuPanelSpan {
             text: text.into(),
             style: PanelSpanStyle::Normal,
+            palette: None,
         }],
     }
 }
@@ -488,9 +489,18 @@ pub fn panel_line_spans(spans: Vec<MenuPanelSpan>) -> MenuPanelLine {
 }
 
 pub fn panel_span(text: impl Into<String>, style: PanelSpanStyle) -> MenuPanelSpan {
+    panel_span_with_palette(text, style, None)
+}
+
+pub fn panel_span_with_palette(
+    text: impl Into<String>,
+    style: PanelSpanStyle,
+    palette: Option<String>,
+) -> MenuPanelSpan {
     MenuPanelSpan {
         text: text.into(),
         style,
+        palette,
     }
 }
 

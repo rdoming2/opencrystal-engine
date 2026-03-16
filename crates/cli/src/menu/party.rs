@@ -326,6 +326,7 @@ fn panel_line(text: impl Into<String>, style: PanelSpanStyle) -> MenuPanelLine {
         spans: vec![MenuPanelSpan {
             text: text.into(),
             style,
+            palette: None,
         }],
     }
 }

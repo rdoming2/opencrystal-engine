@@ -509,6 +509,7 @@ Defines multiple worlds and inter-world travel.
 - `overworld_map_id` identifies the world map used for overworld travel, warp returns, and fast
   travel. It should reference a map in `maps/*.json`.
 - The menu map view uses a downsampled `overworld_map_id` view sized to the viewport.
+- In terminal palette mode, the menu map view colors tiles from each map legend entry's `palette`.
 
 ```json
 {
@@ -680,6 +681,7 @@ Saving rules:
 Rendering notes:
 
 - `legend.palette` sets the terminal palette name for the tile glyph.
+- Main-menu overworld map tiles reuse `legend.palette` for the downsampled map view in terminal palette mode.
 - `transitions` may include a `glyph` override and `palette` to highlight exits.
 
 Vehicle notes:

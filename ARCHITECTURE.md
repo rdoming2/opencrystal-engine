@@ -100,6 +100,7 @@ legacy save folder exists using the content directory name, the engine falls bac
 
 - The overworld map menu shows a downsampled view of the base overworld map sized
   to the current viewport.
+- Menu map tiles use each map legend entry's palette when terminal palette rendering is enabled.
 
 ### Build-time map editor
 
@@ -164,6 +165,7 @@ All runtime data is loaded from JSON. Files are organized into top-level categor
   - Vehicle travel with unlock flags.
 - The overworld map menu uses a downsampled view of the base overworld map by
   default and reuses overworld transitions as destinations with optional costs.
+- The main menu map panel applies legend tile palettes so terrain colors match the map schema.
 - Demo content uses the downsampled overworld view (no overview map).
 - Destinations remain hidden until the party has visited the target map; the
   map view highlights the party location and unlocked vehicles.

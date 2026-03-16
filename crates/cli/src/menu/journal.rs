@@ -87,6 +87,7 @@ pub fn build_journal_panel(runtime: &GameRuntime, selected_index: usize) -> Vec<
                         quest_state.quest.title
                     ),
                     style,
+                    palette: None,
                 }],
             });
 
@@ -224,6 +225,7 @@ fn panel_line(text: impl Into<String>) -> MenuPanelLine {
         spans: vec![MenuPanelSpan {
             text: text.into(),
             style: PanelSpanStyle::Normal,
+            palette: None,
         }],
     }
 }

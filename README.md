@@ -67,7 +67,7 @@ data-driven and inspectable. Highlights include:
 | Area | Highlights |
 | --- | --- |
 | Rendering | ANSI + 256 colors, palette-based styling, wide/modern modes, glyph or ASCII battle art based on terminal size. |
-| Worlds & travel | Multi-world maps, overworld/town/dungeon layers, transitions, overworld fast travel, vehicles, per-map edge looping, and downsampled overworld map views. |
+| Worlds & travel | Multi-world maps, overworld/town/dungeon layers, transitions, overworld fast travel, vehicles, per-map edge looping, and downsampled overworld map views that preserve legend tile palettes in the main menu map panel. |
 | Events & dialog | Scripted events with flags, item/equipment requirements, warps, battles, shops, rests, party add/remove, stat updates, and dialog trees with actions and gated choices. |
 | Battle | Turn-based and Readiness modes, pause, command catalogs, targeting modes, rows, traits/status effects, configurable formulas, optional boss-trait scaling, difficulty scaling, enemy spell/ability AI, encounter-meter smoothing, per-event control over whether running is allowed, and non-blocking enemy action feedback (longer lunge + hit flash) while navigating command/target menus in dynamic modes. |
 | Jobs & growth | Character/job/job_points/activity progression, post-battle growth tuning, JP earn/spend modes, optional secondary jobs, spell/ability unlock modes (including equipment-granted), tier charges, and magic equip slots. |

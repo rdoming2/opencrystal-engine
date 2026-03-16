@@ -88,7 +88,11 @@ pub fn build_jobs_dashboard(runtime: &GameRuntime) -> MenuPanelView {
                 JobMenuOption::Learn => "Learn Abilities".to_string(),
             };
             lines.push(MenuPanelLine {
-                spans: vec![MenuPanelSpan { text: label, style }],
+                spans: vec![MenuPanelSpan {
+                    text: label,
+                    style,
+                    palette: None,
+                }],
             });
         }
     } else {
@@ -189,6 +193,7 @@ fn panel_line(content: impl Into<String>) -> MenuPanelLine {
         spans: vec![MenuPanelSpan {
             text: content.into(),
             style: PanelSpanStyle::Normal,
+            palette: None,
         }],
     }
 }
