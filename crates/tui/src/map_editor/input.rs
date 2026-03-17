@@ -404,6 +404,10 @@ fn add_legend_entry(session: &mut TuiSession, state: &mut EditorState) -> io::Re
     let Some(glyph) = glyph else {
         return Ok(());
     };
+    if glyph.is_whitespace() {
+        state.status = "Whitespace glyphs are not allowed".to_string();
+        return Ok(());
+    }
     let tile = prompt_text(session, "Legend", "Tile id:", "floor", 32)?;
     let Some(tile) = tile else {
         return Ok(());
@@ -463,6 +467,10 @@ fn edit_legend_entry(
     let Some(glyph) = glyph else {
         return Ok(());
     };
+    if glyph.is_whitespace() {
+        state.status = "Whitespace glyphs are not allowed".to_string();
+        return Ok(());
+    }
     let tile = prompt_text(session, "Legend", "Tile id:", &entry.tile, 32)?;
     let Some(tile) = tile else {
         return Ok(());

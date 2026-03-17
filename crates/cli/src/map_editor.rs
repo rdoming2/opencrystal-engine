@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::fs;
 use std::path::Path;
 
@@ -320,16 +321,23 @@ fn load_encounter_table_ids(content_dir: &Path) -> Vec<String> {
 }
 
 fn map_to_ui(map: MapFile) -> UiMapData {
-    let tiles = map
+    let tiles: Vec<Vec<char>> = map
         .tiles
         .iter()
         .map(|row| row.chars().collect::<Vec<_>>())
         .collect();
+    let used_glyphs = tiles
+        .iter()
+        .flat_map(|row| row.iter().copied())
+        .collect::<HashSet<_>>();
     let legend = map
         .legend
         .iter()
         .filter_map(|(glyph, entry)| {
             let ch = glyph.chars().next()?;
+            if ch.is_whitespace() && !used_glyphs.contains(&ch) {
+                return None;
+            }
             Some(UiLegendEntry {
                 glyph: ch,
                 tile: entry.tile.clone(),
@@ -514,9 +522,15 @@ fn ui_to_map(map: UiMapData) -> MapFile {
         .iter()
         .map(|row| row.iter().collect::<String>())
         .collect::<Vec<_>>();
+    let used_glyphs = map
+        .tiles
+        .iter()
+        .flat_map(|row| row.iter().copied())
+        .collect::<HashSet<_>>();
     let legend = map
         .legend
         .iter()
+        .filter(|entry| !entry.glyph.is_whitespace() || used_glyphs.contains(&entry.glyph))
         .map(|entry| {
             (
                 entry.glyph.to_string(),

@@ -295,8 +295,18 @@ fn normalize_tiles(map: &mut MapData, default_glyph: Option<char>) {
     for entry in &map.legend {
         existing.insert(entry.glyph, entry.tile.clone());
     }
+    for row in &mut map.tiles {
+        for glyph in row {
+            if glyph.is_whitespace() && !existing.contains_key(glyph) {
+                *glyph = fill;
+            }
+        }
+    }
     for row in &map.tiles {
         for glyph in row {
+            if glyph.is_whitespace() {
+                continue;
+            }
             if !existing.contains_key(glyph) {
                 map.legend.push(LegendEntry {
                     glyph: *glyph,
@@ -307,6 +317,79 @@ fn normalize_tiles(map: &mut MapData, default_glyph: Option<char>) {
                 existing.insert(*glyph, "unknown".to_string());
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn map_with(tiles: Vec<Vec<char>>, legend: Vec<LegendEntry>) -> MapData {
+        MapData {
+            version: 1,
+            id: "test_map".to_string(),
+            name: "Test".to_string(),
+            hide_name: false,
+            world: "test_world".to_string(),
+            width: tiles.first().map(|row| row.len()).unwrap_or(0) as u32,
+            height: tiles.len() as u32,
+            loop_x: false,
+            loop_y: false,
+            tiles,
+            legend,
+            encounters: Vec::new(),
+            encounter_rate: 0.0,
+            events: Vec::new(),
+            npcs: Vec::new(),
+            signs: Vec::new(),
+            chests: Vec::new(),
+            doors: Vec::new(),
+            puzzles: Vec::new(),
+            campfires: Vec::new(),
+            allow_save: true,
+            save_points: Vec::new(),
+            transitions: Vec::new(),
+            vehicles: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn normalize_tiles_replaces_undefined_whitespace_and_skips_space_legend() {
+        let mut map = map_with(
+            vec![vec![' ', 'x']],
+            vec![LegendEntry {
+                glyph: '.',
+                tile: "floor".to_string(),
+                passable: true,
+                palette: None,
+            }],
+        );
+
+        normalize_tiles(&mut map, None);
+
+        assert_eq!(map.tiles, vec![vec!['.', 'x']]);
+        assert!(map.legend.iter().any(|entry| entry.glyph == '.'));
+        assert!(map.legend.iter().any(|entry| entry.glyph == 'x'));
+        assert!(!map.legend.iter().any(|entry| entry.glyph == ' '));
+    }
+
+    #[test]
+    fn normalize_tiles_keeps_defined_whitespace_glyph() {
+        let mut map = map_with(
+            vec![vec![' ']],
+            vec![LegendEntry {
+                glyph: ' ',
+                tile: "void".to_string(),
+                passable: true,
+                palette: None,
+            }],
+        );
+
+        normalize_tiles(&mut map, None);
+
+        assert_eq!(map.tiles, vec![vec![' ']]);
+        assert_eq!(map.legend.len(), 1);
+        assert_eq!(map.legend[0].glyph, ' ');
     }
 }
 
