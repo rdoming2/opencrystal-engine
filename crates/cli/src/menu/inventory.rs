@@ -5,8 +5,8 @@ use engine::runtime::GameRuntime;
 use tui::menu::{MenuPanelLine, MenuPanelSpan, MenuPanelView, PanelSpanStyle};
 
 use super::common::{
-    InventoryEntry, InventoryFilter, InventoryKind, InventorySort, filter_from_index,
-    sort_from_index,
+    filter_from_index, sort_from_index, InventoryEntry, InventoryFilter, InventoryKind,
+    InventorySort,
 };
 use super::equipment::build_equipped_map;
 
@@ -612,6 +612,18 @@ fn equipment_power(item: &engine::entities::EquipmentDefinition) -> i32 {
         .sum()
 }
 
+fn field_item_heal_has_effect(current_hp: i32, max_hp: i32, power: i32) -> bool {
+    current_hp > 0 && current_hp < max_hp && power > 0
+}
+
+fn apply_field_item_heal(current_hp: i32, max_hp: i32, power: i32) -> i32 {
+    if current_hp <= 0 {
+        current_hp
+    } else {
+        (current_hp + power).clamp(0, max_hp)
+    }
+}
+
 pub fn apply_item_to_actor(
     runtime: &mut GameRuntime,
     item: &engine::entities::ItemDefinition,
@@ -631,7 +643,7 @@ pub fn apply_item_to_actor(
     let power = item.effect.power.unwrap_or(0);
     match item.effect.r#type.as_str() {
         "heal_hp" => {
-            actor.current_hp = (actor.current_hp + power).clamp(0, max_hp);
+            actor.current_hp = apply_field_item_heal(actor.current_hp, max_hp, power);
         }
         "heal_mp" => {
             actor.current_mp = (actor.current_mp + power).clamp(0, max_mp);
@@ -1014,7 +1026,7 @@ pub fn item_has_effect_on_actor(
                     actor.current_hp < max_hp && power > 0
                 }
             } else {
-                actor.current_hp < max_hp && power > 0
+                field_item_heal_has_effect(actor.current_hp, max_hp, power)
             }
         }
         "heal_mp" => actor.current_mp < max_mp && power > 0,
@@ -1219,7 +1231,9 @@ pub fn build_battle_item_entries(runtime: &GameRuntime) -> Vec<InventoryEntry> {
 
 #[cfg(test)]
 mod tests {
-    use super::{can_drop_inventory_entry, can_drop_item};
+    use super::{
+        apply_field_item_heal, can_drop_inventory_entry, can_drop_item, field_item_heal_has_effect,
+    };
     use crate::menu::common::{InventoryEntry, InventoryKind};
 
     #[test]
@@ -1238,6 +1252,18 @@ mod tests {
         assert!(can_drop_inventory_entry(None, &equipment));
         equipment.available_qty = 0;
         assert!(!can_drop_inventory_entry(None, &equipment));
+    }
+
+    #[test]
+    fn field_heal_item_ignores_ko_targets() {
+        assert!(!field_item_heal_has_effect(0, 100, 30));
+        assert_eq!(apply_field_item_heal(0, 100, 30), 0);
+    }
+
+    #[test]
+    fn field_heal_item_still_heals_living_targets() {
+        assert!(field_item_heal_has_effect(40, 100, 30));
+        assert_eq!(apply_field_item_heal(40, 100, 30), 70);
     }
 
     fn inventory_entry(kind: InventoryKind, available_qty: i32, total_qty: i32) -> InventoryEntry {

@@ -175,17 +175,31 @@ pub fn spell_targets_for_entry(
         "ally" => runtime.party.active_ids(),
         _ => Vec::new(),
     };
-    if entry.effect_type == "revive" {
-        targets.retain(|id| {
-            runtime
-                .party
-                .roster
-                .get(id)
-                .map(|actor| actor.current_hp <= 0)
-                .unwrap_or(false)
-        });
-    }
+    targets.retain(|id| {
+        runtime
+            .party
+            .roster
+            .get(id)
+            .map(|actor| field_spell_target_allowed(entry.effect_type.as_str(), actor.current_hp))
+            .unwrap_or(false)
+    });
     targets
+}
+
+fn field_spell_target_allowed(effect_type: &str, current_hp: i32) -> bool {
+    match effect_type {
+        "heal" => current_hp > 0,
+        "revive" => current_hp <= 0,
+        _ => true,
+    }
+}
+
+fn apply_field_heal(current_hp: i32, max_hp: i32, amount: i32) -> i32 {
+    if current_hp <= 0 {
+        current_hp
+    } else {
+        (current_hp + amount).clamp(0, max_hp)
+    }
 }
 
 pub fn apply_spell_to_targets(
@@ -316,7 +330,7 @@ pub fn apply_spell_to_actor(
                 &target_stats,
                 entry.effect_power,
             );
-            actor.current_hp = (actor.current_hp + base_heal.max(1)).clamp(0, max_hp);
+            actor.current_hp = apply_field_heal(actor.current_hp, max_hp, base_heal.max(1));
         }
         "revive" => {
             if actor.current_hp <= 0 {
@@ -805,4 +819,27 @@ fn build_spell_description(
         ]));
     }
     lines
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{apply_field_heal, field_spell_target_allowed};
+
+    #[test]
+    fn field_spell_heal_targets_living_only() {
+        assert!(field_spell_target_allowed("heal", 1));
+        assert!(!field_spell_target_allowed("heal", 0));
+    }
+
+    #[test]
+    fn field_spell_revive_targets_ko_only() {
+        assert!(field_spell_target_allowed("revive", 0));
+        assert!(!field_spell_target_allowed("revive", 5));
+    }
+
+    #[test]
+    fn field_heal_does_not_revive_ko_actor() {
+        assert_eq!(apply_field_heal(0, 100, 30), 0);
+        assert_eq!(apply_field_heal(40, 100, 30), 70);
+    }
 }

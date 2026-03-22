@@ -500,10 +500,11 @@ fn confirm_magic(runtime: &mut GameRuntime) -> std::io::Result<()> {
         if entry.usable {
             if runtime.menu_state.detail_page == 0 {
                 let targets = spell_targets_for_entry(runtime, entry, &actor_id);
-                if entry.default_target == "party" || entry.default_target == "self" {
-                    apply_spell_to_targets(runtime, entry, &actor_id, &targets);
-                } else if targets.is_empty() {
+                if targets.is_empty() {
                     runtime.menu_state.detail_page = 0;
+                    runtime.menu_state.detail_target = 0;
+                } else if entry.default_target == "party" || entry.default_target == "self" {
+                    apply_spell_to_targets(runtime, entry, &actor_id, &targets);
                 } else {
                     runtime.menu_state.detail_page = 1;
                     runtime.menu_state.detail_target = 0;
